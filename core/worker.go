@@ -60,14 +60,14 @@ func (o *WorkerOptions) connectionString() string {
 	return fmt.Sprintf("%s:%d", o.Host, o.Port)
 }
 
-// masterConnectionString returns the connection string for the  master
-func (o *WorkerOptions) masterConnectionString() string {
+// coordinatorConnectionString returns the connection string for the coordinator
+func (o *WorkerOptions) coordinatorConnectionString() string {
 	return fmt.Sprintf("%s:%d", o.CoordinatorHost, o.CoordinatorPort)
 }
 
 func (w *worker) mconnect() (*grpc.ClientConn, error) {
 	// start client
-	conn, err := grpc.Dial(w.opts.masterConnectionString(), grpc.WithInsecure())
+	conn, err := grpc.Dial(w.opts.coordinatorConnectionString(), grpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("fail to dial: %v", err)
 	}

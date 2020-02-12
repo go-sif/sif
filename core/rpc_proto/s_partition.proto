@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package rpc;
+
+// PartitionsService manages data across the cluster
+service PartitionsService {
+    rpc AssignPartition (MAssignPartitionRequest) returns (MAssignPartitionResponse) {}
+    rpc ShufflePartition (MShufflePartitionRequest) returns (MShufflePartitionResponse) {}
+    rpc TransferPartitionData (MTransferPartitionDataRequest) returns (stream MPartitionChunk) {}
+}
+
+message MAssignPartitionRequest {
+    bytes loader = 1;
+}
+
+message MAssignPartitionResponse {
+    // TODO
+}
+
+message MPartitionMeta {
+    string id = 1;
+    uint32 numRows = 2;
+    uint32 maxRows = 3;
+    bool isKeyed = 4;
+}
+
+message MShufflePartitionRequest {
+    uint64 bucket = 1;
+}
+
+message MShufflePartitionResponse {
+    bool ready = 1;
+    bool hasNext = 2;
+    MPartitionMeta part = 3;
+}
+
+message MTransferPartitionDataRequest {
+    string id = 1;
+}
+
+message MPartitionChunk {
+    bytes data = 1;
+    int32 dataType = 2;
+    repeated uint64 keyData = 3 [packed=true];
+    int32 varDataRowNum = 4;
+    string varDataColName = 5;
+    int32 totalSizeBytes = 6;
+    int32 append = 7;
+}
+
+// Intended for disk serialization, not transmission
+message DPartition {
+    string id = 1;
+    uint32 numRows = 2;
+    uint32 maxRows = 3;
+    bool isKeyed = 4;
+    bytes rowData = 5;
+    bytes rowMeta = 6;
+    repeated uint64 keys = 7 [packed=true];
+
+    message DVarRow {
+        map<string, bytes> rowData = 1;
+    }
+
+    repeated DVarRow serializedVarRowData = 8;
+}

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package rpc;
+
+// LogService provides distributed logging
+service LogService {
+    rpc Log (stream MLogMsg) returns (MLogMsgAck) {}
+}
+
+message MLogMsg {
+    int32  level = 1;
+    string source = 2;
+    string message = 3;
+}
+
+message MLogMsgAck {
+    int64 time = 1;
+    int32 count = 2;
+}

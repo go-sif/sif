@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+import "s_cluster.proto";
+
+package rpc;
+
+// LifecycleService manages the lifecycle of Sif cluster members
+service LifecycleService {
+    rpc GracefulStop (MWorkerDescriptor) returns (MStopResponse) {}
+    rpc Stop (MWorkerDescriptor) returns (MStopResponse) {}
+    // rpc Status (MStatusRequest) returns (MStatusResponse) {}
+}
+
+message MStopResponse {
+    int64 time = 1;
+}
+
+// message MStatusRequest {
+//     // TODO
+// }
+
+// message MStatusResponse {
+//     // TODO
+// }

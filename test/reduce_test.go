@@ -62,7 +62,7 @@ func TestReduce(t *testing.T) {
 	// run dataframe and verify results
 	copts := &core.CoordinatorOptions{}
 	wopts := &core.WorkerOptions{}
-	res, err := runFrame(context.Background(), t, frame, copts, wopts, 2)
+	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	require.Nil(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))

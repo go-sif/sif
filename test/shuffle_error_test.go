@@ -45,7 +45,7 @@ func TestShuffleErrors(t *testing.T) {
 	// run dataframe
 	copts := &core.CoordinatorOptions{}
 	wopts := &core.WorkerOptions{IgnoreRowErrors: true}
-	res, err := runFrame(context.Background(), t, frame, copts, wopts, 2)
+	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	for _, part := range res {
 		part.MapRows(func(row *core.Row) error {
 			val, err := row.GetInt32("res")

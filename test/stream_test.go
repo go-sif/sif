@@ -91,7 +91,7 @@ func TestStream(t *testing.T) {
 	defer cancel()
 	copts := &core.CoordinatorOptions{}
 	wopts := &core.WorkerOptions{}
-	_, err = runFrame(ctx, t, frame, copts, wopts, 2)
+	_, err = runTestFrame(ctx, t, frame, copts, wopts, 2)
 	require.True(t, len(processedRows) > 6)
 	for _, r := range processedRows {
 		// 12 rows per batch x 4 generators across 2 workers = 48 ints per reduction

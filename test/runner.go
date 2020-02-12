@@ -14,7 +14,7 @@ import (
 )
 
 // runs a test dataframe on a test cluster
-func runFrame(ctx context.Context, t *testing.T, frame *core.DataFrame, copts *core.CoordinatorOptions, wopts *core.WorkerOptions, numWorkers int) (map[string]*core.Partition, error) {
+func runTestFrame(ctx context.Context, t *testing.T, frame *core.DataFrame, copts *core.CoordinatorOptions, wopts *core.WorkerOptions, numWorkers int) (map[string]*core.Partition, error) {
 	// configure and start coordinator
 	copts.Host = "localhost"
 	copts.Port = 8080
@@ -31,7 +31,6 @@ func runFrame(ctx context.Context, t *testing.T, frame *core.DataFrame, copts *c
 	time.Sleep(50 * time.Millisecond) // TODO worker should retry a few times
 
 	baseWorkerPort := 8081
-	wopts.Port = 8080
 	wopts.Host = "localhost"
 	wopts.CoordinatorHost = "localhost"
 	wopts.CoordinatorPort = copts.Port

@@ -181,6 +181,6 @@ func TestEDSMHeatmap(t *testing.T) {
 	// run dataframe and verify results
 	copts := &core.CoordinatorOptions{}
 	wopts := &core.WorkerOptions{NumInMemoryPartitions: 20}
-	_, err = runFrame(context.Background(), t, frame, copts, wopts, 8)
+	_, err = runTestFrame(context.Background(), t, frame, copts, wopts, 8)
 	require.Nil(t, err)
 }

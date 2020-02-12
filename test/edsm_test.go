@@ -1,4 +1,4 @@
-package integration_test
+package integration
 
 import (
 	"bufio"
@@ -8,13 +8,10 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
-	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"path"
 	"testing"
-	"time"
 
 	types "github.com/go-sif/sif/v0.0.1/columntype"
 	core "github.com/go-sif/sif/v0.0.1/core"
@@ -181,49 +178,9 @@ func TestEDSMHeatmap(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	// start coordinator
-	numWorkers := 8
-	opts := &core.CoordinatorOptions{Port: 8080, Host: "localhost", NumWorkers: numWorkers, WorkerJoinTimeout: time.Duration(5) * time.Second, RPCTimeout: time.Duration(30) * time.Second}
-	coordinator, err := core.CreateNode(core.Coordinator, opts)
-	require.Nil(t, err)
-	go func() {
-		err := coordinator.Start(frame)
-		require.Nil(t, err)
-	}()
-	defer coordinator.GracefulStop()
-	time.Sleep(50 * time.Millisecond) // TODO worker should retry a few times
-
-	// start workers and register with coordinator
-	baseWorkerPort := 8081
-	for port := baseWorkerPort; port < baseWorkerPort+numWorkers; port++ {
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Fatal(err)
-		}
-		tmpDir, err := ioutil.TempDir(cwd, fmt.Sprintf("sif-worker-%d", port))
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer os.RemoveAll(tmpDir)
-		wopts := &core.WorkerOptions{
-			Port:                  port,
-			Host:                  "localhost",
-			CoordinatorPort:       8080,
-			CoordinatorHost:       "localhost",
-			RPCTimeout:            time.Duration(30) * time.Second,
-			TempDir:               tmpDir,
-			NumInMemoryPartitions: 20,
-		}
-		worker, err := core.CreateNode(core.Worker, wopts)
-		require.Nil(t, err)
-		go func() {
-			err := worker.Start(frame)
-			require.Nil(t, err)
-		}()
-		defer worker.GracefulStop()
-	}
-
 	// run dataframe and verify results
-	_, err = coordinator.Run(context.Background())
+	copts := &core.CoordinatorOptions{}
+	wopts := &core.WorkerOptions{NumInMemoryPartitions: 20}
+	_, err = runFrame(context.Background(), t, frame, copts, wopts, 8)
 	require.Nil(t, err)
 }

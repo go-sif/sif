@@ -1,12 +1,9 @@
-package integration_test
+package integration
 
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"math/rand"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -88,58 +85,13 @@ func TestStream(t *testing.T) {
 		}),
 	)
 	require.Nil(t, err)
-	// start coordinator
-	numWorkers := 2
-	opts := &core.CoordinatorOptions{
-		Port:              8080,
-		Host:              "localhost",
-		NumWorkers:        numWorkers,
-		WorkerJoinTimeout: time.Duration(5) * time.Second,
-		RPCTimeout:        time.Duration(5) * time.Second,
-	}
-	coordinator, err := core.CreateNode(core.Coordinator, opts)
-	require.Nil(t, err)
-	go func() {
-		err := coordinator.Start(frame)
-		require.Nil(t, err)
-	}()
-	defer coordinator.GracefulStop()
-	time.Sleep(50 * time.Millisecond) // TODO worker should retry a few times
-
-	// start workers and register with coordinator
-	baseWorkerPort := 8081
-	for port := baseWorkerPort; port < baseWorkerPort+numWorkers; port++ {
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Fatal(err)
-		}
-		tmpDir, err := ioutil.TempDir(cwd, fmt.Sprintf("sif-worker-%d", port))
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer os.RemoveAll(tmpDir)
-		wopts := &core.WorkerOptions{
-			Port:                  port,
-			Host:                  "localhost",
-			CoordinatorPort:       8080,
-			CoordinatorHost:       "localhost",
-			RPCTimeout:            time.Duration(5) * time.Second,
-			TempDir:               tmpDir,
-			NumInMemoryPartitions: 10,
-		}
-		worker, err := core.CreateNode(core.Worker, wopts)
-		require.Nil(t, err)
-		go func() {
-			err := worker.Start(frame)
-			require.Nil(t, err)
-		}()
-		defer worker.GracefulStop()
-	}
 
 	// run dataframe
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, err = coordinator.Run(ctx)
+	copts := &core.CoordinatorOptions{}
+	wopts := &core.WorkerOptions{}
+	_, err = runFrame(ctx, t, frame, copts, wopts, 2)
 	require.True(t, len(processedRows) > 6)
 	for _, r := range processedRows {
 		// 12 rows per batch x 4 generators across 2 workers = 48 ints per reduction

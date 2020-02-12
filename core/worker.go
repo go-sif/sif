@@ -40,6 +40,14 @@ func createWorker(opts nodeOptions) (*worker, error) {
 	if !ok {
 		return nil, fmt.Errorf("Options for a Worker must be WorkerOptions")
 	}
+	// default certain options if not supplied
+	if wOpts.NumInMemoryPartitions == 0 {
+		wOpts.NumInMemoryPartitions = 100 // TODO should this just be a memory limit, and we compute NumInMemoryPartitions ourselves?
+	}
+	if wOpts.RPCTimeout == 0 {
+		wOpts.RPCTimeout = time.Duration(5) * time.Second // TODO sensible default?
+	}
+	// generate worker ID
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)

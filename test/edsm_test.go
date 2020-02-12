@@ -179,8 +179,8 @@ func TestEDSMHeatmap(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	copts := &core.CoordinatorOptions{}
-	wopts := &core.WorkerOptions{NumInMemoryPartitions: 20}
+	copts := &core.NodeOptions{}
+	wopts := &core.NodeOptions{NumInMemoryPartitions: 20}
 	_, err = runTestFrame(context.Background(), t, frame, copts, wopts, 8)
 	require.Nil(t, err)
 }

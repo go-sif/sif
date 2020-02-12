@@ -50,8 +50,8 @@ func TestMapErrors(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe
-	copts := &core.CoordinatorOptions{}
-	wopts := &core.WorkerOptions{IgnoreRowErrors: true}
+	copts := &core.NodeOptions{}
+	wopts := &core.NodeOptions{IgnoreRowErrors: true}
 	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	for _, part := range res {
 		part.MapRows(func(row *core.Row) error {

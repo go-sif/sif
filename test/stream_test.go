@@ -89,8 +89,8 @@ func TestStream(t *testing.T) {
 	// run dataframe
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	copts := &core.CoordinatorOptions{}
-	wopts := &core.WorkerOptions{}
+	copts := &core.NodeOptions{}
+	wopts := &core.NodeOptions{}
 	_, err = runTestFrame(ctx, t, frame, copts, wopts, 2)
 	require.True(t, len(processedRows) > 6)
 	for _, r := range processedRows {

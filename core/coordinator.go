@@ -8,41 +8,24 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"time"
 
 	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 )
 
-// CoordinatorOptions is a struct which configures a Coordinator
-type CoordinatorOptions struct {
-	Port              int
-	Host              string
-	NumWorkers        int           // the number of workers to wait for before running the job
-	WorkerJoinTimeout time.Duration // how long to wait for workers
-	RPCTimeout        time.Duration // general RPC timeout
-}
-
 // coordinator is a Coordinator node which has lifecycle methods
 type coordinator struct {
-	opts          *CoordinatorOptions
+	opts          *NodeOptions
 	server        *grpc.Server
 	clusterServer *clusterServer
 	frame         *DataFrame
 }
 
-// connectionString returns the connection string for the  Coordinator
-func (o *CoordinatorOptions) connectionString() string {
-	return fmt.Sprintf("%s:%d", o.Host, o.Port)
-}
-
-func createCoordinator(opts nodeOptions) (*coordinator, error) {
-	cOpts, ok := opts.(*CoordinatorOptions)
-	if !ok {
-		return nil, fmt.Errorf("Options for a Coordinator must be CoordinatorOptions")
-	}
-	return &coordinator{opts: cOpts}, nil
+func createCoordinator(opts *NodeOptions) (*coordinator, error) {
+	// default certain options if not supplied
+	ensureDefaultNodeOptionsValues(opts)
+	return &coordinator{opts: opts}, nil
 }
 
 // Start the Coordinator - blocking unless run in a goroutine

@@ -14,14 +14,14 @@ import (
 )
 
 // runs a test dataframe on a test cluster
-func runTestFrame(ctx context.Context, t *testing.T, frame *core.DataFrame, copts *core.CoordinatorOptions, wopts *core.WorkerOptions, numWorkers int) (map[string]*core.Partition, error) {
+func runTestFrame(ctx context.Context, t *testing.T, frame *core.DataFrame, copts *core.NodeOptions, wopts *core.NodeOptions, numWorkers int) (map[string]*core.Partition, error) {
 	// configure and start coordinator
 	copts.Host = "localhost"
 	copts.Port = 8080
 	copts.NumWorkers = numWorkers
 	copts.WorkerJoinTimeout = time.Duration(5) * time.Second
 	copts.RPCTimeout = time.Duration(5) * time.Second
-	coordinator, err := core.CreateNode(core.Coordinator, copts)
+	coordinator, err := core.CreateNodeInRole(core.Coordinator, copts)
 	require.Nil(t, err)
 	go func() {
 		err := coordinator.Start(frame)
@@ -51,7 +51,7 @@ func runTestFrame(ctx context.Context, t *testing.T, frame *core.DataFrame, copt
 			log.Fatal(err)
 		}
 		defer os.RemoveAll(tmpDir)
-		wopts := &core.WorkerOptions{
+		wopts := &core.NodeOptions{
 			Port:                  port,
 			Host:                  wopts.Host,
 			CoordinatorPort:       wopts.CoordinatorPort,
@@ -61,7 +61,7 @@ func runTestFrame(ctx context.Context, t *testing.T, frame *core.DataFrame, copt
 			NumInMemoryPartitions: wopts.NumInMemoryPartitions,
 			IgnoreRowErrors:       wopts.IgnoreRowErrors,
 		}
-		worker, err := core.CreateNode(core.Worker, wopts)
+		worker, err := core.CreateNodeInRole(core.Worker, wopts)
 		require.Nil(t, err)
 		go func() {
 			err := worker.Start(frame)

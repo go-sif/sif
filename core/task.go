@@ -3,7 +3,7 @@ package core
 // A Task is an action or transformation applied
 // to Partitions of columnar data.
 type Task interface {
-	RunWorker(previous *Partition) ([]*Partition, error)
+	RunWorker(previous OperablePTition) ([]OperablePTition, error)
 }
 
 // A reductionTask is a task that represents an aggregation
@@ -23,6 +23,6 @@ type collectionTask interface {
 type noOpTask struct{}
 
 // RunWorker for noOpTask does nothing
-func (s *noOpTask) RunWorker(previous *Partition) ([]*Partition, error) {
-	return []*Partition{previous}, nil
+func (s *noOpTask) RunWorker(previous OperablePTition) ([]OperablePTition, error) {
+	return []OperablePTition{previous}, nil
 }

@@ -8,12 +8,12 @@ type mapTask struct {
 	fn core.MapOperation
 }
 
-func (s *mapTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
+func (s *mapTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
 	next, err := previous.MapRows(s.fn)
 	if err != nil {
 		return nil, err
 	}
-	return []*core.Partition{next}, nil
+	return []core.OperablePTition{next}, nil
 }
 
 // Map transforms a Row in-place

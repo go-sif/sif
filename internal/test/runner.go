@@ -14,7 +14,7 @@ import (
 )
 
 // runs a test dataframe on a test cluster
-func runTestFrame(ctx context.Context, t *testing.T, frame core.DataFrame, copts *core.NodeOptions, wopts *core.NodeOptions, numWorkers int) (map[string]*core.Partition, error) {
+func runTestFrame(ctx context.Context, t *testing.T, frame core.DataFrame, copts *core.NodeOptions, wopts *core.NodeOptions, numWorkers int) (map[string]core.CollectedPTition, error) {
 	// configure and start coordinator
 	copts.Host = "localhost"
 	copts.Port = 8080

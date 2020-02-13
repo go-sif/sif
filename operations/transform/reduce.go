@@ -13,13 +13,13 @@ type reduceTask struct {
 	fn  core.ReductionOperation
 }
 
-func (s *reduceTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
+func (s *reduceTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
 	// Start by keying the rows in the partition
 	part, err := previous.KeyRows(s.kfn)
 	if err != nil {
 		return nil, err
 	}
-	return []*core.Partition{part}, nil
+	return []core.OperablePTition{part}, nil
 }
 
 func (s *reduceTask) GetKeyingOperation() core.KeyingOperation {

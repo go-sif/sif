@@ -25,7 +25,7 @@ type Node interface {
 	Start(DataFrame) error
 	GracefulStop() error
 	Stop() error
-	Run(ctx context.Context) (map[string]*Partition, error)
+	Run(ctx context.Context) (map[string]CollectedPTition, error)
 }
 
 // NodeOptions are options for a Node, configuring elements of a Sif cluster

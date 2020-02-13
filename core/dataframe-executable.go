@@ -56,14 +56,18 @@ func (df *dataFrameImpl) analyzeSource() (PartitionMap, error) {
 	return df.source.Analyze()
 }
 
+func test(p OperablePTition) OperablePTition {
+	return p
+}
+
 // workerExecuteTask runs this DataFrame's task against the previous Partition,
 // returning the modified Partition (or a new one(s) if necessary).
 // The previous Partition may be nil.
-func (df *dataFrameImpl) workerExecuteTask(previous *Partition) ([]*Partition, error) {
-	res, err := df.task.RunWorker(previous)
+func (df *dataFrameImpl) workerExecuteTask(previous OperablePTition) ([]OperablePTition, error) {
+	res, err := df.task.RunWorker(test(previous))
 	if err != nil {
 		return nil, err
 	}
-	previous.currentSchema = df.schema // update current schema
-	return res, err
+	previous.UpdateCurrentSchema(df.schema) // update current schema
+	return res, nil
 }

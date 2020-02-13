@@ -34,12 +34,12 @@ func (jsonli *jsonlFilePartitionIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (jsonli *jsonlFilePartitionIterator) NextPartition() (*core.Partition, error) {
+func (jsonli *jsonlFilePartitionIterator) NextPartition() (core.PTition, error) {
 	jsonli.lock.Lock()
 	defer jsonli.lock.Unlock()
 	colNames := jsonli.schema.ColumnNames()
 	colTypes := jsonli.schema.ColumnTypes()
-	part := core.CreatePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialSchema, jsonli.schema)
+	part := core.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialSchema, jsonli.schema)
 	// parse lines
 	for {
 		// If the partition is full, we're done

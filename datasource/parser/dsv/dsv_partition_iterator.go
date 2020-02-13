@@ -34,12 +34,12 @@ func (dsvi *dsvFilePartitionIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (dsvi *dsvFilePartitionIterator) NextPartition() (*core.Partition, error) {
+func (dsvi *dsvFilePartitionIterator) NextPartition() (core.PTition, error) {
 	dsvi.lock.Lock()
 	defer dsvi.lock.Unlock()
 	colNames := dsvi.schema.ColumnNames()
 	colTypes := dsvi.schema.ColumnTypes()
-	part := core.CreatePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialSchema, dsvi.schema)
+	part := core.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialSchema, dsvi.schema)
 	// parse lines
 	for {
 		// If the partition is full, we're done

@@ -14,9 +14,9 @@ func (s *collectTask) Name() string {
 	return "collect"
 }
 
-func (s *collectTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
+func (s *collectTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
 	// do nothing
-	return []*core.Partition{previous}, nil
+	return []core.OperablePTition{previous}, nil
 }
 
 func (s *collectTask) GetCollectionLimit() int64 {

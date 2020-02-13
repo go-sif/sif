@@ -8,8 +8,8 @@ import (
 type removeColumnTask struct{}
 
 // RunWorker for removeColumnTask does nothing
-func (s *removeColumnTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
-	return []*core.Partition{previous}, nil
+func (s *removeColumnTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
+	return []core.OperablePTition{previous}, nil
 }
 
 // RemoveColumn removes existing columns

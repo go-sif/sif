@@ -9,20 +9,20 @@ import (
 // PartitionIterator is a generalized interface for iterating over Partitions, regardless of where they come from
 type PartitionIterator interface {
 	HasNextPartition() bool
-	NextPartition() (*Partition, error)
+	NextPartition() (PTition, error)
 	OnEnd(onEnd func())
 }
 
 // PartitionSliceIterator produces a simple iterator for Partitions stored in a slice
 type PartitionSliceIterator struct {
-	partitions   []*Partition
+	partitions   []PTition
 	next         int
 	lock         sync.Mutex
 	endListeners []func()
 }
 
 // CreatePartitionSliceIterator produces a new PartitionIterator for iterating over a slice of Partitions
-func CreatePartitionSliceIterator(partitions []*Partition) PartitionIterator {
+func CreatePartitionSliceIterator(partitions []PTition) PartitionIterator {
 	return &PartitionSliceIterator{
 		partitions:   partitions,
 		next:         0,
@@ -45,7 +45,7 @@ func (psi *PartitionSliceIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (psi *PartitionSliceIterator) NextPartition() (*Partition, error) {
+func (psi *PartitionSliceIterator) NextPartition() (PTition, error) {
 	psi.lock.Lock()
 	defer psi.lock.Unlock()
 	if psi.next >= len(psi.partitions) {
@@ -95,7 +95,7 @@ func (pli *partitionLoaderIterator) HasNextPartition() bool {
 	return pli.next < len(pli.partitionLoaders) || pli.partitionGroup.HasNextPartition()
 }
 
-func (pli *partitionLoaderIterator) NextPartition() (*Partition, error) {
+func (pli *partitionLoaderIterator) NextPartition() (PTition, error) {
 	pli.lock.Lock()
 	defer pli.lock.Unlock()
 	// TODO switch to round robin across all loaders, for streaming data
@@ -126,7 +126,7 @@ func (pli *partitionLoaderIterator) NextPartition() (*Partition, error) {
 
 // PartitionCacheIterator produces Partitions non-sorted, cached data
 type partitionCacheIterator struct {
-	partitions   map[string]*Partition // partition id -> partition
+	partitions   map[string]PTition // partition id -> partition
 	keys         []string
 	next         int
 	destructive  bool
@@ -134,7 +134,7 @@ type partitionCacheIterator struct {
 	endListeners []func()
 }
 
-func createPartitionCacheIterator(partitions map[string]*Partition, destructive bool) PartitionIterator {
+func createPartitionCacheIterator(partitions map[string]PTition, destructive bool) PartitionIterator {
 	keys := make([]string, len(partitions))
 	i := 0
 	for k := range partitions {
@@ -163,7 +163,7 @@ func (pci *partitionCacheIterator) HasNextPartition() bool {
 	return pci.next < len(pci.keys)
 }
 
-func (pci *partitionCacheIterator) NextPartition() (*Partition, error) {
+func (pci *partitionCacheIterator) NextPartition() (PTition, error) {
 	pci.lock.Lock()
 	defer pci.lock.Unlock()
 	if pci.next >= len(pci.keys) {
@@ -210,7 +210,7 @@ func (tpi *pTreePartitionIterator) HasNextPartition() bool {
 	return tpi.next != nil
 }
 
-func (tpi *pTreePartitionIterator) NextPartition() (*Partition, error) {
+func (tpi *pTreePartitionIterator) NextPartition() (PTition, error) {
 	tpi.lock.Lock()
 	defer tpi.lock.Unlock()
 	if tpi.next == nil {

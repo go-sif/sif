@@ -14,9 +14,9 @@ func createPartitionTestSchema() *Schema {
 	return schema
 }
 
-func TestCreatePartition(t *testing.T) {
+func TestCreatePartitionImpl(t *testing.T) {
 	schema := createPartitionTestSchema()
-	part := CreatePartition(4, schema, schema)
+	part := createPartitionImpl(4, schema, schema)
 	require.Equal(t, part.GetMaxRows(), 4)
 	require.Equal(t, part.GetNumRows(), 0)
 	require.Nil(t, part.canInsertRowData(make([]byte, 1)))
@@ -27,7 +27,7 @@ func TestCreatePartition(t *testing.T) {
 func TestAppendRowData(t *testing.T) {
 	// make partition
 	schema := createPartitionTestSchema()
-	part := CreatePartition(4, schema, schema)
+	part := createPartitionImpl(4, schema, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	r := []byte{byte(uint8(1))}
 	// append and validate row
@@ -50,7 +50,7 @@ func TestAppendRowData(t *testing.T) {
 func TestInsertRowData(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := CreatePartition(4, schema, schema)
+	part := createPartitionImpl(4, schema, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -73,7 +73,7 @@ func TestInsertRowData(t *testing.T) {
 func TestPartitionFullError(t *testing.T) {
 	// create partition with max 1 row
 	schema := createPartitionTestSchema()
-	part := CreatePartition(1, schema, schema)
+	part := createPartitionImpl(1, schema, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -93,7 +93,7 @@ func TestPartitionFullError(t *testing.T) {
 func TestIncompatibleRowError(t *testing.T) {
 	// create partition with max 1 row
 	schema := createPartitionTestSchema()
-	part := CreatePartition(1, schema, schema)
+	part := createPartitionImpl(1, schema, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -114,7 +114,7 @@ func TestIncompatibleRowError(t *testing.T) {
 func TestMapRows(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := CreatePartition(4, schema, schema)
+	part := createPartitionImpl(4, schema, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append rows
 	for i := 0; i < 4; i++ {
@@ -135,7 +135,7 @@ func TestMapRows(t *testing.T) {
 func TestKeyRows(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := CreatePartition(8, schema, schema)
+	part := createPartitionImpl(8, schema, schema)
 	// append rows
 	for i := 0; i < 7; i++ {
 		r := []byte{uint8(i)}
@@ -176,7 +176,7 @@ func TestKeyRows(t *testing.T) {
 func TestSplit(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := CreatePartition(8, schema, schema)
+	part := createPartitionImpl(8, schema, schema)
 	// append rows
 	for i := 0; i < 8; i++ {
 		r := []byte{byte(uint8(i))}
@@ -219,7 +219,7 @@ func TestSerialization(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &types.VarStringColumnType{})
-	part := CreatePartition(8, schema, schema)
+	part := createPartitionImpl(8, schema, schema)
 	// append rows
 	for i := 0; i < 8; i++ {
 		r := []byte{byte(uint8(i))}
@@ -260,7 +260,7 @@ func TestRepack(t *testing.T) {
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &types.Float64ColumnType{})
 	schema.CreateColumn("col3", &types.VarStringColumnType{})
-	part := CreatePartition(8, schema, schema)
+	part := createPartitionImpl(8, schema, schema)
 	// append rows
 	for i := 0; i < 8; i++ {
 		row, err := part.AppendEmptyRowData()

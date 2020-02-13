@@ -8,7 +8,7 @@ type flatMapTask struct {
 	fn core.FlatMapOperation
 }
 
-func (s *flatMapTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
+func (s *flatMapTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
 	results, err := previous.FlatMapRows(s.fn)
 	if err != nil {
 		return nil, err

@@ -13,7 +13,7 @@ import (
 
 type partitionServer struct {
 	planExecutor *planExecutor
-	cache        map[string]*Partition
+	cache        map[string]TransferrablePTition
 	cacheLock    sync.Mutex
 }
 
@@ -42,10 +42,11 @@ func (s *partitionServer) ShufflePartition(ctx context.Context, req *pb.MShuffle
 	if err != nil {
 		return nil, err
 	}
+	tpart := part.(TransferrablePTition)
 	s.cacheLock.Lock()
-	s.cache[part.ID()] = part
+	s.cache[part.ID()] = tpart
 	s.cacheLock.Unlock()
-	return &pb.MShufflePartitionResponse{Ready: true, HasNext: pi.HasNextPartition(), Part: part.toMetaMessage()}, nil
+	return &pb.MShufflePartitionResponse{Ready: true, HasNext: pi.HasNextPartition(), Part: tpart.toMetaMessage()}, nil
 }
 
 // TransferPartitionData streams Partition data from the cache to the requester
@@ -93,7 +94,7 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 				continue
 			}
 			// no need to serialize values for columns we've dropped
-			if col, ok := part.currentSchema.schema[k]; ok {
+			if col, ok := part.getCurrentSchema().schema[k]; ok {
 				if vcol, ok := col.colType.(VarColumnType); ok {
 					sdata, err := vcol.Serialize(v)
 					if err != nil {

@@ -98,7 +98,7 @@ func (w *worker) Start(frame DataFrame) error {
 	// register rpc handlers for frame execution
 	pb.RegisterLifecycleServiceServer(w.server, &lifecycleServer{node: w})
 	pb.RegisterExecutionServiceServer(w.server, &executionServer{logClient: w.logClient, planExecutor: planExecutor})
-	pb.RegisterPartitionsServiceServer(w.server, &partitionServer{planExecutor: planExecutor, cache: make(map[string]*Partition)})
+	pb.RegisterPartitionsServiceServer(w.server, &partitionServer{planExecutor: planExecutor})
 	// register with master after we are serving
 	ctx, cancel := context.WithTimeout(context.Background(), w.opts.RPCTimeout)
 	defer cancel()
@@ -141,7 +141,7 @@ func (w *worker) Stop() error {
 }
 
 // Run is a no-op for workers
-func (w *worker) Run(ctx context.Context) (map[string]*Partition, error) {
+func (w *worker) Run(ctx context.Context) (map[string]CollectedPTition, error) {
 	return nil, nil
 }
 

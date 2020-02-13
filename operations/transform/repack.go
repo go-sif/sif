@@ -8,12 +8,12 @@ type repackTask struct {
 	newSchema *core.Schema
 }
 
-func (s *repackTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
+func (s *repackTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
 	part, err := previous.Repack(s.newSchema)
 	if err != nil {
 		return nil, err
 	}
-	return []*core.Partition{part}, nil
+	return []core.OperablePTition{part}, nil
 }
 
 // Repack rearranges memory layout of rows to respect a new schema

@@ -69,7 +69,7 @@ func (c *coordinator) Stop() error {
 }
 
 // Run a DataFrame Plan within this cluster
-func (c *coordinator) Run(ctx context.Context) (map[string]*Partition, error) {
+func (c *coordinator) Run(ctx context.Context) (map[string]CollectedPTition, error) {
 	var wg sync.WaitGroup
 	waitCtx, cancel := context.WithTimeout(ctx, c.opts.WorkerJoinTimeout)
 	defer cancel()
@@ -139,7 +139,7 @@ func (c *coordinator) Run(ctx context.Context) (map[string]*Partition, error) {
 				asyncErrors = createAsyncErrorChannel()
 				// run collect
 				wg.Add(len(workers))
-				collected := make(map[string]*Partition)
+				collected := make(map[string]CollectedPTition)
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
 				var collectedLock sync.Mutex
 				for i := range workers {
@@ -234,7 +234,7 @@ func asyncRunStage(ctx context.Context, s *stage, w *pb.MWorkerDescriptor, conn 
 	// TODO do something with response
 }
 
-func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, currentSchema *Schema, incomingSchema *Schema, collected map[string]*Partition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, currentSchema *Schema, incomingSchema *Schema, collected map[string]CollectedPTition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Collect from worker

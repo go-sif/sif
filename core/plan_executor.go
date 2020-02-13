@@ -26,7 +26,7 @@ type planExecutor struct {
 	shuffleTreesLock     sync.Mutex
 	shuffleIterators     map[uint64]PartitionIterator // used to serve partitions from the shuffleTree
 	shuffleIteratorsLock sync.Mutex
-	collectCache         map[string]*Partition // staging area used for collection when there has been no shuffle
+	collectCache         map[string]PTition // staging area used for collection when there has been no shuffle
 	collectCacheLock     sync.Mutex
 }
 
@@ -51,7 +51,7 @@ func createplanExecutor(plan *plan, conf *PlanExecutorConfig) *planExecutor {
 		partitionLoaders: make([]PartitionLoader, 0),
 		shuffleTrees:     make(map[uint64]*pTreeRoot),
 		shuffleIterators: make(map[uint64]PartitionIterator),
-		collectCache:     make(map[string]*Partition),
+		collectCache:     make(map[string]PTition),
 	}
 }
 
@@ -145,7 +145,7 @@ func (pe *planExecutor) assignPartitionLoader(sLoader []byte) error {
 }
 
 // flatMapPartitions applies a Partition operation to all partitions in this plan, regardless of where they come from
-func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(*Partition) ([]*Partition, error), logClient pb.LogServiceClient, runShuffle bool, prepCollect bool, buckets []uint64, workers []*pb.MWorkerDescriptor) error {
+func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(OperablePTition) ([]OperablePTition, error), logClient pb.LogServiceClient, runShuffle bool, prepCollect bool, buckets []uint64, workers []*pb.MWorkerDescriptor) error {
 	if len(pe.plan.stages) == 0 {
 		return fmt.Errorf("Plan has no stages")
 	}
@@ -156,7 +156,8 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(*Partitio
 		if err != nil {
 			return err
 		}
-		newParts, err := fn(part)
+		opart := part.(OperablePTition)
+		newParts, err := fn(opart)
 		if err != nil {
 			// TODO eliminate this duplication from s_execution
 			// if this is a multierror, it's from a row transformation, which we might want to ignore
@@ -185,19 +186,20 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(*Partitio
 			}
 		}
 		for _, newPart := range newParts {
+			tNewPart := newPart.(TransferrablePTition)
 			if runShuffle {
-				if !newPart.getIsKeyed() {
+				if !tNewPart.getIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
 				}
-				err = pe.prepareShuffle(newPart, buckets)
+				err = pe.prepareShuffle(tNewPart, buckets)
 				if err != nil {
 					return err
 				}
 			} else if prepCollect {
-				if pe.collectCache[newPart.ID()] != nil {
+				if pe.collectCache[tNewPart.ID()] != nil {
 					return fmt.Errorf("Partition ID collision")
 				}
-				pe.collectCache[newPart.ID()] = newPart
+				pe.collectCache[tNewPart.ID()] = tNewPart
 			}
 		}
 	}
@@ -208,7 +210,7 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(*Partitio
 }
 
 // prepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
-func (pe *planExecutor) prepareShuffle(part *Partition, buckets []uint64) error {
+func (pe *planExecutor) prepareShuffle(part TransferrablePTition, buckets []uint64) error {
 	for i := 0; i < part.GetNumRows(); i++ {
 		key, err := part.getKey(i)
 		if err != nil {
@@ -218,7 +220,7 @@ func (pe *planExecutor) prepareShuffle(part *Partition, buckets []uint64) error 
 		pe.shuffleTreesLock.Lock()
 		if _, ok := pe.shuffleTrees[buckets[bucket]]; !ok {
 			nextStage := pe.peekNextStage()
-			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, part.maxRows, nextStage.widestInitialSchema(), nextStage.incomingSchema)
+			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, part.GetMaxRows(), nextStage.widestInitialSchema(), nextStage.incomingSchema)
 		}
 		pe.shuffleTreesLock.Unlock()
 		pe.shuffleTrees[buckets[bucket]].mergeRow(part.GetRow(i), pe.plan.stages[pe.nextStage-1].keyFn, pe.plan.stages[pe.nextStage-1].reduceFn)

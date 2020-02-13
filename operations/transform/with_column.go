@@ -8,8 +8,8 @@ import (
 type addColumnTask struct{}
 
 // RunWorker for addColumnTask does nothing
-func (s *addColumnTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
-	return []*core.Partition{previous}, nil
+func (s *addColumnTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
+	return []core.OperablePTition{previous}, nil
 }
 
 // AddColumn declares that a new (empty) column with a

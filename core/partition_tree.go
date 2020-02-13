@@ -14,7 +14,7 @@ type pTreeNode struct {
 	k                       uint64
 	left                    *pTreeNode
 	right                   *pTreeNode
-	part                    *Partition
+	part                    TreeablePTition
 	nextStageWidestSchema   *Schema
 	nextStageIncomingSchema *Schema
 	diskPath                string
@@ -43,7 +43,7 @@ func createPTreeNode(conf *PlanExecutorConfig, maxRows int, nextStageWidestSchem
 	if err != nil {
 		log.Fatalf("Unable to initialize lru cache for partitions: %e", err)
 	}
-	part := CreatePartition(maxRows, nextStageWidestSchema, nextStageIncomingSchema)
+	part := createTreeablePartition(maxRows, nextStageWidestSchema, nextStageIncomingSchema)
 	part.KeyRows(nil)
 	cache.Add(part.ID(), part)
 	return &pTreeNode{
@@ -56,7 +56,7 @@ func createPTreeNode(conf *PlanExecutorConfig, maxRows int, nextStageWidestSchem
 }
 
 // mergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
-func (t *pTreeRoot) mergePartition(part *Partition, keyfn KeyingOperation, reducefn ReductionOperation) error {
+func (t *pTreeRoot) mergePartition(part TreeablePTition, keyfn KeyingOperation, reducefn ReductionOperation) error {
 	for i := 0; i < part.GetNumRows(); i++ {
 		row := part.buildRow(i)
 		if err := t.mergeRow(row, keyfn, reducefn); err != nil {
@@ -139,14 +139,14 @@ func (t *pTreeRoot) mergeRow(row *Row, keyfn KeyingOperation, reducefn Reduction
 			data:              partNode.part.getRowData(idx),
 			varData:           partNode.part.getVarRowData(idx),
 			serializedVarData: partNode.part.getSerializedVarRowData(idx),
-			schema:            partNode.part.currentSchema,
+			schema:            partNode.part.getCurrentSchema(),
 		}
 		return reducefn(target, row)
 	}
 	return nil
 }
 
-func (t *pTreeNode) loadPartition() (*Partition, error) {
+func (t *pTreeNode) loadPartition() (TreeablePTition, error) {
 	if t.part == nil {
 		buff, err := ioutil.ReadFile(t.diskPath)
 		if err != nil {
@@ -169,7 +169,7 @@ func onPartitionEvict(tempDir string, partID string, t *pTreeNode) {
 		if err != nil {
 			log.Fatalf("Unable to convert partition to buffer %s", err)
 		}
-		tmpfile, err := ioutil.TempFile(tempDir, t.part.id)
+		tmpfile, err := ioutil.TempFile(tempDir, t.part.ID())
 		defer tmpfile.Close()
 		if err != nil {
 			log.Fatalf("Unable to create temporary file for partition %s", err)

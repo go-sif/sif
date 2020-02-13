@@ -49,10 +49,10 @@ func (s *stage) widestInitialSchema() *Schema {
 // workerExecute runs a stage against a Partition of data, returning
 // the modified Partition (which may have been modified in-place, filtered,
 // or turned into multiple Partitions)
-func (s *stage) workerExecute(part *Partition) ([]*Partition, error) {
-	var prev = []*Partition{part}
+func (s *stage) workerExecute(part OperablePTition) ([]OperablePTition, error) {
+	var prev = []OperablePTition{part}
 	for _, frame := range s.frames {
-		next := make([]*Partition, 0, len(prev))
+		next := make([]OperablePTition, 0, len(prev))
 		for _, p := range prev {
 			out, err := frame.workerExecuteTask(p)
 			if err != nil {

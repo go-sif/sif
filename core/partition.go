@@ -25,10 +25,8 @@ const (
 	keyDataType
 )
 
-// Partition is a portion of a columnar dataset, consisting of multiple Rows.
-// Partitions are not generally interacted with directly, instead being
-// manipulated in parallel by DataFrame Tasks.
-type Partition struct {
+// partitionImpl is Sif's internal implementation of Partition
+type partitionImpl struct {
 	id                   string
 	maxRows              int
 	numRows              int
@@ -42,13 +40,13 @@ type Partition struct {
 	isKeyed              bool
 }
 
-// CreatePartition creates a new Partition containing an empty byte array and a schema
-func CreatePartition(maxRows int, widestSchema *Schema, currentSchema *Schema) *Partition {
+// createPartitionImpl creates a new Partition containing an empty byte array and a schema
+func createPartitionImpl(maxRows int, widestSchema *Schema, currentSchema *Schema) *partitionImpl {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID for Partition: %v", err)
 	}
-	return &Partition{
+	return &partitionImpl{
 		id:                   id.String(),
 		maxRows:              maxRows,
 		numRows:              0,
@@ -63,23 +61,38 @@ func CreatePartition(maxRows int, widestSchema *Schema, currentSchema *Schema) *
 	}
 }
 
+// createTreeablePartition creates a new Partition containing an empty byte array and a schema
+func createTreeablePartition(maxRows int, widestSchema *Schema, currentSchema *Schema) TreeablePTition {
+	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+}
+
+// CreateBuildablePartition creates a new Partition containing an empty byte array and a schema
+func CreateBuildablePartition(maxRows int, widestSchema *Schema, currentSchema *Schema) BuildablePTition {
+	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+}
+
+// CreatePartition creates a new Partition containing an empty byte array and a schema
+func CreatePartition(maxRows int, widestSchema *Schema, currentSchema *Schema) PTition {
+	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+}
+
 // ID retrieves the ID of this Partition
-func (p *Partition) ID() string {
+func (p *partitionImpl) ID() string {
 	return p.id
 }
 
 // GetMaxRows retrieves the maximum number of rows in this Partition
-func (p *Partition) GetMaxRows() int {
+func (p *partitionImpl) GetMaxRows() int {
 	return p.maxRows
 }
 
 // GetNumRows retrieves the number of rows in this Partition
-func (p *Partition) GetNumRows() int {
+func (p *partitionImpl) GetNumRows() int {
 	return p.numRows
 }
 
 // GetRow retrieves a specific row from this Partition
-func (p *Partition) GetRow(rowNum int) *Row {
+func (p *partitionImpl) GetRow(rowNum int) *Row {
 	return &Row{
 		meta:              p.getRowMeta(rowNum),
 		data:              p.getRowData(rowNum),
@@ -90,14 +103,14 @@ func (p *Partition) GetRow(rowNum int) *Row {
 }
 
 // getRowMeta retrieves specific row metadata from this Partition
-func (p *Partition) getRowMeta(rowNum int) []byte {
+func (p *partitionImpl) getRowMeta(rowNum int) []byte {
 	start := rowNum * p.widestSchema.NumColumns()
 	end := start + p.widestSchema.NumColumns()
 	return p.rowMeta[start:end]
 }
 
 // getRowMetaRange retrieves an arbitrary range of bytes from the row meta
-func (p *Partition) getRowMetaRange(start int, end int) []byte {
+func (p *partitionImpl) getRowMetaRange(start int, end int) []byte {
 	maxByte := p.numRows * p.widestSchema.NumColumns()
 	if end > maxByte {
 		end = maxByte
@@ -106,14 +119,14 @@ func (p *Partition) getRowMetaRange(start int, end int) []byte {
 }
 
 // getRowData retrieves a specific row from this Partition
-func (p *Partition) getRowData(rowNum int) []byte {
+func (p *partitionImpl) getRowData(rowNum int) []byte {
 	start := rowNum * p.widestSchema.Size()
 	end := start + p.widestSchema.Size()
 	return p.rows[start:end]
 }
 
 // getRowDataRange retrieves an arbitrary range of bytes from the row data
-func (p *Partition) getRowDataRange(start int, end int) []byte {
+func (p *partitionImpl) getRowDataRange(start int, end int) []byte {
 	maxByte := p.numRows * p.widestSchema.Size()
 	if end > maxByte {
 		end = maxByte
@@ -122,7 +135,7 @@ func (p *Partition) getRowDataRange(start int, end int) []byte {
 }
 
 // getVarRowData retrieves the variable-length data for a given row from this Partition
-func (p *Partition) getVarRowData(rowNum int) map[string]interface{} {
+func (p *partitionImpl) getVarRowData(rowNum int) map[string]interface{} {
 	if p.varRowData[rowNum] == nil {
 		p.varRowData[rowNum] = make(map[string]interface{})
 	}
@@ -130,7 +143,7 @@ func (p *Partition) getVarRowData(rowNum int) map[string]interface{} {
 }
 
 // getSerializedVarRowData retrieves the serialized variable-length data for a given row from this Partition
-func (p *Partition) getSerializedVarRowData(rowNum int) map[string][]byte {
+func (p *partitionImpl) getSerializedVarRowData(rowNum int) map[string][]byte {
 	if p.serializedVarRowData[rowNum] == nil {
 		p.serializedVarRowData[rowNum] = make(map[string][]byte)
 	}
@@ -138,7 +151,7 @@ func (p *Partition) getSerializedVarRowData(rowNum int) map[string][]byte {
 }
 
 // canInsertRowData checks if a Row can be inserted into this Partition
-func (p *Partition) canInsertRowData(row []byte) error {
+func (p *partitionImpl) canInsertRowData(row []byte) error {
 	// TODO accept and check variable length map for unknown keys
 	if len(row) > p.widestSchema.size {
 		return errors.IncompatibleRowError{}
@@ -150,7 +163,7 @@ func (p *Partition) canInsertRowData(row []byte) error {
 }
 
 // AppendEmptyRowData is a convenient way to add an empty Row to the end of this Partition, returning the Row so that Row methods can be used to populate it
-func (p *Partition) AppendEmptyRowData() (*Row, error) {
+func (p *partitionImpl) AppendEmptyRowData() (*Row, error) {
 	newRowNum := p.numRows
 	err := p.AppendRowData([]byte{0}, []byte{0}, make(map[string]interface{}), make(map[string][]byte))
 	if err != nil {
@@ -160,7 +173,7 @@ func (p *Partition) AppendEmptyRowData() (*Row, error) {
 }
 
 // AppendRowData adds a Row to the end of this Partition, if it isn't full and if the Row fits within the schema
-func (p *Partition) AppendRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte) error {
+func (p *partitionImpl) AppendRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte) error {
 	if err := p.canInsertRowData(row); err != nil {
 		return err
 	}
@@ -173,7 +186,7 @@ func (p *Partition) AppendRowData(row []byte, meta []byte, varData map[string]in
 }
 
 // appendKeyedRowData appends a keyed Row to the end of this Partition
-func (p *Partition) appendKeyedRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte, key uint64) error {
+func (p *partitionImpl) appendKeyedRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte, key uint64) error {
 	if !p.isKeyed {
 		return fmt.Errorf("Partition is not keyed")
 	}
@@ -188,7 +201,7 @@ func (p *Partition) appendKeyedRowData(row []byte, meta []byte, varData map[stri
 }
 
 // InsertRowData inserts a Row at a specific position within this Partition, if it isn't full and if the Row fits within the schema. Other Rows are shifted as necessary.
-func (p *Partition) InsertRowData(row []byte, meta []byte, varRowData map[string]interface{}, serializedVarRowData map[string][]byte, pos int) error {
+func (p *partitionImpl) InsertRowData(row []byte, meta []byte, varRowData map[string]interface{}, serializedVarRowData map[string][]byte, pos int) error {
 	if err := p.canInsertRowData(row); err != nil {
 		return err
 	}
@@ -215,7 +228,7 @@ func (p *Partition) InsertRowData(row []byte, meta []byte, varRowData map[string
 }
 
 // insertKeyedRowData inserts a keyed Row into this Partition
-func (p *Partition) insertKeyedRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte, key uint64, pos int) error {
+func (p *partitionImpl) insertKeyedRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte, key uint64, pos int) error {
 	if !p.isKeyed {
 		return fmt.Errorf("Partition is not keyed")
 	}
@@ -231,7 +244,7 @@ func (p *Partition) insertKeyedRowData(row []byte, meta []byte, varData map[stri
 }
 
 // buildRow constructs a Row from this Partition using the given index
-func (p *Partition) buildRow(idx int) *Row {
+func (p *partitionImpl) buildRow(idx int) *Row {
 	return &Row{
 		meta:              p.getRowMeta(idx),
 		data:              p.getRowData(idx),
@@ -242,7 +255,7 @@ func (p *Partition) buildRow(idx int) *Row {
 }
 
 // MapRows runs a MapOperation on each row in this Partition, manipulating them in-place. Will fall back to creating a fresh partition if PartitionRowErrors occur.
-func (p *Partition) MapRows(fn MapOperation) (*Partition, error) {
+func (p *partitionImpl) MapRows(fn MapOperation) (OperablePTition, error) {
 	inPlace := true // start by attempting to manipulate rows in-place
 	result := p
 	var multierr *multierror.Error
@@ -255,7 +268,7 @@ func (p *Partition) MapRows(fn MapOperation) (*Partition, error) {
 			if inPlace {
 				inPlace = false
 				// immediately switch into creating a new Partition if we haven't already
-				result := CreatePartition(p.maxRows, p.widestSchema, p.currentSchema)
+				result := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
 				// append all rows we've successfully processed so far (up to this one)
 				for j := 0; j < i; j++ {
 					err := result.AppendRowData(p.getRowData(j), p.getRowMeta(j), p.getVarRowData(j), p.getSerializedVarRowData(j))
@@ -272,7 +285,7 @@ func (p *Partition) MapRows(fn MapOperation) (*Partition, error) {
 }
 
 // FlatMapRows runs a FlatMapOperation on each row in this Partition, creating new Partitions
-func (p *Partition) FlatMapRows(fn FlatMapOperation) ([]*Partition, error) {
+func (p *partitionImpl) FlatMapRows(fn FlatMapOperation) ([]OperablePTition, error) {
 	var multierr *multierror.Error
 	// factory for producing new rows compatible with this Partition
 	factory := func() *Row {
@@ -284,8 +297,8 @@ func (p *Partition) FlatMapRows(fn FlatMapOperation) ([]*Partition, error) {
 			schema:            p.currentSchema,
 		}
 	}
-	parts := make([]*Partition, 1)
-	parts = append(parts, CreatePartition(p.maxRows, p.widestSchema, p.currentSchema))
+	parts := make([]OperablePTition, 1)
+	parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
 	for i := 0; i < p.GetNumRows(); i++ {
 		newRows, err := fn(p.buildRow(i), factory)
 		if err != nil {
@@ -293,11 +306,11 @@ func (p *Partition) FlatMapRows(fn FlatMapOperation) ([]*Partition, error) {
 		} else {
 			for _, row := range newRows {
 				appendTarget := parts[len(parts)-1]
-				if appendTarget.numRows >= appendTarget.maxRows {
-					parts = append(parts, CreatePartition(p.maxRows, p.widestSchema, p.currentSchema))
+				if appendTarget.GetNumRows() >= appendTarget.GetMaxRows() {
+					parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
 					appendTarget = parts[len(parts)-1]
 				}
-				appendTarget.AppendRowData(row.data, row.meta, row.varData, row.serializedVarData)
+				appendTarget.(BuildablePTition).AppendRowData(row.data, row.meta, row.varData, row.serializedVarData)
 			}
 		}
 	}
@@ -305,9 +318,9 @@ func (p *Partition) FlatMapRows(fn FlatMapOperation) ([]*Partition, error) {
 }
 
 // FilterRows filters the Rows in the current Partition, creating a new one
-func (p *Partition) FilterRows(fn FilterOperation) (*Partition, error) {
+func (p *partitionImpl) FilterRows(fn FilterOperation) (OperablePTition, error) {
 	var multierr *multierror.Error
-	result := CreatePartition(p.maxRows, p.widestSchema, p.currentSchema)
+	result := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
 	for i := 0; i < p.GetNumRows(); i++ {
 		shouldKeep, err := fn(p.buildRow(i))
 		if err != nil {
@@ -326,19 +339,24 @@ func (p *Partition) FilterRows(fn FilterOperation) (*Partition, error) {
 }
 
 // getCurrentSchema retrieves the Schema from the most recent task that manipulated this Partition
-func (p *Partition) getCurrentSchema() *Schema {
+func (p *partitionImpl) getCurrentSchema() *Schema {
 	return p.currentSchema
 }
 
+// UpdateCurrentSchema updates the Schema of this Partition
+func (p *partitionImpl) UpdateCurrentSchema(currentSchema *Schema) {
+	p.currentSchema = currentSchema
+}
+
 // getWidestSchema retrieves the widest Schema from the stage that produced this Partition, which is equal to the size of a row
-func (p *Partition) getWidestSchema() *Schema {
+func (p *partitionImpl) getWidestSchema() *Schema {
 	return p.widestSchema
 }
 
 // Repack repacks a Partition according to a new Schema
-func (p *Partition) Repack(newSchema *Schema) (*Partition, error) {
+func (p *partitionImpl) Repack(newSchema *Schema) (OperablePTition, error) {
 	// create a new Partition
-	part := CreatePartition(p.maxRows, newSchema, newSchema)
+	part := createPartitionImpl(p.maxRows, newSchema, newSchema)
 	for i := 0; i < p.GetNumRows(); i++ {
 		row := p.buildRow(i)
 		newRow, err := row.repack(newSchema)
@@ -354,7 +372,7 @@ func (p *Partition) Repack(newSchema *Schema) (*Partition, error) {
 }
 
 // KeyRows generates hash keys for a row from a key column. Attempts to manipulate partition in-place, falling back to creating a fresh partition if there are row errors
-func (p *Partition) KeyRows(kfn KeyingOperation) (*Partition, error) {
+func (p *partitionImpl) KeyRows(kfn KeyingOperation) (OperablePTition, error) {
 	var multierr *multierror.Error
 	inPlace := true // start by attempting to manipulate rows in-place
 	result := p
@@ -370,7 +388,7 @@ func (p *Partition) KeyRows(kfn KeyingOperation) (*Partition, error) {
 			if inPlace {
 				inPlace = false
 				// immediately switch into creating a new Partition if we haven't already
-				result := CreatePartition(p.maxRows, p.widestSchema, p.currentSchema)
+				result := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
 				result.isKeyed = true
 				result.keys = make([]uint64, p.maxRows)
 				// append all rows we've successfully processed so far (up to this one)
@@ -397,7 +415,7 @@ func (p *Partition) KeyRows(kfn KeyingOperation) (*Partition, error) {
 }
 
 // getIsKeyed returns true iff this Partition has been keyed with KeyRows
-func (p *Partition) getIsKeyed() bool {
+func (p *partitionImpl) getIsKeyed() bool {
 	return p.isKeyed
 }
 
@@ -406,7 +424,7 @@ func (p *Partition) getIsKeyed() bool {
 // if it isn't found along with the location the key should be
 // inserted at.
 // PRECONDITION: Partition must already be sorted by key
-func (p *Partition) findFirstKey(key uint64) (int, error) {
+func (p *partitionImpl) findFirstKey(key uint64) (int, error) {
 	l := 0
 	r := p.GetNumRows() - 1
 	for l <= r {
@@ -433,7 +451,7 @@ func (p *Partition) findFirstKey(key uint64) (int, error) {
 // exist within the Partition, an error is returned along with the position it should
 // be located at.
 // PRECONDITION: Partition must already be sorted by key
-func (p *Partition) findFirstRowKey(keyBuf []byte, key uint64, keyfn KeyingOperation) (int, error) {
+func (p *partitionImpl) findFirstRowKey(keyBuf []byte, key uint64, keyfn KeyingOperation) (int, error) {
 	// find the first matching uint64 key
 	firstKey, err := p.findFirstKey(key)
 	if err != nil {
@@ -461,7 +479,7 @@ func (p *Partition) findFirstRowKey(keyBuf []byte, key uint64, keyfn KeyingOpera
 }
 
 // getKey returns the shuffle key for a row, as generated by KeyRows
-func (p *Partition) getKey(rowNum int) (uint64, error) {
+func (p *partitionImpl) getKey(rowNum int) (uint64, error) {
 	if !p.isKeyed {
 		return 0, fmt.Errorf("Partition is not keyed")
 	}
@@ -469,7 +487,7 @@ func (p *Partition) getKey(rowNum int) (uint64, error) {
 }
 
 // getKeyRange returns a range of shuffle keys for a row, as generated by KeyRows, starting at rowNum
-func (p *Partition) getKeyRange(rowNum int, numRows int) []uint64 {
+func (p *partitionImpl) getKeyRange(rowNum int, numRows int) []uint64 {
 	end := rowNum + numRows
 	if end > p.numRows {
 		end = p.numRows
@@ -478,12 +496,12 @@ func (p *Partition) getKeyRange(rowNum int, numRows int) []uint64 {
 }
 
 // split splits a Partition into two Partitions. Split position ends up in right Partition.
-func (p *Partition) split(pos int) (*Partition, *Partition, error) {
+func (p *partitionImpl) split(pos int) (TreeablePTition, TreeablePTition, error) {
 	if pos >= p.numRows {
 		return nil, nil, fmt.Errorf("Split position is outside of Partition bounds")
 	}
-	left := CreatePartition(p.maxRows, p.widestSchema, p.currentSchema)
-	right := CreatePartition(p.maxRows, p.widestSchema, p.currentSchema)
+	left := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
+	right := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
 	if p.isKeyed {
 		left.isKeyed = true
 		left.keys = make([]uint64, p.maxRows)
@@ -522,7 +540,7 @@ func (p *Partition) split(pos int) (*Partition, *Partition, error) {
 
 // averageKeyValue computes the floored average
 // value of key within this sorted, keyed Partition
-func (p *Partition) averageKeyValue() (uint64, error) {
+func (p *partitionImpl) averageKeyValue() (uint64, error) {
 	if p.GetNumRows() == 0 {
 		return 0, nil
 	}
@@ -542,7 +560,7 @@ func (p *Partition) averageKeyValue() (uint64, error) {
 // that identical keys (if the Partition is keyed) end up in the same
 // Partition. Identical keys occur due to hash collisions.
 // Split position ends up in right Partition.
-func (p *Partition) balancedSplit() (uint64, *Partition, *Partition, error) {
+func (p *partitionImpl) balancedSplit() (uint64, TreeablePTition, TreeablePTition, error) {
 	if !p.isKeyed {
 		splitPos := p.GetNumRows() / 2
 		lp, rp, err := p.split(splitPos)
@@ -567,7 +585,7 @@ func (p *Partition) balancedSplit() (uint64, *Partition, *Partition, error) {
 }
 
 // toMetaMessage serializes metadata about this Partition to a protobuf message
-func (p *Partition) toMetaMessage() *pb.MPartitionMeta {
+func (p *partitionImpl) toMetaMessage() *pb.MPartitionMeta {
 	return &pb.MPartitionMeta{
 		Id:      p.id,
 		NumRows: uint32(p.numRows),
@@ -577,7 +595,7 @@ func (p *Partition) toMetaMessage() *pb.MPartitionMeta {
 }
 
 // receiveStreamedData loads data from a protobuf stream into this Partition
-func (p *Partition) receiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema *Schema) error {
+func (p *partitionImpl) receiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema *Schema) error {
 	// stream data for Partition
 	rowOffset := 0
 	metaOffset := 0
@@ -626,8 +644,8 @@ func (p *Partition) receiveStreamedData(stream pb.PartitionsService_TransferPart
 }
 
 // PartitionFromMetaMessage deserializes a Partition from a protobuf message
-func partitionFromMetaMessage(m *pb.MPartitionMeta, widestSchema *Schema, currentSchema *Schema) *Partition {
-	part := &Partition{
+func partitionFromMetaMessage(m *pb.MPartitionMeta, widestSchema *Schema, currentSchema *Schema) *partitionImpl {
+	part := &partitionImpl{
 		m.Id,
 		int(m.MaxRows),
 		int(m.NumRows),
@@ -647,7 +665,7 @@ func partitionFromMetaMessage(m *pb.MPartitionMeta, widestSchema *Schema, curren
 }
 
 // toBytes serializes a Partition to a byte array suitable for persistance to disk
-func (p *Partition) toBytes() ([]byte, error) {
+func (p *partitionImpl) toBytes() ([]byte, error) {
 	numRows := p.GetNumRows()
 	svrd := make([]*pb.DPartition_DVarRow, numRows)
 	// include deserialized var row data
@@ -698,13 +716,13 @@ func (p *Partition) toBytes() ([]byte, error) {
 }
 
 // partitionFromBytes converts disk-serialized bytes into a Partition
-func partitionFromBytes(data []byte, widestSchema *Schema, currentSchema *Schema) (*Partition, error) {
+func partitionFromBytes(data []byte, widestSchema *Schema, currentSchema *Schema) (*partitionImpl, error) {
 	m := &pb.DPartition{}
 	err := proto.Unmarshal(data, m)
 	if err != nil {
 		return nil, err
 	}
-	part := &Partition{
+	part := &partitionImpl{
 		id:                   m.Id,
 		maxRows:              int(m.MaxRows),
 		numRows:              int(m.NumRows),

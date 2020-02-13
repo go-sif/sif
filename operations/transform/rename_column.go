@@ -8,8 +8,8 @@ import (
 type renameColumnTask struct{}
 
 // RunWorker for renameColumnTask does nothing
-func (s *renameColumnTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
-	return []*core.Partition{previous}, nil
+func (s *renameColumnTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
+	return []core.OperablePTition{previous}, nil
 }
 
 // RenameColumn renames an existing column

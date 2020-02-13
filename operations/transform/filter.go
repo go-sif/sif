@@ -8,12 +8,12 @@ type filterTask struct {
 	fn core.FilterOperation
 }
 
-func (s *filterTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
+func (s *filterTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
 	result, err := previous.FilterRows(s.fn)
 	if err != nil {
 		return nil, err
 	}
-	return []*core.Partition{result}, nil
+	return []core.OperablePTition{result}, nil
 }
 
 // Filter filters Rows out of a Partition, creating a new one

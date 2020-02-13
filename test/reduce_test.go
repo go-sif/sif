@@ -1,13 +1,8 @@
-package integration_test
+package integration
 
 import (
 	"context"
-	"fmt"
-	"io/ioutil"
-	"log"
-	"os"
 	"testing"
-	"time"
 
 	types "github.com/go-sif/sif/v0.0.1/columntype"
 	core "github.com/go-sif/sif/v0.0.1/core"
@@ -64,50 +59,10 @@ func TestReduce(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	// start coordinator
-	numWorkers := 2
-	opts := &core.CoordinatorOptions{Port: 8080, Host: "localhost", NumWorkers: numWorkers, WorkerJoinTimeout: time.Duration(5) * time.Second, RPCTimeout: time.Duration(5) * time.Second}
-	coordinator, err := core.CreateNode(core.Coordinator, opts)
-	require.Nil(t, err)
-	go func() {
-		err := coordinator.Start(frame)
-		require.Nil(t, err)
-	}()
-	defer coordinator.GracefulStop()
-	time.Sleep(50 * time.Millisecond) // TODO worker should retry a few times
-
-	// start workers and register with coordinator
-	baseWorkerPort := 8081
-	for port := baseWorkerPort; port < baseWorkerPort+numWorkers; port++ {
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Fatal(err)
-		}
-		tmpDir, err := ioutil.TempDir(cwd, fmt.Sprintf("sif-worker-%d", port))
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer os.RemoveAll(tmpDir)
-		wopts := &core.WorkerOptions{
-			Port:                  port,
-			Host:                  "localhost",
-			CoordinatorPort:       8080,
-			CoordinatorHost:       "localhost",
-			RPCTimeout:            time.Duration(5) * time.Second,
-			TempDir:               tmpDir,
-			NumInMemoryPartitions: 10,
-		}
-		worker, err := core.CreateNode(core.Worker, wopts)
-		require.Nil(t, err)
-		go func() {
-			err := worker.Start(frame)
-			require.Nil(t, err)
-		}()
-		defer worker.GracefulStop()
-	}
-
 	// run dataframe and verify results
-	res, err := coordinator.Run(context.Background())
+	copts := &core.NodeOptions{}
+	wopts := &core.NodeOptions{}
+	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	require.Nil(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))

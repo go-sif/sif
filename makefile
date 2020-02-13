@@ -16,6 +16,11 @@ all:
 	@echo "  test          - test the source code"
 
 dependencies:
+	@go get -u golang.org/x/tools
+	@go get -u golang.org/x/lint/golint
+	@go get -u github.com/unchartedsoftware/witch
+	@go get -u github.com/golang/protobuf/protoc-gen-go
+	@make testenv
 	@go get -d -v ./...
 
 fmt:

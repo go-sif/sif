@@ -13,21 +13,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-// WorkerOptions describes configuration for a Master
-type WorkerOptions struct {
-	Port                  int           // Port for this Worker
-	Host                  string        // Hostname for this Worker
-	CoordinatorPort       int           // Port for Coordinator
-	CoordinatorHost       string        // Hostname of Coordinator
-	RPCTimeout            time.Duration // timeout for all RPC calls
-	TempDir               string        // location for storing temporary files (primarily persisted partitions)
-	NumInMemoryPartitions int           // the number of partitions to retain in memory before swapping to disk
-	IgnoreRowErrors       bool          // iff true, log row transformation errors instead of crashing immediately
-}
-
 type worker struct {
 	id            string
-	opts          *WorkerOptions
+	opts          *NodeOptions
 	server        *grpc.Server
 	lifecycleLock sync.Mutex
 	clusterClient pb.ClusterServiceClient
@@ -35,31 +23,20 @@ type worker struct {
 }
 
 // CreateWorker is a factory for Workers
-func createWorker(opts nodeOptions) (*worker, error) {
-	wOpts, ok := opts.(*WorkerOptions)
-	if !ok {
-		return nil, fmt.Errorf("Options for a Worker must be WorkerOptions")
-	}
+func createWorker(opts *NodeOptions) (*worker, error) {
+	// default certain options if not supplied
+	ensureDefaultNodeOptionsValues(opts)
+	// generate worker ID
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)
 	}
-	return &worker{id: id.String(), opts: wOpts}, nil
-}
-
-// connectionString returns the connection string for the  worker
-func (o *WorkerOptions) connectionString() string {
-	return fmt.Sprintf("%s:%d", o.Host, o.Port)
-}
-
-// masterConnectionString returns the connection string for the  master
-func (o *WorkerOptions) masterConnectionString() string {
-	return fmt.Sprintf("%s:%d", o.CoordinatorHost, o.CoordinatorPort)
+	return &worker{id: id.String(), opts: opts}, nil
 }
 
 func (w *worker) mconnect() (*grpc.ClientConn, error) {
 	// start client
-	conn, err := grpc.Dial(w.opts.masterConnectionString(), grpc.WithInsecure())
+	conn, err := grpc.Dial(w.opts.coordinatorConnectionString(), grpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("fail to dial: %v", err)
 	}

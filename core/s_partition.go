@@ -134,7 +134,7 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 		}
 	}
 	// transfer key data
-	if part.IsKeyed() {
+	if part.getIsKeyed() {
 		maxChunkInts := maxChunkBytes / 8
 		for i := 0; i < part.GetNumRows(); i += maxChunkInts {
 			keyRange := part.getKeyRange(i, i+maxChunkInts)

@@ -21,7 +21,7 @@ func TestCreatePartition(t *testing.T) {
 	require.Equal(t, part.GetNumRows(), 0)
 	require.Nil(t, part.canInsertRowData(make([]byte, 1)))
 	require.NotNil(t, part.canInsertRowData(make([]byte, 4)))
-	require.False(t, part.IsKeyed())
+	require.False(t, part.getIsKeyed())
 }
 
 func TestAppendRowData(t *testing.T) {
@@ -146,7 +146,7 @@ func TestKeyRows(t *testing.T) {
 	// add in a single duplicate row for good measure.
 	err := part.AppendRowData([]byte{6}, []byte{0}, make(map[string]interface{}), make(map[string][]byte))
 	// shouldn't be able to get keys before we key a partition
-	_, err = part.GetKey(0)
+	_, err = part.getKey(0)
 	require.NotNil(t, err)
 	// key rows
 	_, err = part.KeyRows(func(row *Row) ([]byte, error) {
@@ -157,11 +157,11 @@ func TestKeyRows(t *testing.T) {
 		return []byte{byte(val)}, nil
 	})
 	require.Nil(t, err)
-	require.True(t, part.IsKeyed())
+	require.True(t, part.getIsKeyed())
 	// compare keys for identical rows
-	key1, err := part.GetKey(6)
+	key1, err := part.getKey(6)
 	require.Nil(t, err)
-	key2, err := part.GetKey(7)
+	key2, err := part.getKey(7)
 	require.Nil(t, err)
 	require.EqualValues(t, key1, key2)
 	// even though the key appears twice, findFirstKey should always return the first occurance
@@ -202,14 +202,14 @@ func TestSplit(t *testing.T) {
 	})
 	// split again and verify keys
 	left, right, err = part.split(4)
-	key, err := part.GetKey(0)
+	key, err := part.getKey(0)
 	require.Nil(t, err)
-	lkey, err := left.GetKey(0)
+	lkey, err := left.getKey(0)
 	require.Nil(t, err)
 	require.Equal(t, key, lkey)
-	key, err = part.GetKey(4)
+	key, err = part.getKey(4)
 	require.Nil(t, err)
-	rkey, err := right.GetKey(0)
+	rkey, err := right.getKey(0)
 	require.Nil(t, err)
 	require.Equal(t, rkey, key)
 }

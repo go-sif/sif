@@ -97,7 +97,7 @@ func TestMergeRow(t *testing.T) {
 	// Test keys are sorted
 	lastKey := uint64(0)
 	for i := 0; i < root.part.GetNumRows(); i++ {
-		k, err := root.part.GetKey(i)
+		k, err := root.part.getKey(i)
 		require.Nil(t, err)
 		require.True(t, k > lastKey)
 		lastKey = k

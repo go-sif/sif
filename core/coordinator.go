@@ -83,13 +83,17 @@ func (c *coordinator) Run(ctx context.Context) (map[string]*Partition, error) {
 	}
 	defer closeGRPCConnections(workerConns)
 	// optimize dataframe to create plan
-	planExecutor := c.frame.optimize().execute(&PlanExecutorConfig{
+	eframe, ok := c.frame.(executableDataFrame)
+	if !ok {
+		return nil, fmt.Errorf("DataFrame must be executable")
+	}
+	planExecutor := eframe.optimize().execute(&PlanExecutorConfig{
 		tempFilePath:       "",
 		inMemoryPartitions: 0,
 		streaming:          c.frame.GetDataSource().IsStreaming(),
 	})
 	// analyze and assign partitions
-	partitionMap, err := c.frame.analyzeSource()
+	partitionMap, err := eframe.analyzeSource()
 	if err != nil {
 		return nil, err
 	}

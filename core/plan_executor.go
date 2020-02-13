@@ -186,7 +186,7 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(*Partitio
 		}
 		for _, newPart := range newParts {
 			if runShuffle {
-				if !newPart.IsKeyed() {
+				if !newPart.getIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
 				}
 				err = pe.prepareShuffle(newPart, buckets)
@@ -210,7 +210,7 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(*Partitio
 // prepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
 func (pe *planExecutor) prepareShuffle(part *Partition, buckets []uint64) error {
 	for i := 0; i < part.GetNumRows(); i++ {
-		key, err := part.GetKey(i)
+		key, err := part.getKey(i)
 		if err != nil {
 			return err
 		}

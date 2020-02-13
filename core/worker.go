@@ -85,10 +85,14 @@ func (w *worker) Start(frame DataFrame) error {
 	w.server = grpc.NewServer()
 	w.lifecycleLock.Unlock()
 	// optimize dataframe to create plan
-	planExecutor := frame.optimize().execute(&PlanExecutorConfig{
+	eframe, ok := frame.(executableDataFrame)
+	if !ok {
+		return fmt.Errorf("DataFrame must be executable")
+	}
+	planExecutor := eframe.optimize().execute(&PlanExecutorConfig{
 		tempFilePath:       w.opts.TempDir,
 		inMemoryPartitions: w.opts.NumInMemoryPartitions,
-		streaming:          frame.getParent().GetDataSource().IsStreaming(),
+		streaming:          eframe.getParent().GetDataSource().IsStreaming(),
 		ignoreRowErrors:    w.opts.IgnoreRowErrors,
 	})
 	// register rpc handlers for frame execution

@@ -71,7 +71,7 @@ func TestEDSMHeatmap(t *testing.T) {
 	frame := createTestEDSMDataFrame(t)
 	frame, err := frame.To(
 		// create column for heatmap reduction
-		ops.WithColumn("heatmap", &VarHeatmapColumnType{}),
+		ops.AddColumn("heatmap", &VarHeatmapColumnType{}),
 		// compute partial heatmaps
 		ops.Map(func(row *core.Row) error {
 			if row.IsNil("coords.x") || row.IsNil("coords.z") {

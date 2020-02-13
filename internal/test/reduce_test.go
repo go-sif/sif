@@ -34,7 +34,7 @@ func TestReduce(t *testing.T) {
 	// create dataframe
 	numRows := 100
 	frame, err := createTestReduceDataFrame(t, numRows).To(
-		ops.WithColumn("count", &types.Uint32ColumnType{}),
+		ops.AddColumn("count", &types.Uint32ColumnType{}),
 		ops.Map(func(row *core.Row) error {
 			err := row.SetInt32("count", int32(1))
 			if err != nil {

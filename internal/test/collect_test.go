@@ -35,7 +35,7 @@ func createTestCollectDataFrame(t *testing.T, numRows int) *core.DataFrame {
 func TestCollect(t *testing.T) {
 	// create dataframe
 	frame, err := createTestCollectDataFrame(t, 10).To(
-		ops.WithColumn("res", &types.VarStringColumnType{}),
+		ops.AddColumn("res", &types.VarStringColumnType{}),
 		ops.Map(func(row *core.Row) error {
 			col1, err := row.GetString("col1")
 			if err != nil {

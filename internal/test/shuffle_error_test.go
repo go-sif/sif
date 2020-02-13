@@ -15,7 +15,7 @@ import (
 func TestShuffleErrors(t *testing.T) {
 	// create dataframe, summing all even numbers and erroring for all odd
 	frame, err := createTestMapErrorDataFrame(t, 10).To(
-		ops.WithColumn("res", &types.Int32ColumnType{}),
+		ops.AddColumn("res", &types.Int32ColumnType{}),
 		ops.Reduce(func(row *core.Row) ([]byte, error) {
 			col1, err := row.GetInt32("col1")
 			if err != nil {

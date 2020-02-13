@@ -42,7 +42,7 @@ func TestStream(t *testing.T) {
 	var processedRows []string       // multiple workers will record their processed rows here
 	// create dataframe
 	frame, err := createTestStreamDataFrame(t, 4).To(
-		ops.WithColumn("res", &types.VarStringColumnType{}),
+		ops.AddColumn("res", &types.VarStringColumnType{}),
 		ops.Map(func(row *core.Row) error {
 			col1, err := row.GetInt32("col1")
 			if err != nil {

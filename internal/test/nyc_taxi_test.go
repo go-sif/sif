@@ -122,7 +122,7 @@ func TestNYCTaxi(t *testing.T) {
 		ops.RemoveColumn("hack", "license", "code", "flag", "type", "pickup_time", "dropoff_time", "passengers", "duration", "distance", "pickup_lon", "pickup_lat"),
 		ops.Repack(),
 		// create column for heatmap reduction
-		ops.WithColumn("heatmap", &VarHeatmapColumnType{}),
+		ops.AddColumn("heatmap", &VarHeatmapColumnType{}),
 		// compute partial heatmaps
 		ops.Map(func(row *core.Row) error {
 			if row.IsNil("dropoff_lat") || row.IsNil("dropoff_lon") {

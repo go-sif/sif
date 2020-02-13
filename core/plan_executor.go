@@ -6,8 +6,8 @@ import (
 	"log"
 	"sync"
 
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
-	logging "github.com/go-sif/sif/v0.0.1/logging"
+	pb "github.com/go-sif/sif/core/internal/rpc"
+	logging "github.com/go-sif/sif/logging"
 	uuid "github.com/gofrs/uuid"
 	"github.com/hashicorp/go-multierror"
 )

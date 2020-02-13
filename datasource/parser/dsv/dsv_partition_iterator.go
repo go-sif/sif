@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	core "github.com/go-sif/sif/v0.0.1/core"
+	core "github.com/go-sif/sif/core"
 )
 
 type dsvFilePartitionIterator struct {

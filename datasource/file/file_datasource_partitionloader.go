@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	core "github.com/go-sif/sif/v0.0.1/core"
+	core "github.com/go-sif/sif/core"
 )
 
 // PartitionLoader is capable of loading partitions of data from a file

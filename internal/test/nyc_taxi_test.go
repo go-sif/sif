@@ -15,12 +15,12 @@ import (
 	"path"
 	"testing"
 
-	types "github.com/go-sif/sif/v0.0.1/columntype"
-	core "github.com/go-sif/sif/v0.0.1/core"
-	"github.com/go-sif/sif/v0.0.1/datasource/file"
-	dsv "github.com/go-sif/sif/v0.0.1/datasource/parser/dsv"
-	ops "github.com/go-sif/sif/v0.0.1/operations/transform"
-	util "github.com/go-sif/sif/v0.0.1/operations/util"
+	types "github.com/go-sif/sif/columntype"
+	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/datasource/file"
+	dsv "github.com/go-sif/sif/datasource/parser/dsv"
+	ops "github.com/go-sif/sif/operations/transform"
+	util "github.com/go-sif/sif/operations/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +46,7 @@ func createTestNYCTaxiDataFrame(t *testing.T) *core.DataFrame {
 	parser := dsv.CreateParser(&dsv.ParserConf{
 		NilValue: "null",
 	})
-	dataframe := file.CreateDataFrame(path.Join(cwd, "../testenv/*.csv"), parser, schema)
+	dataframe := file.CreateDataFrame(path.Join(cwd, "../../testenv/*.csv"), parser, schema)
 	return dataframe
 }
 
@@ -213,7 +213,7 @@ func TestNYCTaxi(t *testing.T) {
 		}
 		cwd, err := os.Getwd()
 		require.Nil(t, err)
-		f, err := os.OpenFile(path.Join(cwd, "../testenv/nyc_taxi.png"), os.O_WRONLY|os.O_CREATE, 0600)
+		f, err := os.OpenFile(path.Join(cwd, "../../testenv/nyc_taxi.png"), os.O_WRONLY|os.O_CREATE, 0600)
 		require.Nil(t, err)
 		defer f.Close()
 		writer := bufio.NewWriter(f)

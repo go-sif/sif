@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-sif/sif/v0.0.1/columntype"
-	core "github.com/go-sif/sif/v0.0.1/core"
+	"github.com/go-sif/sif/columntype"
+	core "github.com/go-sif/sif/core"
 	json "github.com/json-iterator/go"
 )
 

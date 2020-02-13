@@ -1,13 +1,13 @@
 package core
 
-//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./rpc s_log.proto
+//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./internal/rpc s_log.proto
 
 import (
 	"io"
 	"log"
 	"time"
 
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
+	pb "github.com/go-sif/sif/core/internal/rpc"
 )
 
 type logServer struct {

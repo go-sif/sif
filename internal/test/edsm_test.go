@@ -13,11 +13,11 @@ import (
 	"path"
 	"testing"
 
-	types "github.com/go-sif/sif/v0.0.1/columntype"
-	core "github.com/go-sif/sif/v0.0.1/core"
-	"github.com/go-sif/sif/v0.0.1/datasource/file"
-	jsonl "github.com/go-sif/sif/v0.0.1/datasource/parser/jsonl"
-	ops "github.com/go-sif/sif/v0.0.1/operations/transform"
+	types "github.com/go-sif/sif/columntype"
+	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/datasource/file"
+	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
+	ops "github.com/go-sif/sif/operations/transform"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +32,7 @@ func createTestEDSMDataFrame(t *testing.T) *core.DataFrame {
 	})
 	cwd, err := os.Getwd()
 	require.Nil(t, err)
-	dataframe := file.CreateDataFrame(path.Join(cwd, "../testenv/*.jsonl"), parser, schema)
+	dataframe := file.CreateDataFrame(path.Join(cwd, "../../testenv/*.jsonl"), parser, schema)
 	return dataframe
 }
 
@@ -165,7 +165,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			f, err := os.OpenFile(path.Join(cwd, fmt.Sprintf("../testenv/edsm-%s.png", dateOfImage)), os.O_WRONLY|os.O_CREATE, 0600)
+			f, err := os.OpenFile(path.Join(cwd, fmt.Sprintf("../../testenv/edsm-%s.png", dateOfImage)), os.O_WRONLY|os.O_CREATE, 0600)
 			if err != nil {
 				return err
 			}

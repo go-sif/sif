@@ -1,7 +1,7 @@
 package transform
 
 import (
-	core "github.com/go-sif/sif/v0.0.1/core"
+	core "github.com/go-sif/sif/core"
 )
 
 // renameColumnTask is a task that does nothing

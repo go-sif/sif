@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
+	pb "github.com/go-sif/sif/core/internal/rpc"
 )
 
-//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./rpc s_lifecycle.proto
+//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./internal/rpc s_lifecycle.proto
 
 type lifecycleServer struct {
 	node Node

@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"io"
 
-	core "github.com/go-sif/sif/v0.0.1/core"
+	core "github.com/go-sif/sif/core"
 )
 
 // ParserConf configures a DSV Parser

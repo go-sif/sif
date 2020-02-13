@@ -1,6 +1,6 @@
 package core
 
-//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./rpc s_cluster.proto
+//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./internal/rpc s_cluster.proto
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
+	pb "github.com/go-sif/sif/core/internal/rpc"
 	"golang.org/x/net/context"
 )
 

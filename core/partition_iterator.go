@@ -3,7 +3,7 @@ package core
 import (
 	"sync"
 
-	errors "github.com/go-sif/sif/v0.0.1/errors"
+	errors "github.com/go-sif/sif/errors"
 )
 
 // PartitionIterator is a generalized interface for iterating over Partitions, regardless of where they come from

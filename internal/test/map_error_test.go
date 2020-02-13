@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	types "github.com/go-sif/sif/v0.0.1/columntype"
-	core "github.com/go-sif/sif/v0.0.1/core"
-	memory "github.com/go-sif/sif/v0.0.1/datasource/memory"
-	jsonl "github.com/go-sif/sif/v0.0.1/datasource/parser/jsonl"
-	ops "github.com/go-sif/sif/v0.0.1/operations/transform"
-	util "github.com/go-sif/sif/v0.0.1/operations/util"
+	types "github.com/go-sif/sif/columntype"
+	core "github.com/go-sif/sif/core"
+	memory "github.com/go-sif/sif/datasource/memory"
+	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
+	ops "github.com/go-sif/sif/operations/transform"
+	util "github.com/go-sif/sif/operations/util"
 	"github.com/stretchr/testify/require"
 )
 

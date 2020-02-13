@@ -5,9 +5,9 @@ import (
 	"path"
 	"testing"
 
-	types "github.com/go-sif/sif/v0.0.1/columntype"
-	core "github.com/go-sif/sif/v0.0.1/core"
-	file "github.com/go-sif/sif/v0.0.1/datasource/file"
+	types "github.com/go-sif/sif/columntype"
+	core "github.com/go-sif/sif/core"
+	file "github.com/go-sif/sif/datasource/file"
 	"github.com/stretchr/testify/require"
 )
 

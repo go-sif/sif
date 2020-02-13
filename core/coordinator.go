@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
+	pb "github.com/go-sif/sif/core/internal/rpc"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 )

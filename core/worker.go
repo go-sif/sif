@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
+	pb "github.com/go-sif/sif/core/internal/rpc"
 	uuid "github.com/gofrs/uuid"
 	"google.golang.org/grpc"
 )

@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	columntype "github.com/go-sif/sif/v0.0.1/columntype"
-	core "github.com/go-sif/sif/v0.0.1/core"
+	columntype "github.com/go-sif/sif/columntype"
+	core "github.com/go-sif/sif/core"
 )
 
 // Parses a slice of strings into a Row, according to a schema

@@ -5,7 +5,7 @@ import (
 	"log"
 
 	xxhash "github.com/cespare/xxhash"
-	errors "github.com/go-sif/sif/v0.0.1/errors"
+	errors "github.com/go-sif/sif/errors"
 	lru "github.com/hashicorp/golang-lru"
 )
 

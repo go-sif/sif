@@ -7,8 +7,8 @@ import (
 	"reflect"
 
 	xxhash "github.com/cespare/xxhash"
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
-	errors "github.com/go-sif/sif/v0.0.1/errors"
+	pb "github.com/go-sif/sif/core/internal/rpc"
+	errors "github.com/go-sif/sif/errors"
 	uuid "github.com/gofrs/uuid"
 	proto "github.com/golang/protobuf/proto"
 	"github.com/hashicorp/go-multierror"

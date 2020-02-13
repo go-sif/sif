@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
-	types "github.com/go-sif/sif/v0.0.1/columntype"
-	errors "github.com/go-sif/sif/v0.0.1/errors"
+	types "github.com/go-sif/sif/columntype"
+	errors "github.com/go-sif/sif/errors"
 	"github.com/stretchr/testify/require"
 )
 

@@ -18,6 +18,7 @@ all:
 dependencies:
 	@go get -u golang.org/x/tools
 	@go get -u golang.org/x/lint/golint
+	@go get -u golang.org/x/tools/cmd/godoc
 	@go get -u github.com/unchartedsoftware/witch
 	@go get -u github.com/golang/protobuf/protoc-gen-go
 	@make testenv
@@ -84,7 +85,7 @@ build: generate lint
 
 docs:
 	@echo "Serving docs on http://localhost:6060"
-	@godoc -http=:6060
+	@godoc -http=localhost:6060
 
 watch:
 	@witch --cmd="make build" --watch="**/*.go" --ignore="vendor,.git,**/*.pb.go" --no-spinner

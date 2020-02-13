@@ -1,7 +1,7 @@
 package file
 
 import (
-	core "github.com/go-sif/sif/v0.0.1/core"
+	core "github.com/go-sif/sif/core"
 )
 
 // PartitionMap is an iterator producing a sequence of PartitionLoaders

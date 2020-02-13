@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	types "github.com/go-sif/sif/v0.0.1/columntype"
+	types "github.com/go-sif/sif/columntype"
 	"github.com/stretchr/testify/require"
 )
 

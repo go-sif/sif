@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	types "github.com/go-sif/sif/v0.0.1/columntype"
-	core "github.com/go-sif/sif/v0.0.1/core"
-	ops "github.com/go-sif/sif/v0.0.1/operations/transform"
-	util "github.com/go-sif/sif/v0.0.1/operations/util"
+	types "github.com/go-sif/sif/columntype"
+	core "github.com/go-sif/sif/core"
+	ops "github.com/go-sif/sif/operations/transform"
+	util "github.com/go-sif/sif/operations/util"
 	"github.com/stretchr/testify/require"
 )
 

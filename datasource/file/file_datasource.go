@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	core "github.com/go-sif/sif/v0.0.1/core"
+	core "github.com/go-sif/sif/core"
 )
 
 // DataSource is a file containing data which will be manipulating according to a DataFrame

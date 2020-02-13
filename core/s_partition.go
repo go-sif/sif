@@ -6,10 +6,10 @@ import (
 	"log"
 	"sync"
 
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
+	pb "github.com/go-sif/sif/core/internal/rpc"
 )
 
-//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./rpc s_partition.proto
+//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./internal/rpc s_partition.proto
 
 type partitionServer struct {
 	planExecutor *planExecutor

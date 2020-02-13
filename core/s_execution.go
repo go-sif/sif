@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	pb "github.com/go-sif/sif/v0.0.1/core/rpc"
-	logging "github.com/go-sif/sif/v0.0.1/logging"
+	pb "github.com/go-sif/sif/core/internal/rpc"
+	logging "github.com/go-sif/sif/logging"
 	"github.com/hashicorp/go-multierror"
 )
 
-//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./rpc s_execution.proto
+//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./internal/rpc s_execution.proto
 
 type executionServer struct {
 	planExecutor *planExecutor

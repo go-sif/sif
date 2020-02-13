@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	core "github.com/go-sif/sif/v0.0.1/core"
+	core "github.com/go-sif/sif/core"
 	"github.com/stretchr/testify/require"
 )
 

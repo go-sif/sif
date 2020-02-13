@@ -18,7 +18,7 @@ func (s *mapTask) RunWorker(previous *core.Partition) ([]*core.Partition, error)
 
 // Map transforms a Row in-place
 func Map(fn core.MapOperation) core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		nextTask := mapTask{fn: core.SafeMapOperation(fn)}
 		return &nextTask, "map", d.GetSchema().Clone(), nil
 	}

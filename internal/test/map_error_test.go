@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestMapErrorDataFrame(t *testing.T, numRows int) *core.DataFrame {
+func createTestMapErrorDataFrame(t *testing.T, numRows int) core.DataFrame {
 	data := make([][]byte, numRows)
 	for i := 0; i < len(data); i++ {
 		data[i] = []byte(fmt.Sprintf("{\"col1\": %d}", i))

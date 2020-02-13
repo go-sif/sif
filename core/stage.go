@@ -12,14 +12,14 @@ type stage struct {
 	id             string
 	incomingSchema *Schema // the true, final schema for partitions which come from a previous stage (received during a shuffle, for example). This may include columns which have been removed, but not repacked
 	outgoingSchema *Schema // the true, final schema for partitions which exit this stage (dispatched during a shuffle, for example). This may include columns which have been removed, but not repacked
-	frames         []*DataFrame
+	frames         []*dataFrameImpl
 	keyFn          KeyingOperation
 	reduceFn       ReductionOperation
 }
 
 // createStage is a factory for Stages, safely assigning deterministic IDs
 func createStage(nextID int) *stage {
-	s := &stage{fmt.Sprintf("stage-%d", nextID), nil, nil, []*DataFrame{}, nil, nil}
+	s := &stage{fmt.Sprintf("stage-%d", nextID), nil, nil, []*dataFrameImpl{}, nil, nil}
 	nextID++
 	return s
 }

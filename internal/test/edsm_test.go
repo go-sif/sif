@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestEDSMDataFrame(t *testing.T) *core.DataFrame {
+func createTestEDSMDataFrame(t *testing.T) core.DataFrame {
 	schema := core.CreateSchema()
 	schema.CreateColumn("coords.x", &types.Float64ColumnType{})
 	schema.CreateColumn("coords.z", &types.Float64ColumnType{})

@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestCollectDataFrame(t *testing.T, numRows int) *core.DataFrame {
+func createTestCollectDataFrame(t *testing.T, numRows int) core.DataFrame {
 	row := []byte("{\"col1\": \"abc\"}")
 	data := make([][]byte, numRows)
 	for i := 0; i < len(data); i++ {

@@ -27,7 +27,7 @@ func (s *collectTask) GetCollectionLimit() int64 {
 // upon completion of the previous stage. This also signals
 // the end of a Dataframe's tasks.
 func Collect(collectionLimit int64) core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		if d.GetDataSource().IsStreaming() {
 			return nil, "collect", nil, fmt.Errorf("Cannot collect() from a streaming DataSource")
 		}

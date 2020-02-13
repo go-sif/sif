@@ -14,7 +14,7 @@ func (s *renameColumnTask) RunWorker(previous *core.Partition) ([]*core.Partitio
 
 // RenameColumn renames an existing column
 func RenameColumn(oldName string, newName string) core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		newSchema, err := d.GetSchema().Clone().RenameColumn(oldName, newName)
 		if err != nil {
 			return nil, "", nil, err

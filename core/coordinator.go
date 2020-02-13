@@ -19,7 +19,7 @@ type coordinator struct {
 	opts          *NodeOptions
 	server        *grpc.Server
 	clusterServer *clusterServer
-	frame         *DataFrame
+	frame         DataFrame
 }
 
 func createCoordinator(opts *NodeOptions) (*coordinator, error) {
@@ -29,7 +29,7 @@ func createCoordinator(opts *NodeOptions) (*coordinator, error) {
 }
 
 // Start the Coordinator - blocking unless run in a goroutine
-func (c *coordinator) Start(frame *DataFrame) error {
+func (c *coordinator) Start(frame DataFrame) error {
 	if frame == nil {
 		return fmt.Errorf("DataFrame cannot be nil")
 	}

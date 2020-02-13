@@ -32,7 +32,7 @@ func (s *reduceTask) GetReductionOperation() core.ReductionOperation {
 
 // Reduce combines rows across workers, using a key
 func Reduce(kfn core.KeyingOperation, fn core.ReductionOperation) core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		nextTask := reduceTask{
 			kfn: core.SafeKeyingOperation(kfn),
 			fn:  core.SafeReductionOperation(fn),

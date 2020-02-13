@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestStreamDataFrame(t *testing.T, numGenerators int) *core.DataFrame {
+func createTestStreamDataFrame(t *testing.T, numGenerators int) core.DataFrame {
 	data := make([]func() []byte, numGenerators)
 	generator := func() []byte {
 		num := rand.Intn(10)

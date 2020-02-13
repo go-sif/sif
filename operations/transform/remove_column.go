@@ -14,7 +14,7 @@ func (s *removeColumnTask) RunWorker(previous *core.Partition) ([]*core.Partitio
 
 // RemoveColumn removes existing columns
 func RemoveColumn(oldNames ...string) core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		newSchema := d.GetSchema().Clone()
 		for _, oldName := range oldNames {
 			newSchema, _ = newSchema.RemoveColumn(oldName)

@@ -66,7 +66,7 @@ func (w *worker) ID() string {
 }
 
 // Start the worker - will block the current thread
-func (w *worker) Start(frame *DataFrame) error {
+func (w *worker) Start(frame DataFrame) error {
 	if frame == nil {
 		return fmt.Errorf("DataFrame cannot be nil")
 	}
@@ -88,7 +88,7 @@ func (w *worker) Start(frame *DataFrame) error {
 	planExecutor := frame.optimize().execute(&PlanExecutorConfig{
 		tempFilePath:       w.opts.TempDir,
 		inMemoryPartitions: w.opts.NumInMemoryPartitions,
-		streaming:          frame.GetParent().GetDataSource().IsStreaming(),
+		streaming:          frame.getParent().GetDataSource().IsStreaming(),
 		ignoreRowErrors:    w.opts.IgnoreRowErrors,
 	})
 	// register rpc handlers for frame execution

@@ -16,7 +16,7 @@ func (s *addColumnTask) RunWorker(previous *core.Partition) ([]*core.Partition, 
 // specific type and name should be available to the
 // next Task of the DataFrame pipeline
 func AddColumn(colName string, colType core.ColumnType) core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		newSchema, err := d.GetSchema().Clone().CreateColumn(colName, colType)
 		if err != nil {
 			return nil, "", nil, err

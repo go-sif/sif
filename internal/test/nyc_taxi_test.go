@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestNYCTaxiDataFrame(t *testing.T) *core.DataFrame {
+func createTestNYCTaxiDataFrame(t *testing.T) core.DataFrame {
 	schema := core.CreateSchema()
 	schema.CreateColumn("hack", &types.StringColumnType{Length: 32})
 	schema.CreateColumn("license", &types.StringColumnType{Length: 32})

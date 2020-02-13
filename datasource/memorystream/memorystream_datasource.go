@@ -12,7 +12,7 @@ type DataSource struct {
 }
 
 // CreateDataFrame is a factory for DataSources
-func CreateDataFrame(generators []func() []byte, batchSize int, parser core.DataSourceParser, schema *core.Schema) *core.DataFrame {
+func CreateDataFrame(generators []func() []byte, batchSize int, parser core.DataSourceParser, schema *core.Schema) core.DataFrame {
 	source := &DataSource{generators, batchSize, schema}
 	df := core.CreateDataFrame(source, parser, schema)
 	return df

@@ -18,7 +18,7 @@ func (s *flatMapTask) RunWorker(previous *core.Partition) ([]*core.Partition, er
 
 // FlatMap transforms a Row, potentially producing new rows
 func FlatMap(fn core.FlatMapOperation) core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		nextTask := flatMapTask{fn: core.SafeFlatMapOperation(fn)}
 		return &nextTask, "flatmap", d.GetSchema().Clone(), nil
 	}

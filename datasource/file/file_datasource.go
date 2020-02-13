@@ -14,7 +14,7 @@ type DataSource struct {
 }
 
 // CreateDataFrame is a factory for DataSources
-func CreateDataFrame(glob string, parser core.DataSourceParser, schema *core.Schema) *core.DataFrame {
+func CreateDataFrame(glob string, parser core.DataSourceParser, schema *core.Schema) core.DataFrame {
 	source := &DataSource{glob, schema}
 	df := core.CreateDataFrame(source, parser, schema)
 	return df

@@ -18,7 +18,7 @@ func (s *repackTask) RunWorker(previous *core.Partition) ([]*core.Partition, err
 
 // Repack rearranges memory layout of rows to respect a new schema
 func Repack() core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		nextTask := repackTask{d.GetSchema().Repack()}
 		return &nextTask, "repack", nextTask.newSchema, nil
 	}

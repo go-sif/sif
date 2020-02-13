@@ -18,7 +18,7 @@ func (s *filterTask) RunWorker(previous *core.Partition) ([]*core.Partition, err
 
 // Filter filters Rows out of a Partition, creating a new one
 func Filter(fn core.FilterOperation) core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
 		nextTask := filterTask{fn: core.SafeFilterOperation(fn)}
 		return &nextTask, "filter", d.GetSchema().Clone(), nil
 	}

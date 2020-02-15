@@ -13,15 +13,9 @@ type Partition interface {
 // A BuildablePartition can be built. Used in the implementation of DataSources and Parsers
 type BuildablePartition interface {
 	Partition
-	// TODO make private by splitting into new interface
-	CanInsertRowData(row []byte) error                                                                                   // CanInsertRowData checks if a Row can be inserted into this Partition
-	AppendEmptyRowData() (Row, error)                                                                                    // AppendEmptyRowData is a convenient way to add an empty Row to the end of this Partition, returning the Row so that Row methods can be used to populate it
-	AppendRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte) error // AppendRowData adds a Row to the end of this Partition, if it isn't full and if the Row fits within the schema
-	// TODO make private by splitting into new interface
-	AppendKeyedRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte, key uint64) error // appendKeyedRowData appends a keyed Row to the end of this Partition
-	InsertRowData(row []byte, meta []byte, varRowData map[string]interface{}, serializedVarRowData map[string][]byte, pos int) error      // InsertRowData inserts a Row at a specific position within this Partition, if it isn't full and if the Row fits within the schema. Other Rows are shifted as necessary.
-	// TODO make private by splitting into new interface
-	InsertKeyedRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte, key uint64, pos int) error // insertKeyedRowData inserts a keyed Row into this Partition
+	AppendEmptyRowData() (Row, error)                                                                                                // AppendEmptyRowData is a convenient way to add an empty Row to the end of this Partition, returning the Row so that Row methods can be used to populate it
+	AppendRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte) error             // AppendRowData adds a Row to the end of this Partition, if it isn't full and if the Row fits within the schema
+	InsertRowData(row []byte, meta []byte, varRowData map[string]interface{}, serializedVarRowData map[string][]byte, pos int) error // InsertRowData inserts a Row at a specific position within this Partition, if it isn't full and if the Row fits within the schema. Other Rows are shifted as necessary.
 }
 
 // A KeyablePartition can be keyed. Used in the implementation of Partition shuffling and reduction

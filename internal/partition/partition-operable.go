@@ -106,13 +106,12 @@ func (p *partitionImpl) Repack(newSchema types.Schema) (types.OperablePartition,
 	// create a new Partition
 	part := createPartitionImpl(p.maxRows, newSchema, newSchema)
 	for i := 0; i < p.GetNumRows(); i++ {
-		row := p.GetRow(i)
+		row := p.GetRow(i).(itypes.AccessibleRow)
 		newRow, err := row.Repack(newSchema)
 		if err != nil {
 			return nil, err
 		}
-		iNewRow := newRow.(itypes.AccessibleRow)
-		err = part.AppendRowData(iNewRow.GetData(), iNewRow.GetMeta(), iNewRow.GetVarData(), iNewRow.GetSerializedVarData())
+		err = part.AppendRowData(newRow.GetData(), newRow.GetMeta(), newRow.GetVarData(), newRow.GetSerializedVarData())
 		if err != nil {
 			return nil, err
 		}

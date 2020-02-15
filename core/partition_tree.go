@@ -97,7 +97,7 @@ func (t *pTreeRoot) mergeRow(row types.Row, keyfn types.KeyingOperation, reducef
 	} else if _, ok := err.(errors.MissingKeyError); ok {
 		// If the key hash doesn't exist, insert row at sorted position
 		irow := row.(itypes.AccessibleRow) // access row internals
-		insertErr := partNode.part.InsertKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey, idx)
+		insertErr := partNode.part.(itypes.InternalBuildablePartition).InsertKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey, idx)
 		// if the partition was full, split and retry
 		if _, ok = insertErr.(errors.PartitionFullError); ok {
 			avgKey, lp, rp, err := partNode.part.BalancedSplit()

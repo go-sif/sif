@@ -8,14 +8,10 @@ import "time"
 // offsets). In practice, users of Row will call its
 // getter and setter methods to retrieve, manipulate and store data
 type Row interface {
-	Schema() Schema              // Schema returns a read-only copy of the schema for a row
-	ToString() string            // ToString returns a string representation of this row
-	IsNil(colName string) bool   // IsNil returns true iff the given column value is nil in this row. If an error occurs, this function will return false.
-	SetNil(colName string) error // SetNil sets the given column value to nil within this row
-	// TODO make private
-	CheckIsNil(colName string, offset Column) error // checkIsNil is for internal use only
-	SetNotNil(offset Column)                        // setNotNil is for internal use only
-	// end TODO
+	Schema() Schema                                                 // Schema returns a read-only copy of the schema for a row
+	ToString() string                                               // ToString returns a string representation of this row
+	IsNil(colName string) bool                                      // IsNil returns true iff the given column value is nil in this row. If an error occurs, this function will return false.
+	SetNil(colName string) error                                    // SetNil sets the given column value to nil within this row
 	Get(colName string) (col interface{}, err error)                // Get returns the value of any column as an interface{}, if it exists
 	GetByte(colName string) (col byte, err error)                   // GetByte retrieves a single byte from the column with the given name.
 	GetBytes(colName string) (col []byte, err error)                // GetBytes retrieves a multiple byte from the column with the given name.
@@ -53,6 +49,4 @@ type Row interface {
 	SetVarCustomData(colName string, value interface{}) (err error) // SetVarCustomData stores variable-length data of a custom type in this Row
 	SetVarBytes(colName string, value []byte) (err error)           // SetVarBytes modifies a single variable-length byte array from the column with the given name.
 	SetVarString(colName string, value string) (err error)          // SetVarString modifies a single string from the column with the given name.
-	// TODO make private by splitting into new interface like partition
-	Repack(newSchema Schema) (Row, error) // Repack resizes a row to a new Schema
 }

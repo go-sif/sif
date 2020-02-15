@@ -6,11 +6,11 @@ import (
 	"log"
 	"sync"
 
+	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
 	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
 	logging "github.com/go-sif/sif/logging"
-	"github.com/go-sif/sif/partition"
 	"github.com/go-sif/sif/types"
 	uuid "github.com/gofrs/uuid"
 	"github.com/hashicorp/go-multierror"

@@ -8,9 +8,9 @@ import (
 	core "github.com/go-sif/sif/core"
 	memory "github.com/go-sif/sif/datasource/memory"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
+	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
-	"github.com/go-sif/sif/schema"
 	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )

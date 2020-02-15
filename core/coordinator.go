@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
 	iutil "github.com/go-sif/sif/internal/util"
-	"github.com/go-sif/sif/partition"
 	"github.com/go-sif/sif/types"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	errors "github.com/go-sif/sif/errors"
-	"github.com/go-sif/sif/schema"
+	"github.com/go-sif/sif/internal/schema"
 	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )

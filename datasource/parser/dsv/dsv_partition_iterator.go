@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/go-sif/sif/partition"
+	"github.com/go-sif/sif/internal/partition"
 	types "github.com/go-sif/sif/types"
 )
 

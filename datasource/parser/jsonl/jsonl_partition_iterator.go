@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/go-sif/sif/partition"
+	"github.com/go-sif/sif/internal/partition"
 	"github.com/go-sif/sif/types"
 )
 

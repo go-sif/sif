@@ -6,8 +6,8 @@ import (
 
 	xxhash "github.com/cespare/xxhash"
 	errors "github.com/go-sif/sif/errors"
+	"github.com/go-sif/sif/internal/partition"
 	itypes "github.com/go-sif/sif/internal/types"
-	"github.com/go-sif/sif/partition"
 	"github.com/go-sif/sif/types"
 	lru "github.com/hashicorp/golang-lru"
 )

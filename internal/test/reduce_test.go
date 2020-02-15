@@ -4,16 +4,17 @@ import (
 	"context"
 	"testing"
 
-	types "github.com/go-sif/sif/columntype"
 	core "github.com/go-sif/sif/core"
 	memory "github.com/go-sif/sif/datasource/memory"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
+	"github.com/go-sif/sif/schema"
+	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestReduceDataFrame(t *testing.T, numRows int) core.DataFrame {
+func createTestReduceDataFrame(t *testing.T, numRows int) types.DataFrame {
 	row := []byte("{\"col1\": \"abc\"}")
 	data := make([][]byte, numRows)
 	for i := 0; i < len(data); i++ {
@@ -21,7 +22,7 @@ func createTestReduceDataFrame(t *testing.T, numRows int) core.DataFrame {
 	}
 
 	// Create a dataframe for the data
-	schema := core.CreateSchema()
+	schema := schema.CreateSchema()
 	schema.CreateColumn("col1", &types.StringColumnType{Length: 3})
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
 		PartitionSize: 5,
@@ -35,16 +36,16 @@ func TestReduce(t *testing.T) {
 	numRows := 100
 	frame, err := createTestReduceDataFrame(t, numRows).To(
 		ops.AddColumn("count", &types.Uint32ColumnType{}),
-		ops.Map(func(row *core.Row) error {
+		ops.Map(func(row types.Row) error {
 			err := row.SetInt32("count", int32(1))
 			if err != nil {
 				return err
 			}
 			return nil
 		}),
-		ops.Reduce(func(row *core.Row) ([]byte, error) {
+		ops.Reduce(func(row types.Row) ([]byte, error) {
 			return []byte{byte(1)}, nil
-		}, func(lrow *core.Row, rrow *core.Row) error {
+		}, func(lrow types.Row, rrow types.Row) error {
 			lval, err := lrow.GetInt32("count")
 			if err != nil {
 				return err

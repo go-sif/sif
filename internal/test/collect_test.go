@@ -6,16 +6,17 @@ import (
 	"strings"
 	"testing"
 
-	types "github.com/go-sif/sif/columntype"
 	core "github.com/go-sif/sif/core"
 	memory "github.com/go-sif/sif/datasource/memory"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
+	"github.com/go-sif/sif/schema"
+	"github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestCollectDataFrame(t *testing.T, numRows int) core.DataFrame {
+func createTestCollectDataFrame(t *testing.T, numRows int) types.DataFrame {
 	row := []byte("{\"col1\": \"abc\"}")
 	data := make([][]byte, numRows)
 	for i := 0; i < len(data); i++ {
@@ -23,7 +24,7 @@ func createTestCollectDataFrame(t *testing.T, numRows int) core.DataFrame {
 	}
 
 	// Create a dataframe for the data
-	schema := core.CreateSchema()
+	schema := schema.CreateSchema()
 	schema.CreateColumn("col1", &types.StringColumnType{Length: 3})
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
 		PartitionSize: 5,
@@ -36,7 +37,7 @@ func TestCollect(t *testing.T) {
 	// create dataframe
 	frame, err := createTestCollectDataFrame(t, 10).To(
 		ops.AddColumn("res", &types.VarStringColumnType{}),
-		ops.Map(func(row *core.Row) error {
+		ops.Map(func(row types.Row) error {
 			col1, err := row.GetString("col1")
 			if err != nil {
 				return err
@@ -58,7 +59,7 @@ func TestCollect(t *testing.T) {
 	wopts := &core.NodeOptions{}
 	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	for _, part := range res {
-		part.MapRows(func(row *core.Row) error {
+		part.ForEachRow(func(row types.Row) error {
 			val, err := row.GetVarString("res")
 			require.Nil(t, err)
 			require.Equal(t, "ABC", val)

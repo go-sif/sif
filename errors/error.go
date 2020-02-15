@@ -12,7 +12,7 @@ func (e NilValueError) Error() string {
 	return fmt.Sprintf("Value for column %s is nil", e.Name)
 }
 
-// MissingKeyError occurs when findFirstKey cannot find a given key in this Partition
+// MissingKeyError occurs when FindFirstKey cannot find a given key in this Partition
 type MissingKeyError struct{}
 
 // Error returns a textual representation of this MissingKeyError

@@ -15,17 +15,18 @@ import (
 	"path"
 	"testing"
 
-	types "github.com/go-sif/sif/columntype"
 	core "github.com/go-sif/sif/core"
 	"github.com/go-sif/sif/datasource/file"
 	dsv "github.com/go-sif/sif/datasource/parser/dsv"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
+	"github.com/go-sif/sif/schema"
+	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestNYCTaxiDataFrame(t *testing.T) core.DataFrame {
-	schema := core.CreateSchema()
+func createTestNYCTaxiDataFrame(t *testing.T) types.DataFrame {
+	schema := schema.CreateSchema()
 	schema.CreateColumn("hack", &types.StringColumnType{Length: 32})
 	schema.CreateColumn("license", &types.StringColumnType{Length: 32})
 	schema.CreateColumn("code", &types.StringColumnType{Length: 3})
@@ -124,7 +125,7 @@ func TestNYCTaxi(t *testing.T) {
 		// create column for heatmap reduction
 		ops.AddColumn("heatmap", &VarHeatmapColumnType{}),
 		// compute partial heatmaps
-		ops.Map(func(row *core.Row) error {
+		ops.Map(func(row types.Row) error {
 			if row.IsNil("dropoff_lat") || row.IsNil("dropoff_lon") {
 				return nil
 			}
@@ -147,9 +148,9 @@ func TestNYCTaxi(t *testing.T) {
 			return err
 		}),
 		// perform heatmap reduction
-		ops.Reduce(func(row *core.Row) ([]byte, error) {
+		ops.Reduce(func(row types.Row) ([]byte, error) {
 			return []byte{byte(1)}, nil
-		}, func(lrow *core.Row, rrow *core.Row) error {
+		}, func(lrow types.Row, rrow types.Row) error {
 			lval, err := lrow.GetVarCustomData("heatmap")
 			if err != nil {
 				return err

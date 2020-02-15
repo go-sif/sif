@@ -10,11 +10,12 @@ import (
 	"time"
 
 	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
 // runs a test dataframe on a test cluster
-func runTestFrame(ctx context.Context, t *testing.T, frame core.DataFrame, copts *core.NodeOptions, wopts *core.NodeOptions, numWorkers int) (map[string]core.CollectedPTition, error) {
+func runTestFrame(ctx context.Context, t *testing.T, frame types.DataFrame, copts *core.NodeOptions, wopts *core.NodeOptions, numWorkers int) (map[string]types.CollectedPartition, error) {
 	// configure and start coordinator
 	copts.Host = "localhost"
 	copts.Port = 8080

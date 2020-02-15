@@ -3,15 +3,15 @@ package jsonl
 import (
 	"testing"
 
-	types "github.com/go-sif/sif/columntype"
-	core "github.com/go-sif/sif/core"
-	memory "github.com/go-sif/sif/datasource/memory"
+	"github.com/go-sif/sif/datasource/memory"
+	"github.com/go-sif/sif/schema"
+	"github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestJSONLDatasourceParser(t *testing.T) {
 	// Create a dataframe for the file, load it, and test things
-	schema := core.CreateSchema()
+	schema := schema.CreateSchema()
 	schema.CreateColumn("name", &types.VarStringColumnType{})
 	schema.CreateColumn("meta.index", &types.Int8ColumnType{})
 	schema.CreateColumn("meta.first", &types.VarStringColumnType{})

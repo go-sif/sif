@@ -1,4 +1,4 @@
-package core
+package partition
 
 import (
 	"bytes"
@@ -8,39 +8,39 @@ import (
 	"testing"
 	"time"
 
-	types "github.com/go-sif/sif/columntype"
+	"github.com/go-sif/sif/schema"
+	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetUint64(t *testing.T) {
-	row := Row{
-		schema: &Schema{
-			schema: map[string]*column{
-				"col1": &column{0, 0, &types.Uint64ColumnType{}},
-			},
-		},
-		data: make([]byte, 16),
-		meta: make([]byte, 1),
+	schema := schema.CreateSchema()
+	_, err := schema.CreateColumn("col1", &types.Uint64ColumnType{})
+	require.Nil(t, err)
+	row := rowImpl{
+		schema: schema,
+		data:   make([]byte, 16),
+		meta:   make([]byte, 1),
 	}
 	binary.LittleEndian.PutUint64(row.data, math.MaxUint64)
-	data, _ := row.GetUint64("col1")
+	data, err := row.GetUint64("col1")
+	require.Nil(t, err)
 	if data != math.MaxUint64 {
 		t.FailNow()
 	}
 }
 
 func TestTime(t *testing.T) {
-	row := Row{
-		schema: &Schema{
-			schema: map[string]*column{
-				"col1": &column{0, 0, &types.TimeColumnType{}},
-			},
-		},
-		data: make([]byte, 15),
-		meta: make([]byte, 1),
+	schema := schema.CreateSchema()
+	_, err := schema.CreateColumn("col1", &types.TimeColumnType{})
+	require.Nil(t, err)
+	row := rowImpl{
+		schema: schema,
+		data:   make([]byte, 15),
+		meta:   make([]byte, 1),
 	}
 	v := time.Now()
-	err := row.SetTime("col1", v)
+	err = row.SetTime("col1", v)
 	require.Nil(t, err)
 	v2, err := row.GetTime("col1")
 	require.Nil(t, err)
@@ -55,12 +55,11 @@ func TestDeserialization(t *testing.T) {
 	err := e.Encode("world")
 	serialized["hello"] = b.Bytes()
 	require.Nil(t, err)
-	row := Row{
-		schema: &Schema{
-			schema: map[string]*column{
-				"hello": &column{0, 0, &types.VarStringColumnType{}},
-			},
-		},
+	schema := schema.CreateSchema()
+	_, err = schema.CreateColumn("hello", &types.VarStringColumnType{})
+	require.Nil(t, err)
+	row := rowImpl{
+		schema:            schema,
 		data:              make([]byte, 16),
 		varData:           make(map[string]interface{}),
 		serializedVarData: serialized,

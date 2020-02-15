@@ -6,6 +6,9 @@ import (
 
 	xxhash "github.com/cespare/xxhash"
 	errors "github.com/go-sif/sif/errors"
+	itypes "github.com/go-sif/sif/internal/types"
+	"github.com/go-sif/sif/partition"
+	"github.com/go-sif/sif/types"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -14,9 +17,9 @@ type pTreeNode struct {
 	k                       uint64
 	left                    *pTreeNode
 	right                   *pTreeNode
-	part                    TreeablePTition
-	nextStageWidestSchema   *Schema
-	nextStageIncomingSchema *Schema
+	part                    itypes.ReduceablePartition
+	nextStageWidestSchema   types.Schema
+	nextStageIncomingSchema types.Schema
 	diskPath                string
 	prev                    *pTreeNode // btree-like link between leaves
 	next                    *pTreeNode // btree-like link between leaves
@@ -28,7 +31,7 @@ type pTreeNode struct {
 type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
-func createPTreeNode(conf *PlanExecutorConfig, maxRows int, nextStageWidestSchema *Schema, nextStageIncomingSchema *Schema) *pTreeNode {
+func createPTreeNode(conf *PlanExecutorConfig, maxRows int, nextStageWidestSchema types.Schema, nextStageIncomingSchema types.Schema) *pTreeNode {
 	cache, err := lru.NewWithEvict(conf.inMemoryPartitions, func(key interface{}, value interface{}) {
 		partID, ok := key.(string)
 		if !ok {
@@ -43,7 +46,7 @@ func createPTreeNode(conf *PlanExecutorConfig, maxRows int, nextStageWidestSchem
 	if err != nil {
 		log.Fatalf("Unable to initialize lru cache for partitions: %e", err)
 	}
-	part := createTreeablePartition(maxRows, nextStageWidestSchema, nextStageIncomingSchema)
+	part := partition.CreateReduceablePartition(maxRows, nextStageWidestSchema, nextStageIncomingSchema)
 	part.KeyRows(nil)
 	cache.Add(part.ID(), part)
 	return &pTreeNode{
@@ -56,9 +59,9 @@ func createPTreeNode(conf *PlanExecutorConfig, maxRows int, nextStageWidestSchem
 }
 
 // mergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
-func (t *pTreeRoot) mergePartition(part TreeablePTition, keyfn KeyingOperation, reducefn ReductionOperation) error {
+func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn types.KeyingOperation, reducefn types.ReductionOperation) error {
 	for i := 0; i < part.GetNumRows(); i++ {
-		row := part.buildRow(i)
+		row := part.GetRow(i)
 		if err := t.mergeRow(row, keyfn, reducefn); err != nil {
 			return err
 		}
@@ -67,7 +70,7 @@ func (t *pTreeRoot) mergePartition(part TreeablePTition, keyfn KeyingOperation, 
 }
 
 // mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
-func (t *pTreeRoot) mergeRow(row *Row, keyfn KeyingOperation, reducefn ReductionOperation) error {
+func (t *pTreeRoot) mergeRow(row types.Row, keyfn types.KeyingOperation, reducefn types.ReductionOperation) error {
 	// compute key for row
 	keyBuf, err := keyfn(row)
 	if err != nil {
@@ -87,16 +90,17 @@ func (t *pTreeRoot) mergeRow(row *Row, keyfn KeyingOperation, reducefn Reduction
 		return err
 	}
 	// Once we have the correct partition, find the first row with matching key in it
-	idx, err := partNode.part.findFirstRowKey(keyBuf, hashedKey, keyfn)
+	idx, err := partNode.part.FindFirstRowKey(keyBuf, hashedKey, keyfn)
 	if idx < 0 {
 		// something went wrong while locating the insert/merge position
 		return err
 	} else if _, ok := err.(errors.MissingKeyError); ok {
 		// If the key hash doesn't exist, insert row at sorted position
-		insertErr := partNode.part.insertKeyedRowData(row.data, row.meta, row.varData, row.serializedVarData, hashedKey, idx)
+		irow := row.(itypes.AccessibleRow) // access row internals
+		insertErr := partNode.part.InsertKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey, idx)
 		// if the partition was full, split and retry
 		if _, ok = insertErr.(errors.PartitionFullError); ok {
-			avgKey, lp, rp, err := partNode.part.balancedSplit()
+			avgKey, lp, rp, err := partNode.part.BalancedSplit()
 			if err != nil {
 				return err
 			}
@@ -134,25 +138,25 @@ func (t *pTreeRoot) mergeRow(row *Row, keyfn KeyingOperation, reducefn Reduction
 		return err
 	} else {
 		// If the actual key already exists in the partition, merge into row
-		target := &Row{
-			meta:              partNode.part.getRowMeta(idx),
-			data:              partNode.part.getRowData(idx),
-			varData:           partNode.part.getVarRowData(idx),
-			serializedVarData: partNode.part.getSerializedVarRowData(idx),
-			schema:            partNode.part.getCurrentSchema(),
-		}
+		target := partition.CreateRow(
+			partNode.part.GetRowMeta(idx),
+			partNode.part.GetRowData(idx),
+			partNode.part.GetVarRowData(idx),
+			partNode.part.GetSerializedVarRowData(idx),
+			partNode.part.GetCurrentSchema(),
+		)
 		return reducefn(target, row)
 	}
 	return nil
 }
 
-func (t *pTreeNode) loadPartition() (TreeablePTition, error) {
+func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 	if t.part == nil {
 		buff, err := ioutil.ReadFile(t.diskPath)
 		if err != nil {
 			return nil, err
 		}
-		part, err := partitionFromBytes(buff, t.nextStageWidestSchema, t.nextStageIncomingSchema)
+		part, err := partition.FromBytes(buff, t.nextStageWidestSchema, t.nextStageIncomingSchema)
 		if err != nil {
 			return nil, err
 		}
@@ -165,7 +169,7 @@ func (t *pTreeNode) loadPartition() (TreeablePTition, error) {
 
 func onPartitionEvict(tempDir string, partID string, t *pTreeNode) {
 	if t.part != nil {
-		buff, err := t.part.toBytes()
+		buff, err := t.part.ToBytes()
 		if err != nil {
 			log.Fatalf("Unable to convert partition to buffer %s", err)
 		}

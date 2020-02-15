@@ -8,7 +8,9 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/go-sif/sif/core/internal/rpc"
+	pb "github.com/go-sif/sif/internal/rpc"
+	iutil "github.com/go-sif/sif/internal/util"
+	"github.com/go-sif/sif/types"
 	uuid "github.com/gofrs/uuid"
 	"google.golang.org/grpc"
 )
@@ -66,7 +68,7 @@ func (w *worker) ID() string {
 }
 
 // Start the worker - will block the current thread
-func (w *worker) Start(frame DataFrame) error {
+func (w *worker) Start(frame types.DataFrame) error {
 	if frame == nil {
 		return fmt.Errorf("DataFrame cannot be nil")
 	}
@@ -96,17 +98,17 @@ func (w *worker) Start(frame DataFrame) error {
 		ignoreRowErrors:    w.opts.IgnoreRowErrors,
 	})
 	// register rpc handlers for frame execution
-	pb.RegisterLifecycleServiceServer(w.server, &lifecycleServer{node: w})
-	pb.RegisterExecutionServiceServer(w.server, &executionServer{logClient: w.logClient, planExecutor: planExecutor})
-	pb.RegisterPartitionsServiceServer(w.server, &partitionServer{planExecutor: planExecutor})
+	pb.RegisterLifecycleServiceServer(w.server, createLifecycleServer(w))
+	pb.RegisterExecutionServiceServer(w.server, createExecutionServer(w.logClient, planExecutor))
+	pb.RegisterPartitionsServiceServer(w.server, createPartitionServer(planExecutor))
 	// register with master after we are serving
 	ctx, cancel := context.WithTimeout(context.Background(), w.opts.RPCTimeout)
 	defer cancel()
 	var wg sync.WaitGroup
 	wg.Add(1)
-	asyncErrors := createAsyncErrorChannel()
+	asyncErrors := iutil.CreateAsyncErrorChannel()
 	go w.asyncRegisterWithCoordinator(ctx, &wg, asyncErrors)
-	if err = waitAndFetchError(&wg, asyncErrors); err != nil {
+	if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 		return err
 	}
 	// start server
@@ -141,7 +143,7 @@ func (w *worker) Stop() error {
 }
 
 // Run is a no-op for workers
-func (w *worker) Run(ctx context.Context) (map[string]CollectedPTition, error) {
+func (w *worker) Run(ctx context.Context) (map[string]types.CollectedPartition, error) {
 	return nil, nil
 }
 

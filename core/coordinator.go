@@ -9,7 +9,10 @@ import (
 	"strings"
 	"sync"
 
-	pb "github.com/go-sif/sif/core/internal/rpc"
+	pb "github.com/go-sif/sif/internal/rpc"
+	iutil "github.com/go-sif/sif/internal/util"
+	"github.com/go-sif/sif/partition"
+	"github.com/go-sif/sif/types"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 )
@@ -19,7 +22,7 @@ type coordinator struct {
 	opts          *NodeOptions
 	server        *grpc.Server
 	clusterServer *clusterServer
-	frame         DataFrame
+	frame         types.DataFrame
 }
 
 func createCoordinator(opts *NodeOptions) (*coordinator, error) {
@@ -29,7 +32,7 @@ func createCoordinator(opts *NodeOptions) (*coordinator, error) {
 }
 
 // Start the Coordinator - blocking unless run in a goroutine
-func (c *coordinator) Start(frame DataFrame) error {
+func (c *coordinator) Start(frame types.DataFrame) error {
 	if frame == nil {
 		return fmt.Errorf("DataFrame cannot be nil")
 	}
@@ -41,9 +44,9 @@ func (c *coordinator) Start(frame DataFrame) error {
 	}
 	c.server = grpc.NewServer()
 	// register rpc handlers
-	c.clusterServer = &clusterServer{workers: sync.Map{}}
+	c.clusterServer = createClusterServer()
 	pb.RegisterClusterServiceServer(c.server, c.clusterServer)
-	pb.RegisterLogServiceServer(c.server, &logServer{})
+	pb.RegisterLogServiceServer(c.server, createLogServer())
 	// start server
 	err = c.server.Serve(lis)
 	if err != nil {
@@ -69,7 +72,7 @@ func (c *coordinator) Stop() error {
 }
 
 // Run a DataFrame Plan within this cluster
-func (c *coordinator) Run(ctx context.Context) (map[string]CollectedPTition, error) {
+func (c *coordinator) Run(ctx context.Context) (map[string]types.CollectedPartition, error) {
 	var wg sync.WaitGroup
 	waitCtx, cancel := context.WithTimeout(ctx, c.opts.WorkerJoinTimeout)
 	defer cancel()
@@ -98,7 +101,7 @@ func (c *coordinator) Run(ctx context.Context) (map[string]CollectedPTition, err
 		return nil, err
 	}
 	var numPartitions int64
-	asyncErrors := createAsyncErrorChannel()
+	asyncErrors := iutil.CreateAsyncErrorChannel()
 	for i := int64(0); partitionMap.HasNext(); i = (i + 1) % int64(len(workers)) {
 		wg.Add(1)
 		numPartitions++
@@ -106,12 +109,12 @@ func (c *coordinator) Run(ctx context.Context) (map[string]CollectedPTition, err
 		// log.Printf("Assigning partition loader \"%s\" to worker %d\n", part.ToString(), i)
 		go asyncAssignPartition(ctx, part, workers[i], workerConns[i], &wg, asyncErrors)
 	}
-	if err = waitAndFetchError(&wg, asyncErrors); err != nil {
+	if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 		return nil, err
 	}
 	// moderate execution of stages, blocking on completion of each
 	for planExecutor.hasNextStage() {
-		asyncErrors = createAsyncErrorChannel()
+		asyncErrors = iutil.CreateAsyncErrorChannel()
 		select {
 		// check for shutdown signal
 		case <-ctx.Done():
@@ -131,21 +134,21 @@ func (c *coordinator) Run(ctx context.Context) (map[string]CollectedPTition, err
 				go asyncRunStage(ctx, stage, workers[i], workerConns[i], runShuffle, prepCollect, shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
 			}
 			// wait for all the workers to finish the stage
-			if err = waitAndFetchError(&wg, asyncErrors); err != nil {
+			if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 				return nil, err
 			}
 			// If we need to run a collect, then trigger that
 			if prepCollect {
-				asyncErrors = createAsyncErrorChannel()
+				asyncErrors = iutil.CreateAsyncErrorChannel()
 				// run collect
 				wg.Add(len(workers))
-				collected := make(map[string]CollectedPTition)
+				collected := make(map[string]types.CollectedPartition)
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
 				var collectedLock sync.Mutex
 				for i := range workers {
 					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, workers, stage.finalSchema(), stage.outgoingSchema, collected, &collectedLock, collectionLimit, &wg, asyncErrors)
 				}
-				if err = waitAndFetchError(&wg, asyncErrors); err != nil {
+				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err
 				}
 				return collected, nil
@@ -175,14 +178,14 @@ func computeShuffleBuckets(workers []*pb.MWorkerDescriptor) []uint64 {
 
 func stopWorkers(workers []*pb.MWorkerDescriptor, workerConns []*grpc.ClientConn) error {
 	var wg sync.WaitGroup
-	asyncErrors := createAsyncErrorChannel()
+	asyncErrors := iutil.CreateAsyncErrorChannel()
 	// shutdown workers
 	wg.Add(len(workers))
 	for i := range workers {
 		go asyncStopWorker(workers[i], workerConns[i], &wg, asyncErrors)
 	}
 	// if something went wrong, other than the worker perhaps shutting itself down, return error
-	if err := waitAndFetchError(&wg, asyncErrors); err != nil && !strings.Contains(err.Error(), "transport is closing") {
+	if err := iutil.WaitAndFetchError(&wg, asyncErrors); err != nil && !strings.Contains(err.Error(), "transport is closing") {
 		return err
 	}
 	return nil
@@ -198,7 +201,7 @@ func asyncStopWorker(w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.Wa
 	fmt.Printf("Stopped worker %s\n", w.Id)
 }
 
-func asyncAssignPartition(ctx context.Context, part PartitionLoader, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.WaitGroup, errors chan<- error) {
+func asyncAssignPartition(ctx context.Context, part types.PartitionLoader, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Assign partition loader to worker
@@ -234,7 +237,7 @@ func asyncRunStage(ctx context.Context, s *stage, w *pb.MWorkerDescriptor, conn 
 	// TODO do something with response
 }
 
-func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, currentSchema *Schema, incomingSchema *Schema, collected map[string]CollectedPTition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, currentSchema types.Schema, incomingSchema types.Schema, collected map[string]types.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Collect from worker
@@ -248,20 +251,20 @@ func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 			return
 		} else if res.Part != nil {
 			if collectionLimit.TryAcquire(1) {
-				part := partitionFromMetaMessage(res.Part, incomingSchema, currentSchema)
+				part := partition.FromMetaMessage(res.Part, incomingSchema, currentSchema)
 				transferReq := &pb.MTransferPartitionDataRequest{Id: res.Part.Id}
 				stream, err := partitionClient.TransferPartitionData(ctx, transferReq)
 				if err != nil {
 					errors <- err
 					return
 				}
-				err = part.receiveStreamedData(stream, incomingSchema)
+				err = part.ReceiveStreamedData(stream, incomingSchema)
 				if err != nil {
 					errors <- err
 					return
 				}
 				collectedLock.Lock()
-				collected[res.Part.Id] = part
+				collected[res.Part.Id] = part.(types.CollectedPartition)
 				collectedLock.Unlock()
 			} else {
 				break

@@ -1,4 +1,4 @@
-package columntype
+package types
 
 import (
 	"bytes"

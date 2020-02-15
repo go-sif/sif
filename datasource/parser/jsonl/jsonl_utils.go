@@ -5,71 +5,70 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-sif/sif/columntype"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/types"
 	json "github.com/json-iterator/go"
 )
 
-func parseValue(val interface{}, colName string, colType core.ColumnType, row *core.Row) error {
+func parseValue(val interface{}, colName string, colType types.ColumnType, row types.Row) error {
 	// parse type
 	switch colType.(type) {
 	// TODO array/slice type
-	case *columntype.BoolColumnType:
+	case *types.BoolColumnType:
 		bval, ok := val.(bool)
 		if !ok {
 			return fmt.Errorf("Column %s was not a boolean. Was: %#v", colName, val)
 		}
 		row.SetBool(colName, bval)
-	case *columntype.Int8ColumnType:
+	case *types.Int8ColumnType:
 		nval, ok := val.(float64)
 		if !ok {
 			return fmt.Errorf("Column %s was not a number. Was: %#v", colName, val)
 		}
 		row.SetInt8(colName, int8(nval))
-	case *columntype.Int16ColumnType:
+	case *types.Int16ColumnType:
 		nval, ok := val.(float64)
 		if !ok {
 			return fmt.Errorf("Column %s was not a number. Was: %#v", colName, val)
 		}
 		row.SetInt16(colName, int16(nval))
-	case *columntype.Int32ColumnType:
+	case *types.Int32ColumnType:
 		nval, ok := val.(float64)
 		if !ok {
 			return fmt.Errorf("Column %s was not a number. Was: %#v", colName, val)
 		}
 		row.SetInt32(colName, int32(nval))
-	case *columntype.Int64ColumnType:
+	case *types.Int64ColumnType:
 		nval, ok := val.(float64)
 		if !ok {
 			return fmt.Errorf("Column %s was not a number. Was: %#v", colName, val)
 		}
 		row.SetInt64(colName, int64(nval))
-	case *columntype.Float32ColumnType:
+	case *types.Float32ColumnType:
 		nval, ok := val.(float64)
 		if !ok {
 			return fmt.Errorf("Column %s was not a number. Was: %#v", colName, val)
 		}
 		row.SetFloat32(colName, float32(nval))
-	case *columntype.Float64ColumnType:
+	case *types.Float64ColumnType:
 		nval, ok := val.(float64)
 		if !ok {
 			return fmt.Errorf("Column %s was not a number. Was: %#v", colName, val)
 		}
 		row.SetFloat64(colName, nval)
-	case *columntype.StringColumnType:
+	case *types.StringColumnType:
 		sval, ok := val.(string)
 		if !ok {
 			return fmt.Errorf("Column %s was not a string. Was: %#v", colName, val)
 		}
 		row.SetString(colName, sval)
-	case *columntype.TimeColumnType:
-		format := colType.(*columntype.TimeColumnType).Format
+	case *types.TimeColumnType:
+		format := colType.(*types.TimeColumnType).Format
 		tval, err := time.Parse(format, val.(string))
 		if err != nil {
 			return fmt.Errorf("Column %s could not be parsed as datetime with format %s. Was: %#v", colName, format, val)
 		}
 		row.SetTime(colName, tval)
-	case *columntype.VarStringColumnType:
+	case *types.VarStringColumnType:
 		sval, ok := val.(string)
 		if !ok {
 			return fmt.Errorf("Column %s was not a string. Was: %#v", colName, val)
@@ -82,7 +81,7 @@ func parseValue(val interface{}, colName string, colType core.ColumnType, row *c
 }
 
 // locateValue recursively, parsing and caching parts of the JSON that are relevant
-func locateValue(colName []string, fullName string, colType core.ColumnType, jsonData map[string]interface{}, row *core.Row) error {
+func locateValue(colName []string, fullName string, colType types.ColumnType, jsonData map[string]interface{}, row types.Row) error {
 	val, ok := jsonData[colName[0]]
 	if !ok || val == nil {
 		// Then we know that this key doesn't exist in the JSON and we're done
@@ -103,7 +102,7 @@ func locateValue(colName []string, fullName string, colType core.ColumnType, jso
 }
 
 // Parses a slice of strings into a Row, according to a schema
-func scanRow(conf *ParserConf, names []string, types []core.ColumnType, rowString string, row *core.Row) error {
+func scanRow(conf *ParserConf, names []string, types []types.ColumnType, rowString string, row types.Row) error {
 	var jsonData map[string]interface{}
 	err := json.Unmarshal([]byte(rowString), &jsonData)
 	if err != nil {

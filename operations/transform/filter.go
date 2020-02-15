@@ -1,25 +1,26 @@
 package transform
 
 import (
-	core "github.com/go-sif/sif/core"
+	types "github.com/go-sif/sif/types"
+	iutil "github.com/go-sif/sif/internal/util"
 )
 
 type filterTask struct {
-	fn core.FilterOperation
+	fn types.FilterOperation
 }
 
-func (s *filterTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
+func (s *filterTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
 	result, err := previous.FilterRows(s.fn)
 	if err != nil {
 		return nil, err
 	}
-	return []core.OperablePTition{result}, nil
+	return []types.OperablePartition{result}, nil
 }
 
 // Filter filters Rows out of a Partition, creating a new one
-func Filter(fn core.FilterOperation) core.DataFrameOperation {
-	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
-		nextTask := filterTask{fn: core.SafeFilterOperation(fn)}
+func Filter(fn types.FilterOperation) types.DataFrameOperation {
+	return func(d types.DataFrame) (types.Task, string, types.Schema, error) {
+		nextTask := filterTask{fn: iutil.SafeFilterOperation(fn)}
 		return &nextTask, "filter", d.GetSchema().Clone(), nil
 	}
 }

@@ -1,13 +1,13 @@
-package core
+package types
 
 // PartitionLoader is a description of how to load specific Partitions of data from a particular DataSource.
 // DataSources implement this interface to implement data-loading logic. PartitionLoaders are assigned round-robin
 // to workers, so an assumption is made that each PartitionLoader will produce a roughly equal number of Partitions
 type PartitionLoader interface {
-	ToString() string                                                                     // for logging
-	Load(parser DataSourceParser, widestInitialSchema *Schema) (PartitionIterator, error) // how to actually load data -  how much room to leave for the largest upcoming schema (before the first repack or the next stage, if any)
-	GobEncode() ([]byte, error)                                                           // how to serialize this PartitionLoader
-	GobDecode([]byte) error                                                               // how to deserialize this PartitionLoader
+	ToString() string                                                                    // for logging
+	Load(parser DataSourceParser, widestInitialSchema Schema) (PartitionIterator, error) // how to actually load data -  how much room to leave for the largest upcoming schema (before the first repack or the next stage, if any)
+	GobEncode() ([]byte, error)                                                          // how to serialize this PartitionLoader
+	GobDecode([]byte) error                                                              // how to deserialize this PartitionLoader
 }
 
 // PartitionMap is an interface describing an iterator for PartitionLoaders.

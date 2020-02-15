@@ -13,16 +13,17 @@ import (
 	"path"
 	"testing"
 
-	types "github.com/go-sif/sif/columntype"
 	core "github.com/go-sif/sif/core"
 	"github.com/go-sif/sif/datasource/file"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	ops "github.com/go-sif/sif/operations/transform"
+	"github.com/go-sif/sif/schema"
+	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestEDSMDataFrame(t *testing.T) core.DataFrame {
-	schema := core.CreateSchema()
+func createTestEDSMDataFrame(t *testing.T) types.DataFrame {
+	schema := schema.CreateSchema()
 	schema.CreateColumn("coords.x", &types.Float64ColumnType{})
 	schema.CreateColumn("coords.z", &types.Float64ColumnType{})
 	schema.CreateColumn("date", &types.TimeColumnType{Format: "2006-01-02 15:04:05"})
@@ -73,7 +74,7 @@ func TestEDSMHeatmap(t *testing.T) {
 		// create column for heatmap reduction
 		ops.AddColumn("heatmap", &VarHeatmapColumnType{}),
 		// compute partial heatmaps
-		ops.Map(func(row *core.Row) error {
+		ops.Map(func(row types.Row) error {
 			if row.IsNil("coords.x") || row.IsNil("coords.z") {
 				return nil
 			}
@@ -96,7 +97,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			return err
 		}),
 		// perform heatmap reduction
-		ops.Reduce(func(row *core.Row) ([]byte, error) {
+		ops.Reduce(func(row types.Row) ([]byte, error) {
 			tval, err := row.GetTime("date")
 			if err != nil {
 				return nil, err
@@ -104,7 +105,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			key := tval.Format("2006")
 			// key := tval.Format("2006-01-02-15") // uncomment for hourly
 			return []byte(key), nil
-		}, func(lrow *core.Row, rrow *core.Row) error {
+		}, func(lrow types.Row, rrow types.Row) error {
 			lval, err := lrow.GetVarCustomData("heatmap")
 			if err != nil {
 				return err
@@ -128,7 +129,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			}
 			return lrow.SetVarCustomData("heatmap", lheatmap)
 		}),
-		ops.Map(func(row *core.Row) error {
+		ops.Map(func(row types.Row) error {
 			tval, err := row.GetTime("date")
 			if err != nil {
 				return err

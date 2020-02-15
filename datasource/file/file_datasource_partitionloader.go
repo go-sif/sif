@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/types"
 )
 
 // PartitionLoader is capable of loading partitions of data from a file
@@ -20,7 +20,7 @@ func (pl *PartitionLoader) ToString() string {
 }
 
 // Load is capable of loading partitions of data from a file
-func (pl *PartitionLoader) Load(parser core.DataSourceParser, widestInitialSchema *core.Schema) (core.PartitionIterator, error) {
+func (pl *PartitionLoader) Load(parser types.DataSourceParser, widestInitialSchema types.Schema) (types.PartitionIterator, error) {
 	f, err := os.Open(pl.path)
 	if err != nil {
 		return nil, err

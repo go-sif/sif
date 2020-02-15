@@ -1,15 +1,16 @@
-package core
+package partition
 
 import (
 	"testing"
 
-	types "github.com/go-sif/sif/columntype"
 	errors "github.com/go-sif/sif/errors"
+	"github.com/go-sif/sif/schema"
+	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createPartitionTestSchema() *Schema {
-	schema := CreateSchema()
+func createPartitionTestSchema() types.Schema {
+	schema := schema.CreateSchema()
 	schema.CreateColumn("col1", &types.Uint8ColumnType{})
 	return schema
 }
@@ -19,9 +20,9 @@ func TestCreatePartitionImpl(t *testing.T) {
 	part := createPartitionImpl(4, schema, schema)
 	require.Equal(t, part.GetMaxRows(), 4)
 	require.Equal(t, part.GetNumRows(), 0)
-	require.Nil(t, part.canInsertRowData(make([]byte, 1)))
-	require.NotNil(t, part.canInsertRowData(make([]byte, 4)))
-	require.False(t, part.getIsKeyed())
+	require.Nil(t, part.CanInsertRowData(make([]byte, 1)))
+	require.NotNil(t, part.CanInsertRowData(make([]byte, 4)))
+	require.False(t, part.GetIsKeyed())
 }
 
 func TestAppendRowData(t *testing.T) {
@@ -123,7 +124,7 @@ func TestMapRows(t *testing.T) {
 		require.Nil(t, err)
 	}
 	sum := 0
-	_, err := part.MapRows(func(row *Row) error {
+	_, err := part.MapRows(func(row types.Row) error {
 		val, err := row.GetUint8("col1")
 		sum += int(val)
 		return err
@@ -146,10 +147,10 @@ func TestKeyRows(t *testing.T) {
 	// add in a single duplicate row for good measure.
 	err := part.AppendRowData([]byte{6}, []byte{0}, make(map[string]interface{}), make(map[string][]byte))
 	// shouldn't be able to get keys before we key a partition
-	_, err = part.getKey(0)
+	_, err = part.GetKey(0)
 	require.NotNil(t, err)
 	// key rows
-	_, err = part.KeyRows(func(row *Row) ([]byte, error) {
+	_, err = part.KeyRows(func(row types.Row) ([]byte, error) {
 		val, err := row.GetUint8("col1")
 		if err != nil {
 			return nil, err
@@ -157,19 +158,19 @@ func TestKeyRows(t *testing.T) {
 		return []byte{byte(val)}, nil
 	})
 	require.Nil(t, err)
-	require.True(t, part.getIsKeyed())
+	require.True(t, part.GetIsKeyed())
 	// compare keys for identical rows
-	key1, err := part.getKey(6)
+	key1, err := part.GetKey(6)
 	require.Nil(t, err)
-	key2, err := part.getKey(7)
+	key2, err := part.GetKey(7)
 	require.Nil(t, err)
 	require.EqualValues(t, key1, key2)
-	// even though the key appears twice, findFirstKey should always return the first occurance
-	idx, err := part.findFirstKey(key2)
+	// even though the key appears twice, FindFirstKey should always return the first occurance
+	idx, err := part.FindFirstKey(key2)
 	require.Nil(t, err)
 	require.Equal(t, 6, idx)
 	// keys that don't exist
-	_, err = part.findFirstKey(uint64(1234))
+	_, err = part.FindFirstKey(uint64(1234))
 	require.NotNil(t, err)
 }
 
@@ -183,7 +184,7 @@ func TestSplit(t *testing.T) {
 		err := part.AppendRowData(r, []byte{0}, make(map[string]interface{}), make(map[string][]byte))
 		require.Nil(t, err)
 	}
-	left, right, err := part.split(4)
+	left, right, err := part.Split(4)
 	require.Nil(t, err)
 	// verify values
 	val, err := left.GetRow(0).GetUint8("col1")
@@ -193,7 +194,7 @@ func TestSplit(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, val, uint8(4))
 	// key rows
-	_, err = part.KeyRows(func(row *Row) ([]byte, error) {
+	_, err = part.KeyRows(func(row types.Row) ([]byte, error) {
 		val, err := row.GetUint8("col1")
 		if err != nil {
 			return nil, err
@@ -201,15 +202,15 @@ func TestSplit(t *testing.T) {
 		return []byte{byte(val)}, nil
 	})
 	// split again and verify keys
-	left, right, err = part.split(4)
-	key, err := part.getKey(0)
+	left, right, err = part.Split(4)
+	key, err := part.GetKey(0)
 	require.Nil(t, err)
-	lkey, err := left.getKey(0)
+	lkey, err := left.GetKey(0)
 	require.Nil(t, err)
 	require.Equal(t, key, lkey)
-	key, err = part.getKey(4)
+	key, err = part.GetKey(4)
 	require.Nil(t, err)
-	rkey, err := right.getKey(0)
+	rkey, err := right.GetKey(0)
 	require.Nil(t, err)
 	require.Equal(t, rkey, key)
 }
@@ -239,17 +240,17 @@ func TestSerialization(t *testing.T) {
 		require.Equal(t, val2, "Hello World")
 	}
 	// serialize and deserialize
-	buff, err := part.toBytes()
+	buff, err := part.ToBytes()
 	require.Nil(t, err)
-	part, err = partitionFromBytes(buff, part.widestSchema, part.currentSchema)
+	rpart, err := FromBytes(buff, part.widestSchema, part.currentSchema)
 	require.Nil(t, err)
 	// verify values again
-	require.Equal(t, 8, part.GetNumRows())
+	require.Equal(t, 8, rpart.GetNumRows())
 	for i := 0; i < 8; i++ {
-		val1, err := part.GetRow(i).GetUint8("col1")
+		val1, err := rpart.GetRow(i).GetUint8("col1")
 		require.Nil(t, err)
 		require.Equal(t, val1, uint8(i))
-		val2, err := part.GetRow(i).GetVarString("col2")
+		val2, err := rpart.GetRow(i).GetVarString("col2")
 		require.Nil(t, err)
 		require.Equal(t, val2, "Hello World")
 	}

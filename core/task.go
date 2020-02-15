@@ -1,21 +1,17 @@
 package core
 
-// A Task is an action or transformation applied
-// to Partitions of columnar data.
-type Task interface {
-	RunWorker(previous OperablePTition) ([]OperablePTition, error)
-}
+import "github.com/go-sif/sif/types"
 
 // A reductionTask is a task that represents an aggregation
 type reductionTask interface {
-	Task
-	GetKeyingOperation() KeyingOperation
-	GetReductionOperation() ReductionOperation
+	types.Task
+	GetKeyingOperation() types.KeyingOperation
+	GetReductionOperation() types.ReductionOperation
 }
 
 // A collectionTask is a task that represents collecting data to the coordinator
 type collectionTask interface {
-	Task
+	types.Task
 	GetCollectionLimit() int64
 }
 
@@ -23,6 +19,6 @@ type collectionTask interface {
 type noOpTask struct{}
 
 // RunWorker for noOpTask does nothing
-func (s *noOpTask) RunWorker(previous OperablePTition) ([]OperablePTition, error) {
-	return []OperablePTition{previous}, nil
+func (s *noOpTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
+	return []types.OperablePartition{previous}, nil
 }

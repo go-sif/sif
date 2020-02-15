@@ -4,18 +4,20 @@ import (
 	"testing"
 
 	xxhash "github.com/cespare/xxhash"
-	types "github.com/go-sif/sif/columntype"
+	"github.com/go-sif/sif/partition"
+	"github.com/go-sif/sif/schema"
+	"github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createPTreeTestSchema() *Schema {
-	schema := CreateSchema()
+func createPTreeTestSchema() types.Schema {
+	schema := schema.CreateSchema()
 	schema.CreateColumn("key", &types.ByteColumnType{})
 	schema.CreateColumn("val", &types.ByteColumnType{})
 	return schema
 }
 
-func pTreeTestReducer(lrow *Row, rrow *Row) error {
+func pTreeTestReducer(lrow types.Row, rrow types.Row) error {
 	lval, err := lrow.GetByte("val")
 	if err != nil {
 		return err
@@ -28,7 +30,7 @@ func pTreeTestReducer(lrow *Row, rrow *Row) error {
 	return nil
 }
 
-func pTreeTestKeyer(row *Row) ([]byte, error) {
+func pTreeTestKeyer(row types.Row) ([]byte, error) {
 	val, err := row.GetByte("key")
 	if err != nil {
 		return nil, err
@@ -57,7 +59,7 @@ func TestMergeRow(t *testing.T) {
 	root := createPTreeNode(conf, 3, schema, schema)
 
 	// add the first row
-	row := &Row{[]byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema}
+	row := partition.CreateRow([]byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
 	err := root.mergeRow(row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.NotNil(t, root.part)
@@ -70,7 +72,7 @@ func TestMergeRow(t *testing.T) {
 	require.Equal(t, 1, root.part.GetNumRows())
 
 	// add another distinct row
-	row = &Row{[]byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema}
+	row = partition.CreateRow([]byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
 	err = root.mergeRow(row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.NotNil(t, root.part)
@@ -83,7 +85,7 @@ func TestMergeRow(t *testing.T) {
 	require.Equal(t, 2, root.part.GetNumRows())
 
 	// add a merge row
-	row = &Row{[]byte{0, 0}, []byte{1, 2}, make(map[string]interface{}), make(map[string][]byte), schema}
+	row = partition.CreateRow([]byte{0, 0}, []byte{1, 2}, make(map[string]interface{}), make(map[string][]byte), schema)
 	err = root.mergeRow(row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.NotNil(t, root.part)
@@ -97,7 +99,7 @@ func TestMergeRow(t *testing.T) {
 	// Test keys are sorted
 	lastKey := uint64(0)
 	for i := 0; i < root.part.GetNumRows(); i++ {
-		k, err := root.part.getKey(i)
+		k, err := root.part.GetKey(i)
 		require.Nil(t, err)
 		require.True(t, k > lastKey)
 		lastKey = k
@@ -108,7 +110,7 @@ func TestMergeRow(t *testing.T) {
 	hasher := xxhash.New()
 	hasher.Write(keyBuf)
 	hashedKey := hasher.Sum64()
-	idx, err := root.part.findFirstRowKey(keyBuf, hashedKey, pTreeTestKeyer)
+	idx, err := root.part.FindFirstRowKey(keyBuf, hashedKey, pTreeTestKeyer)
 	require.Nil(t, err)
 	// Test value is correct
 	val, err := root.part.GetRow(idx).GetByte("val")
@@ -122,7 +124,7 @@ func TestMergeRowWithSplit(t *testing.T) {
 	root := createPTreeNode(conf, 3, schema, schema)
 
 	for i := byte(0); i < byte(6); i++ {
-		row := &Row{[]byte{0, 0}, []byte{i, 1}, make(map[string]interface{}), make(map[string][]byte), schema}
+		row := partition.CreateRow([]byte{0, 0}, []byte{i, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
 		err := root.mergeRow(row, pTreeTestKeyer, pTreeTestReducer)
 		require.Nil(t, err)
 	}

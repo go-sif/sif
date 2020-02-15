@@ -4,16 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	pb "github.com/go-sif/sif/core/internal/rpc"
+	pb "github.com/go-sif/sif/internal/rpc"
+	iutil "github.com/go-sif/sif/internal/util"
 	logging "github.com/go-sif/sif/logging"
 	"github.com/hashicorp/go-multierror"
 )
 
-//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./internal/rpc s_execution.proto
-
 type executionServer struct {
 	planExecutor *planExecutor
 	logClient    pb.LogServiceClient
+}
+
+// createExecutionServer creatse a new execution server
+func createExecutionServer(logClient pb.LogServiceClient, planExecutor *planExecutor) *executionServer {
+	return &executionServer{logClient: logClient, planExecutor: planExecutor}
 }
 
 // RunStage executes a stage on a Worker
@@ -83,7 +87,7 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 			if err != nil {
 				// if this is a multierror, it's from a row transformation, which we might want to ignore
 				if multierr, ok := err.(*multierror.Error); s.planExecutor.conf.ignoreRowErrors && ok {
-					multierr.ErrorFormat = formatMultiError
+					multierr.ErrorFormat = iutil.FormatMultiError
 					// log errors and carry on
 					logger, err := s.logClient.Log(ctx)
 					if err != nil {

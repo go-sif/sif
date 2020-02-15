@@ -1,14 +1,15 @@
 package transform
 
 import (
-	core "github.com/go-sif/sif/core"
+	iutil "github.com/go-sif/sif/internal/util"
+	types "github.com/go-sif/sif/types"
 )
 
 type flatMapTask struct {
-	fn core.FlatMapOperation
+	fn types.FlatMapOperation
 }
 
-func (s *flatMapTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
+func (s *flatMapTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
 	results, err := previous.FlatMapRows(s.fn)
 	if err != nil {
 		return nil, err
@@ -17,9 +18,9 @@ func (s *flatMapTask) RunWorker(previous core.OperablePTition) ([]core.OperableP
 }
 
 // FlatMap transforms a Row, potentially producing new rows
-func FlatMap(fn core.FlatMapOperation) core.DataFrameOperation {
-	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
-		nextTask := flatMapTask{fn: core.SafeFlatMapOperation(fn)}
+func FlatMap(fn types.FlatMapOperation) types.DataFrameOperation {
+	return func(d types.DataFrame) (types.Task, string, types.Schema, error) {
+		nextTask := flatMapTask{fn: iutil.SafeFlatMapOperation(fn)}
 		return &nextTask, "flatmap", d.GetSchema().Clone(), nil
 	}
 }

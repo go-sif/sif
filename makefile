@@ -29,7 +29,7 @@ fmt:
 
 clean:
 	@rm -rf ./bin
-	@rm -rf ./core/rpc/*.pb.go
+	@rm -rf ./internal/rpc/*.pb.go
 
 lint:
 	@go vet ./...

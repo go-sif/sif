@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
-	types "github.com/go-sif/sif/columntype"
 	core "github.com/go-sif/sif/core"
 	memstream "github.com/go-sif/sif/datasource/memorystream"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	ops "github.com/go-sif/sif/operations/transform"
+	"github.com/go-sif/sif/schema"
+	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestStreamDataFrame(t *testing.T, numGenerators int) core.DataFrame {
+func createTestStreamDataFrame(t *testing.T, numGenerators int) types.DataFrame {
 	data := make([]func() []byte, numGenerators)
 	generator := func() []byte {
 		num := rand.Intn(10)
@@ -28,7 +29,7 @@ func createTestStreamDataFrame(t *testing.T, numGenerators int) core.DataFrame {
 	}
 
 	// Create a dataframe for the data
-	schema := core.CreateSchema()
+	schema := schema.CreateSchema()
 	schema.CreateColumn("col1", &types.Int32ColumnType{})
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
 		PartitionSize: 5,
@@ -43,7 +44,7 @@ func TestStream(t *testing.T) {
 	// create dataframe
 	frame, err := createTestStreamDataFrame(t, 4).To(
 		ops.AddColumn("res", &types.VarStringColumnType{}),
-		ops.Map(func(row *core.Row) error {
+		ops.Map(func(row types.Row) error {
 			col1, err := row.GetInt32("col1")
 			if err != nil {
 				return err
@@ -55,10 +56,10 @@ func TestStream(t *testing.T) {
 			return nil
 		}),
 		ops.Reduce(
-			func(row *core.Row) ([]byte, error) {
+			func(row types.Row) ([]byte, error) {
 				return []byte("key"), nil
 			},
-			func(lrow *core.Row, rrow *core.Row) error {
+			func(lrow types.Row, rrow types.Row) error {
 				l, err := lrow.GetVarString("res")
 				if err != nil {
 					return err
@@ -73,7 +74,7 @@ func TestStream(t *testing.T) {
 				}
 				return nil
 			}),
-		ops.Map(func(row *core.Row) error {
+		ops.Map(func(row types.Row) error {
 			col1, err := row.GetVarString("res")
 			if err != nil {
 				return err

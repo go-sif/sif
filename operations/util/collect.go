@@ -3,7 +3,7 @@ package util
 import (
 	"fmt"
 
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/types"
 )
 
 type collectTask struct {
@@ -14,9 +14,9 @@ func (s *collectTask) Name() string {
 	return "collect"
 }
 
-func (s *collectTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
+func (s *collectTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
 	// do nothing
-	return []core.OperablePTition{previous}, nil
+	return []types.OperablePartition{previous}, nil
 }
 
 func (s *collectTask) GetCollectionLimit() int64 {
@@ -26,8 +26,8 @@ func (s *collectTask) GetCollectionLimit() int64 {
 // Collect declares that data should be shufled to the Coordinator
 // upon completion of the previous stage. This also signals
 // the end of a Dataframe's tasks.
-func Collect(collectionLimit int64) core.DataFrameOperation {
-	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
+func Collect(collectionLimit int64) types.DataFrameOperation {
+	return func(d types.DataFrame) (types.Task, string, types.Schema, error) {
 		if d.GetDataSource().IsStreaming() {
 			return nil, "collect", nil, fmt.Errorf("Cannot collect() from a streaming DataSource")
 		}

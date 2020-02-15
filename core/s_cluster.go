@@ -1,19 +1,22 @@
 package core
 
-//go:generate protoc --proto_path=./rpc_proto --go_out=plugins=grpc:./internal/rpc s_cluster.proto
-
 import (
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
-	pb "github.com/go-sif/sif/core/internal/rpc"
+	pb "github.com/go-sif/sif/internal/rpc"
 	"golang.org/x/net/context"
 )
 
 type clusterServer struct {
 	workers sync.Map
+}
+
+// createClusterServer creates a new cluster server
+func createClusterServer() *clusterServer {
+	return &clusterServer{workers: sync.Map{}}
 }
 
 // RegisterWorker registers new workers with the cluster

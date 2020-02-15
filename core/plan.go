@@ -1,10 +1,12 @@
 package core
 
+import "github.com/go-sif/sif/types"
+
 // plan is an optimized execution plan for a DataFrame
 type plan struct {
 	stages []*stage
-	parser DataSourceParser
-	source DataSource
+	parser types.DataSourceParser
+	source types.DataSource
 }
 
 // size returns the number of stages in this Plan

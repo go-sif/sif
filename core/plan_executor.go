@@ -6,8 +6,12 @@ import (
 	"log"
 	"sync"
 
-	pb "github.com/go-sif/sif/core/internal/rpc"
+	pb "github.com/go-sif/sif/internal/rpc"
+	itypes "github.com/go-sif/sif/internal/types"
+	iutil "github.com/go-sif/sif/internal/util"
 	logging "github.com/go-sif/sif/logging"
+	"github.com/go-sif/sif/partition"
+	"github.com/go-sif/sif/types"
 	uuid "github.com/gofrs/uuid"
 	"github.com/hashicorp/go-multierror"
 )
@@ -18,15 +22,15 @@ type planExecutor struct {
 	plan                 *plan
 	conf                 *PlanExecutorConfig
 	nextStage            int
-	partitionLoaders     []PartitionLoader
+	partitionLoaders     []types.PartitionLoader
 	partitionLoadersLock sync.Mutex
 	assignedBucket       uint64
 	shuffleReady         bool
 	shuffleTrees         map[uint64]*pTreeRoot // staging area for partitions before shuffle // TODO replace with partially-disked-back map with automated paging
 	shuffleTreesLock     sync.Mutex
-	shuffleIterators     map[uint64]PartitionIterator // used to serve partitions from the shuffleTree
+	shuffleIterators     map[uint64]types.PartitionIterator // used to serve partitions from the shuffleTree
 	shuffleIteratorsLock sync.Mutex
-	collectCache         map[string]PTition // staging area used for collection when there has been no shuffle
+	collectCache         map[string]types.Partition // staging area used for collection when there has been no shuffle
 	collectCacheLock     sync.Mutex
 }
 
@@ -48,10 +52,10 @@ func createplanExecutor(plan *plan, conf *PlanExecutorConfig) *planExecutor {
 		id:               id.String(),
 		plan:             plan,
 		conf:             conf,
-		partitionLoaders: make([]PartitionLoader, 0),
+		partitionLoaders: make([]types.PartitionLoader, 0),
 		shuffleTrees:     make(map[uint64]*pTreeRoot),
-		shuffleIterators: make(map[uint64]PartitionIterator),
-		collectCache:     make(map[string]PTition),
+		shuffleIterators: make(map[uint64]types.PartitionIterator),
+		collectCache:     make(map[string]types.Partition),
 	}
 }
 
@@ -103,8 +107,8 @@ func (pe *planExecutor) hasPartitionLoaders() bool {
 }
 
 // getPartitionSource returns the the source of partitions for the current stage
-func (pe *planExecutor) getPartitionSource() PartitionIterator {
-	var parts PartitionIterator
+func (pe *planExecutor) getPartitionSource() types.PartitionIterator {
+	var parts types.PartitionIterator
 	// we only load partitions if we're on the first stage, and if they're available to load
 	if pe.onFirstStage() && pe.hasPartitionLoaders() {
 		parts = createPartitionLoaderIterator(pe.partitionLoaders, pe.plan.parser, pe.plan.stages[0].widestInitialSchema())
@@ -112,7 +116,7 @@ func (pe *planExecutor) getPartitionSource() PartitionIterator {
 		// after we're done iterating through it, so we can safely get rid of it.
 		if !pe.conf.streaming {
 			pe.partitionLoadersLock.Lock()
-			pe.partitionLoaders = make([]PartitionLoader, 0) // clear partition loaders
+			pe.partitionLoaders = make([]types.PartitionLoader, 0) // clear partition loaders
 			pe.partitionLoadersLock.Unlock()
 		}
 	} else {
@@ -120,7 +124,7 @@ func (pe *planExecutor) getPartitionSource() PartitionIterator {
 		parts = createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true)
 		// once we consume a completed shuffle, we don't need a record of it anymore.
 		pe.shuffleTrees = make(map[uint64]*pTreeRoot)
-		pe.shuffleIterators = make(map[uint64]PartitionIterator)
+		pe.shuffleIterators = make(map[uint64]types.PartitionIterator)
 		pe.shuffleReady = false
 		pe.shuffleTreesLock.Unlock()
 	}
@@ -145,7 +149,7 @@ func (pe *planExecutor) assignPartitionLoader(sLoader []byte) error {
 }
 
 // flatMapPartitions applies a Partition operation to all partitions in this plan, regardless of where they come from
-func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(OperablePTition) ([]OperablePTition, error), logClient pb.LogServiceClient, runShuffle bool, prepCollect bool, buckets []uint64, workers []*pb.MWorkerDescriptor) error {
+func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(types.OperablePartition) ([]types.OperablePartition, error), logClient pb.LogServiceClient, runShuffle bool, prepCollect bool, buckets []uint64, workers []*pb.MWorkerDescriptor) error {
 	if len(pe.plan.stages) == 0 {
 		return fmt.Errorf("Plan has no stages")
 	}
@@ -156,13 +160,13 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(OperableP
 		if err != nil {
 			return err
 		}
-		opart := part.(OperablePTition)
+		opart := part.(types.OperablePartition)
 		newParts, err := fn(opart)
 		if err != nil {
 			// TODO eliminate this duplication from s_execution
 			// if this is a multierror, it's from a row transformation, which we might want to ignore
 			if multierr, ok := err.(*multierror.Error); pe.conf.ignoreRowErrors && ok {
-				multierr.ErrorFormat = formatMultiError
+				multierr.ErrorFormat = iutil.FormatMultiError
 				// log errors and carry on
 				logger, err := logClient.Log(ctx)
 				if err != nil {
@@ -186,9 +190,9 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(OperableP
 			}
 		}
 		for _, newPart := range newParts {
-			tNewPart := newPart.(TransferrablePTition)
+			tNewPart := newPart.(itypes.TransferrablePartition)
 			if runShuffle {
-				if !tNewPart.getIsKeyed() {
+				if !tNewPart.GetIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
 				}
 				err = pe.prepareShuffle(tNewPart, buckets)
@@ -210,9 +214,9 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(OperableP
 }
 
 // prepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
-func (pe *planExecutor) prepareShuffle(part TransferrablePTition, buckets []uint64) error {
+func (pe *planExecutor) prepareShuffle(part itypes.TransferrablePartition, buckets []uint64) error {
 	for i := 0; i < part.GetNumRows(); i++ {
-		key, err := part.getKey(i)
+		key, err := part.GetKey(i)
 		if err != nil {
 			return err
 		}
@@ -245,7 +249,7 @@ func (pe *planExecutor) assignShuffleBucket(assignedBucket uint64) {
 }
 
 // getShufflePartitionIterator serves up an iterator for partitions to shuffle
-func (pe *planExecutor) getShufflePartitionIterator(bucket uint64) (PartitionIterator, error) {
+func (pe *planExecutor) getShufflePartitionIterator(bucket uint64) (types.PartitionIterator, error) {
 	if len(pe.collectCache) > 0 {
 		// if we're collecting, and we never reduced, then the collectCache will be used instead of a tree
 		return createPartitionCacheIterator(pe.collectCache, true), nil
@@ -271,8 +275,8 @@ func (pe *planExecutor) acceptShuffledPartition(mpart *pb.MPartitionMeta, dataSt
 		// pe.plan.stages[pe.nextStage-1].widestSchema
 		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), pe.getCurrentStage().outgoingSchema, pe.getCurrentStage().finalSchema())
 	}
-	part := partitionFromMetaMessage(mpart, pe.shuffleTrees[pe.assignedBucket].nextStageWidestSchema, pe.shuffleTrees[pe.assignedBucket].nextStageIncomingSchema)
-	err := part.receiveStreamedData(dataStream, pe.getCurrentStage().outgoingSchema)
+	part := partition.FromMetaMessage(mpart, pe.shuffleTrees[pe.assignedBucket].nextStageWidestSchema, pe.shuffleTrees[pe.assignedBucket].nextStageIncomingSchema)
+	err := part.ReceiveStreamedData(dataStream, pe.getCurrentStage().outgoingSchema)
 	if err != nil {
 		return err
 	}

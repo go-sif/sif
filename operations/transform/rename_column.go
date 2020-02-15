@@ -1,20 +1,18 @@
 package transform
 
-import (
-	core "github.com/go-sif/sif/core"
-)
+import types "github.com/go-sif/sif/types"
 
 // renameColumnTask is a task that does nothing
 type renameColumnTask struct{}
 
 // RunWorker for renameColumnTask does nothing
-func (s *renameColumnTask) RunWorker(previous core.OperablePTition) ([]core.OperablePTition, error) {
-	return []core.OperablePTition{previous}, nil
+func (s *renameColumnTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
+	return []types.OperablePartition{previous}, nil
 }
 
 // RenameColumn renames an existing column
-func RenameColumn(oldName string, newName string) core.DataFrameOperation {
-	return func(d core.DataFrame) (core.Task, string, *core.Schema, error) {
+func RenameColumn(oldName string, newName string) types.DataFrameOperation {
+	return func(d types.DataFrame) (types.Task, string, types.Schema, error) {
 		newSchema, err := d.GetSchema().Clone().RenameColumn(oldName, newName)
 		if err != nil {
 			return nil, "", nil, err

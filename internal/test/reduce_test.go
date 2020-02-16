@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-sif/sif"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/cluster"
 	memory "github.com/go-sif/sif/datasource/memory"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	"github.com/go-sif/sif/internal/schema"
@@ -61,8 +61,8 @@ func TestReduce(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	copts := &core.NodeOptions{}
-	wopts := &core.NodeOptions{}
+	copts := &cluster.NodeOptions{}
+	wopts := &cluster.NodeOptions{}
 	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	require.Nil(t, err)
 	require.NotNil(t, res)

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-sif/sif"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/cluster"
 	memstream "github.com/go-sif/sif/datasource/memorystream"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	"github.com/go-sif/sif/internal/schema"
@@ -90,8 +90,8 @@ func TestStream(t *testing.T) {
 	// run dataframe
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	copts := &core.NodeOptions{}
-	wopts := &core.NodeOptions{}
+	copts := &cluster.NodeOptions{}
+	wopts := &cluster.NodeOptions{}
 	_, err = runTestFrame(ctx, t, frame, copts, wopts, 2)
 	require.True(t, len(processedRows) > 6)
 	for _, r := range processedRows {

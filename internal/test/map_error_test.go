@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-sif/sif"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/cluster"
 	memory "github.com/go-sif/sif/datasource/memory"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	"github.com/go-sif/sif/internal/schema"
@@ -51,8 +51,8 @@ func TestMapErrors(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe
-	copts := &core.NodeOptions{}
-	wopts := &core.NodeOptions{IgnoreRowErrors: true}
+	copts := &cluster.NodeOptions{}
+	wopts := &cluster.NodeOptions{IgnoreRowErrors: true}
 	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	for _, part := range res {
 		part.ForEachRow(func(row sif.Row) error {

@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/go-sif/sif"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/cluster"
 	"github.com/go-sif/sif/datasource/file"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	"github.com/go-sif/sif/internal/schema"
@@ -180,8 +180,8 @@ func TestEDSMHeatmap(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	copts := &core.NodeOptions{}
-	wopts := &core.NodeOptions{NumInMemoryPartitions: 20}
+	copts := &cluster.NodeOptions{}
+	wopts := &cluster.NodeOptions{NumInMemoryPartitions: 20}
 	_, err = runTestFrame(context.Background(), t, frame, copts, wopts, 8)
 	require.Nil(t, err)
 }

@@ -90,7 +90,7 @@ func (c *coordinator) Run(ctx context.Context) (map[string]types.CollectedPartit
 	if !ok {
 		return nil, fmt.Errorf("DataFrame must be executable")
 	}
-	planExecutor := eframe.optimize().execute(&PlanExecutorConfig{
+	planExecutor := eframe.optimize().execute(&planExecutorConfig{
 		tempFilePath:       "",
 		inMemoryPartitions: 0,
 		streaming:          c.frame.GetDataSource().IsStreaming(),

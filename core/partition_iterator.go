@@ -7,17 +7,17 @@ import (
 	"github.com/go-sif/sif/types"
 )
 
-// PartitionSliceIterator produces a simple iterator for Partitions stored in a slice
-type PartitionSliceIterator struct {
+// partitionSliceIterator produces a simple iterator for Partitions stored in a slice
+type partitionSliceIterator struct {
 	partitions   []types.Partition
 	next         int
 	lock         sync.Mutex
 	endListeners []func()
 }
 
-// CreatePartitionSliceIterator produces a new PartitionIterator for iterating over a slice of Partitions
-func CreatePartitionSliceIterator(partitions []types.Partition) types.PartitionIterator {
-	return &PartitionSliceIterator{
+// createPartitionSliceIterator produces a new PartitionIterator for iterating over a slice of Partitions
+func createPartitionSliceIterator(partitions []types.Partition) types.PartitionIterator {
+	return &partitionSliceIterator{
 		partitions:   partitions,
 		next:         0,
 		endListeners: []func(){},
@@ -25,21 +25,21 @@ func CreatePartitionSliceIterator(partitions []types.Partition) types.PartitionI
 }
 
 // OnEnd registers a listener which fires when this iterator runs out of Partitions
-func (psi *PartitionSliceIterator) OnEnd(onEnd func()) {
+func (psi *partitionSliceIterator) OnEnd(onEnd func()) {
 	psi.lock.Lock()
 	defer psi.lock.Unlock()
 	psi.endListeners = append(psi.endListeners, onEnd)
 }
 
 // HasNextPartition returns true iff this PartitionIterator can produce another Partition
-func (psi *PartitionSliceIterator) HasNextPartition() bool {
+func (psi *partitionSliceIterator) HasNextPartition() bool {
 	psi.lock.Lock()
 	defer psi.lock.Unlock()
 	return psi.next < len(psi.partitions)
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (psi *PartitionSliceIterator) NextPartition() (types.Partition, error) {
+func (psi *partitionSliceIterator) NextPartition() (types.Partition, error) {
 	psi.lock.Lock()
 	defer psi.lock.Unlock()
 	if psi.next >= len(psi.partitions) {

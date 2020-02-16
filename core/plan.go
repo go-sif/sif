@@ -15,6 +15,6 @@ func (p *plan) size() int {
 }
 
 // execute creates a planExecutor for this Plan
-func (p *plan) execute(conf *PlanExecutorConfig) *planExecutor {
+func (p *plan) execute(conf *planExecutorConfig) *planExecutor {
 	return createplanExecutor(p, conf)
 }

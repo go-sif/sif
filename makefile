@@ -85,7 +85,7 @@ build: generate lint
 
 docs:
 	@echo "Serving docs on http://localhost:6060"
-	@godoc -http=localhost:6060
+	@witch --cmd="godoc -http=localhost:6060" --watch="**/*.go" --ignore="vendor,.git,**/*.pb.go" --no-spinner
 
 watch:
 	@witch --cmd="make build" --watch="**/*.go" --ignore="vendor,.git,**/*.pb.go" --no-spinner

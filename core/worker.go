@@ -91,7 +91,7 @@ func (w *worker) Start(frame types.DataFrame) error {
 	if !ok {
 		return fmt.Errorf("DataFrame must be executable")
 	}
-	planExecutor := eframe.optimize().execute(&PlanExecutorConfig{
+	planExecutor := eframe.optimize().execute(&planExecutorConfig{
 		tempFilePath:       w.opts.TempDir,
 		inMemoryPartitions: w.opts.NumInMemoryPartitions,
 		streaming:          eframe.getParent().GetDataSource().IsStreaming(),

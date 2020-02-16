@@ -31,7 +31,7 @@ type pTreeNode struct {
 type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
-func createPTreeNode(conf *PlanExecutorConfig, maxRows int, nextStageWidestSchema types.Schema, nextStageIncomingSchema types.Schema) *pTreeNode {
+func createPTreeNode(conf *planExecutorConfig, maxRows int, nextStageWidestSchema types.Schema, nextStageIncomingSchema types.Schema) *pTreeNode {
 	cache, err := lru.NewWithEvict(conf.inMemoryPartitions, func(key interface{}, value interface{}) {
 		partID, ok := key.(string)
 		if !ok {

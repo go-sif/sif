@@ -20,7 +20,7 @@ import (
 type planExecutor struct {
 	id                   string
 	plan                 *plan
-	conf                 *PlanExecutorConfig
+	conf                 *planExecutorConfig
 	nextStage            int
 	partitionLoaders     []types.PartitionLoader
 	partitionLoadersLock sync.Mutex
@@ -34,8 +34,8 @@ type planExecutor struct {
 	collectCacheLock     sync.Mutex
 }
 
-// PlanExecutorConfig configures the execution of a plan
-type PlanExecutorConfig struct {
+// planExecutorConfig configures the execution of a plan
+type planExecutorConfig struct {
 	tempFilePath       string // the directory to use as on-disk swap space for partitions
 	inMemoryPartitions int    // the number of partitions to retain in memory before swapping to disk
 	streaming          bool   // whether or not this executor is operating on streaming data
@@ -43,7 +43,7 @@ type PlanExecutorConfig struct {
 }
 
 // createplanExecutor is a factory for planExecutors
-func createplanExecutor(plan *plan, conf *PlanExecutorConfig) *planExecutor {
+func createplanExecutor(plan *plan, conf *planExecutorConfig) *planExecutor {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)

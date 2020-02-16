@@ -40,7 +40,7 @@ func pTreeTestKeyer(row types.Row) ([]byte, error) {
 
 func TestCreatePartitionTree(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &PlanExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
+	conf := &planExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
 
 	require.NotNil(t, root.part)
@@ -55,7 +55,7 @@ func TestCreatePartitionTree(t *testing.T) {
 
 func TestMergeRow(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &PlanExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
+	conf := &planExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
 
 	// add the first row
@@ -120,7 +120,7 @@ func TestMergeRow(t *testing.T) {
 
 func TestMergeRowWithSplit(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &PlanExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
+	conf := &planExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
 
 	for i := byte(0); i < byte(6); i++ {

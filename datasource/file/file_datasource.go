@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/go-sif/sif"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif/internal/dataframe"
 )
 
 // DataSource is a file containing data which will be manipulating according to a DataFrame
@@ -17,7 +17,7 @@ type DataSource struct {
 // CreateDataFrame is a factory for DataSources
 func CreateDataFrame(glob string, parser sif.DataSourceParser, schema sif.Schema) sif.DataFrame {
 	source := &DataSource{glob, schema}
-	df := core.CreateDataFrame(source, parser, schema)
+	df := dataframe.CreateDataFrame(source, parser, schema)
 	return df
 }
 

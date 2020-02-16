@@ -1,4 +1,4 @@
-package core
+package dataframe
 
 import (
 	"context"
@@ -16,11 +16,11 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-// planExecutor executes a plan, on a master or on workers
-type planExecutor struct {
+// planExecutorImpl executes a plan, on a master or on workers
+type planExecutorImpl struct {
 	id                   string
-	plan                 *plan
-	conf                 *planExecutorConfig
+	plan                 itypes.Plan
+	conf                 *itypes.PlanExecutorConfig
 	nextStage            int
 	partitionLoaders     []sif.PartitionLoader
 	partitionLoadersLock sync.Mutex
@@ -34,21 +34,13 @@ type planExecutor struct {
 	collectCacheLock     sync.Mutex
 }
 
-// planExecutorConfig configures the execution of a plan
-type planExecutorConfig struct {
-	tempFilePath       string // the directory to use as on-disk swap space for partitions
-	inMemoryPartitions int    // the number of partitions to retain in memory before swapping to disk
-	streaming          bool   // whether or not this executor is operating on streaming data
-	ignoreRowErrors    bool   // iff true, log row transformation errors instead of crashing immediately
-}
-
-// createplanExecutor is a factory for planExecutors
-func createplanExecutor(plan *plan, conf *planExecutorConfig) *planExecutor {
+// CreateplanExecutor is a factory for planExecutors
+func CreateplanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig) itypes.PlanExecutor {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)
 	}
-	return &planExecutor{
+	return &planExecutorImpl{
 		id:               id.String(),
 		plan:             plan,
 		conf:             conf,
@@ -59,62 +51,72 @@ func createplanExecutor(plan *plan, conf *planExecutorConfig) *planExecutor {
 	}
 }
 
-// hasNextStage forms an iterator for planExecutor Stages
-func (pe *planExecutor) hasNextStage() bool {
-	return pe.nextStage < (len(pe.plan.stages))
+// ID returns the configuration for this PlanExecutor
+func (pe *planExecutorImpl) ID() string {
+	return pe.id
 }
 
-// nextStage forms an iterator for planExecutor Stages
-func (pe *planExecutor) getNextStage() *stage {
-	if pe.nextStage >= len(pe.plan.stages) {
+// GetConf returns the configuration for this PlanExecutor
+func (pe *planExecutorImpl) GetConf() *itypes.PlanExecutorConfig {
+	return pe.conf
+}
+
+// HasNextStage forms an iterator for planExecutor Stages
+func (pe *planExecutorImpl) HasNextStage() bool {
+	return pe.nextStage < (pe.plan.Size())
+}
+
+// NextStage forms an iterator for planExecutor Stages
+func (pe *planExecutorImpl) GetNextStage() itypes.Stage {
+	if pe.nextStage >= pe.plan.Size() {
 		return nil
 	}
-	s := pe.plan.stages[pe.nextStage]
+	s := pe.plan.GetStage(pe.nextStage)
 	pe.nextStage++
-	if pe.conf.streaming {
-		pe.nextStage = pe.nextStage % len(pe.plan.stages)
+	if pe.conf.Streaming {
+		pe.nextStage = pe.nextStage % pe.plan.Size()
 	}
 	pe.shuffleReady = false
 	return s
 }
 
 // peekNextStage returns the next stage without advancing the iterator, or nil if there isn't one
-func (pe *planExecutor) peekNextStage() *stage {
-	if pe.hasNextStage() {
-		return pe.plan.stages[pe.nextStage]
+func (pe *planExecutorImpl) peekNextStage() itypes.Stage {
+	if pe.HasNextStage() {
+		return pe.plan.GetStage(pe.nextStage)
 	}
 	return nil
 }
 
-// getCurrentStage returns the current stage without advancing the iterator, or nil if the iterator has never been advanced
-func (pe *planExecutor) getCurrentStage() *stage {
+// GetCurrentStage returns the current stage without advancing the iterator, or nil if the iterator has never been advanced
+func (pe *planExecutorImpl) GetCurrentStage() itypes.Stage {
 	if pe.nextStage == 0 {
 		return nil
 	}
-	return pe.plan.stages[pe.nextStage-1]
+	return pe.plan.GetStage(pe.nextStage - 1)
 }
 
 // onFirstStage returns true iff we're past the first stage
-func (pe *planExecutor) onFirstStage() bool {
+func (pe *planExecutorImpl) onFirstStage() bool {
 	return pe.nextStage == 1
 }
 
 // hasPartitionLoaders returns true iff we have assigned PartitionLoaders
-func (pe *planExecutor) hasPartitionLoaders() bool {
+func (pe *planExecutorImpl) hasPartitionLoaders() bool {
 	pe.partitionLoadersLock.Lock()
 	defer pe.partitionLoadersLock.Unlock()
 	return len(pe.partitionLoaders) > 0
 }
 
-// getPartitionSource returns the the source of partitions for the current stage
-func (pe *planExecutor) getPartitionSource() sif.PartitionIterator {
+// GetPartitionSource returns the the source of partitions for the current stage
+func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 	var parts sif.PartitionIterator
 	// we only load partitions if we're on the first stage, and if they're available to load
 	if pe.onFirstStage() && pe.hasPartitionLoaders() {
-		parts = createPartitionLoaderIterator(pe.partitionLoaders, pe.plan.parser, pe.plan.stages[0].widestInitialSchema())
+		parts = createPartitionLoaderIterator(pe.partitionLoaders, pe.plan.Parser(), pe.plan.GetStage(0).WidestInitialSchema())
 		// in the non-streaming context, the partition loader won't offer more partitions
 		// after we're done iterating through it, so we can safely get rid of it.
-		if !pe.conf.streaming {
+		if !pe.conf.Streaming {
 			pe.partitionLoadersLock.Lock()
 			pe.partitionLoaders = make([]sif.PartitionLoader, 0) // clear partition loaders
 			pe.partitionLoadersLock.Unlock()
@@ -131,14 +133,14 @@ func (pe *planExecutor) getPartitionSource() sif.PartitionIterator {
 	return parts
 }
 
-// isShuffleReady returns true iff a shuffle has been prepared in this planExecutor's shuffle trees
-func (pe *planExecutor) isShuffleReady() bool {
+// IsShuffleReady returns true iff a shuffle has been prepared in this planExecutor's shuffle trees
+func (pe *planExecutorImpl) IsShuffleReady() bool {
 	return pe.shuffleReady
 }
 
-// assignPartitionLoader assigns a serialized PartitionLoader to this executor
-func (pe *planExecutor) assignPartitionLoader(sLoader []byte) error {
-	loader, err := pe.plan.source.DeserializeLoader(sLoader[0:])
+// AssignPartitionLoader assigns a serialized PartitionLoader to this executor
+func (pe *planExecutorImpl) AssignPartitionLoader(sLoader []byte) error {
+	loader, err := pe.plan.Source().DeserializeLoader(sLoader[0:])
 	if err != nil {
 		return err
 	}
@@ -148,12 +150,12 @@ func (pe *planExecutor) assignPartitionLoader(sLoader []byte) error {
 	return nil
 }
 
-// flatMapPartitions applies a Partition operation to all partitions in this plan, regardless of where they come from
-func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(sif.OperablePartition) ([]sif.OperablePartition, error), logClient pb.LogServiceClient, runShuffle bool, prepCollect bool, buckets []uint64, workers []*pb.MWorkerDescriptor) error {
-	if len(pe.plan.stages) == 0 {
+// FlatMapPartitions applies a Partition operation to all partitions in this plan, regardless of where they come from
+func (pe *planExecutorImpl) FlatMapPartitions(ctx context.Context, fn func(sif.OperablePartition) ([]sif.OperablePartition, error), logClient pb.LogServiceClient, runShuffle bool, prepCollect bool, buckets []uint64, workers []*pb.MWorkerDescriptor) error {
+	if pe.plan.Size() == 0 {
 		return fmt.Errorf("Plan has no stages")
 	}
-	parts := pe.getPartitionSource()
+	parts := pe.GetPartitionSource()
 
 	for parts.HasNextPartition() {
 		part, err := parts.NextPartition()
@@ -165,7 +167,7 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(sif.Opera
 		if err != nil {
 			// TODO eliminate this duplication from s_execution
 			// if this is a multierror, it's from a row transformation, which we might want to ignore
-			if multierr, ok := err.(*multierror.Error); pe.conf.ignoreRowErrors && ok {
+			if multierr, ok := err.(*multierror.Error); pe.conf.IgnoreRowErrors && ok {
 				multierr.ErrorFormat = iutil.FormatMultiError
 				// log errors and carry on
 				logger, err := logClient.Log(ctx)
@@ -175,7 +177,7 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(sif.Opera
 				err = logger.Send(&pb.MLogMsg{
 					Level:   logging.ErrorLevel,
 					Source:  pe.id,
-					Message: fmt.Sprintf("Map error in stage %s:\n%s", pe.getCurrentStage().id, multierr.Error()),
+					Message: fmt.Sprintf("Map error in stage %s:\n%s", pe.GetCurrentStage().ID(), multierr.Error()),
 				})
 				if err != nil {
 					return err
@@ -195,7 +197,7 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(sif.Opera
 				if !tNewPart.GetIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
 				}
-				err = pe.prepareShuffle(tNewPart, buckets)
+				err = pe.PrepareShuffle(tNewPart, buckets)
 				if err != nil {
 					return err
 				}
@@ -213,8 +215,8 @@ func (pe *planExecutor) flatMapPartitions(ctx context.Context, fn func(sif.Opera
 	return nil
 }
 
-// prepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
-func (pe *planExecutor) prepareShuffle(part itypes.TransferrablePartition, buckets []uint64) error {
+// PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
+func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, buckets []uint64) error {
 	for i := 0; i < part.GetNumRows(); i++ {
 		key, err := part.GetKey(i)
 		if err != nil {
@@ -224,15 +226,15 @@ func (pe *planExecutor) prepareShuffle(part itypes.TransferrablePartition, bucke
 		pe.shuffleTreesLock.Lock()
 		if _, ok := pe.shuffleTrees[buckets[bucket]]; !ok {
 			nextStage := pe.peekNextStage()
-			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, part.GetMaxRows(), nextStage.widestInitialSchema(), nextStage.incomingSchema)
+			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, part.GetMaxRows(), nextStage.WidestInitialSchema(), nextStage.IncomingSchema())
 		}
 		pe.shuffleTreesLock.Unlock()
-		pe.shuffleTrees[buckets[bucket]].mergeRow(part.GetRow(i), pe.plan.stages[pe.nextStage-1].keyFn, pe.plan.stages[pe.nextStage-1].reduceFn)
+		pe.shuffleTrees[buckets[bucket]].mergeRow(part.GetRow(i), pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
 	}
 	return nil
 }
 
-func (pe *planExecutor) keyToBuckets(key uint64, buckets []uint64) int {
+func (pe *planExecutorImpl) keyToBuckets(key uint64, buckets []uint64) int {
 	for i, b := range buckets {
 		if key < b {
 			return i
@@ -243,13 +245,13 @@ func (pe *planExecutor) keyToBuckets(key uint64, buckets []uint64) int {
 	return 0
 }
 
-// assignShuffleBucket assigns a ShuffleBucket to this executor
-func (pe *planExecutor) assignShuffleBucket(assignedBucket uint64) {
+// AssignShuffleBucket assigns a ShuffleBucket to this executor
+func (pe *planExecutorImpl) AssignShuffleBucket(assignedBucket uint64) {
 	pe.assignedBucket = assignedBucket
 }
 
-// getShufflePartitionIterator serves up an iterator for partitions to shuffle
-func (pe *planExecutor) getShufflePartitionIterator(bucket uint64) (sif.PartitionIterator, error) {
+// GetShufflePartitionIterator serves up an iterator for partitions to shuffle
+func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (sif.PartitionIterator, error) {
 	if len(pe.collectCache) > 0 {
 		// if we're collecting, and we never reduced, then the collectCache will be used instead of a tree
 		return createPartitionCacheIterator(pe.collectCache, true), nil
@@ -266,23 +268,23 @@ func (pe *planExecutor) getShufflePartitionIterator(bucket uint64) (sif.Partitio
 	return pe.shuffleIterators[bucket], nil
 }
 
-// acceptShuffledPartition receives a Partition that belongs on this worker and merges it into the local shuffle tree
-func (pe *planExecutor) acceptShuffledPartition(mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) error {
+// AcceptShuffledPartition receives a Partition that belongs on this worker and merges it into the local shuffle tree
+func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) error {
 	// merge partition into appropriate shuffle tree
 	pe.shuffleTreesLock.Lock()
 	defer pe.shuffleTreesLock.Unlock()
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
 		// pe.plan.stages[pe.nextStage-1].widestSchema
-		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), pe.getCurrentStage().outgoingSchema, pe.getCurrentStage().finalSchema())
+		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), pe.GetCurrentStage().OutgoingSchema(), pe.GetCurrentStage().FinalSchema())
 	}
 	part := partition.FromMetaMessage(mpart, pe.shuffleTrees[pe.assignedBucket].nextStageWidestSchema, pe.shuffleTrees[pe.assignedBucket].nextStageIncomingSchema)
-	err := part.ReceiveStreamedData(dataStream, pe.getCurrentStage().outgoingSchema)
+	err := part.ReceiveStreamedData(dataStream, pe.GetCurrentStage().OutgoingSchema())
 	if err != nil {
 		return err
 	}
 	var multierr *multierror.Error
 	for i := 0; i < part.GetNumRows(); i++ {
-		err = pe.shuffleTrees[pe.assignedBucket].mergeRow(part.GetRow(i), pe.plan.stages[pe.nextStage-1].keyFn, pe.plan.stages[pe.nextStage-1].reduceFn)
+		err = pe.shuffleTrees[pe.assignedBucket].mergeRow(part.GetRow(i), pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 		}

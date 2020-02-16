@@ -1,4 +1,4 @@
-package sif
+package types
 
 import (
 	"github.com/go-sif/sif"

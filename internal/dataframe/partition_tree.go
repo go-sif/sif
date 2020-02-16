@@ -1,4 +1,4 @@
-package core
+package dataframe
 
 import (
 	"io/ioutil"
@@ -31,8 +31,8 @@ type pTreeNode struct {
 type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
-func createPTreeNode(conf *planExecutorConfig, maxRows int, nextStageWidestSchema sif.Schema, nextStageIncomingSchema sif.Schema) *pTreeNode {
-	cache, err := lru.NewWithEvict(conf.inMemoryPartitions, func(key interface{}, value interface{}) {
+func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageWidestSchema sif.Schema, nextStageIncomingSchema sif.Schema) *pTreeNode {
+	cache, err := lru.NewWithEvict(conf.InMemoryPartitions, func(key interface{}, value interface{}) {
 		partID, ok := key.(string)
 		if !ok {
 			log.Fatalf("Unable to sync partition %s to disk due to key casting issue", key)
@@ -41,7 +41,7 @@ func createPTreeNode(conf *planExecutorConfig, maxRows int, nextStageWidestSchem
 		if !ok {
 			log.Fatalf("Unable to sync partition %s to disk due to value casting issue", value)
 		}
-		onPartitionEvict(conf.tempFilePath, partID, part)
+		onPartitionEvict(conf.TempFilePath, partID, part)
 	})
 	if err != nil {
 		log.Fatalf("Unable to initialize lru cache for partitions: %e", err)

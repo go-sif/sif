@@ -12,6 +12,7 @@ import (
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
+	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
@@ -86,17 +87,17 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 	}
 	defer closeGRPCConnections(workerConns)
 	// optimize dataframe to create plan
-	eframe, ok := c.frame.(executableDataFrame)
+	eframe, ok := c.frame.(itypes.ExecutableDataFrame)
 	if !ok {
 		return nil, fmt.Errorf("DataFrame must be executable")
 	}
-	planExecutor := eframe.optimize().execute(&planExecutorConfig{
-		tempFilePath:       "",
-		inMemoryPartitions: 0,
-		streaming:          c.frame.GetDataSource().IsStreaming(),
+	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
+		TempFilePath:       "",
+		InMemoryPartitions: 0,
+		Streaming:          c.frame.GetDataSource().IsStreaming(),
 	})
 	// analyze and assign partitions
-	partitionMap, err := eframe.analyzeSource()
+	partitionMap, err := eframe.AnalyzeSource()
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +114,7 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 		return nil, err
 	}
 	// moderate execution of stages, blocking on completion of each
-	for planExecutor.hasNextStage() {
+	for planExecutor.HasNextStage() {
 		asyncErrors = iutil.CreateAsyncErrorChannel()
 		select {
 		// check for shutdown signal
@@ -125,9 +126,9 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 			return nil, ctx.Err()
 		default:
 			// run stage on each worker, blocking until stage is complete across the cluster
-			stage := planExecutor.getNextStage()
-			runShuffle := stage.endsInShuffle()
-			prepCollect := stage.endsInCollect()
+			stage := planExecutor.GetNextStage()
+			runShuffle := stage.EndsInShuffle()
+			prepCollect := stage.EndsInCollect()
 			shuffleBuckets := computeShuffleBuckets(workers)
 			wg.Add(len(workers))
 			for i := range workers {
@@ -146,7 +147,7 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
 				var collectedLock sync.Mutex
 				for i := range workers {
-					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, workers, stage.finalSchema(), stage.outgoingSchema, collected, &collectedLock, collectionLimit, &wg, asyncErrors)
+					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, workers, stage.FinalSchema(), stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err
@@ -222,16 +223,16 @@ func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.M
 	// TODO do something with response
 }
 
-func asyncRunStage(ctx context.Context, s *stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepCollect bool, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepCollect bool, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Trigger remote stage execution
-	log.Printf("Asking worker %s to run stage %s", w.Id, s.id)
+	log.Printf("Asking worker %s to run stage %s", w.Id, s.ID())
 	executionClient := pb.NewExecutionServiceClient(conn)
-	req := &pb.MRunStageRequest{StageId: s.id, RunShuffle: runShuffle, PrepCollect: prepCollect, AssignedBucket: assignedBucket, Buckets: shuffleBuckets, Workers: workers}
+	req := &pb.MRunStageRequest{StageId: s.ID(), RunShuffle: runShuffle, PrepCollect: prepCollect, AssignedBucket: assignedBucket, Buckets: shuffleBuckets, Workers: workers}
 	_, err := executionClient.RunStage(ctx, req)
 	if err != nil {
-		errors <- fmt.Errorf("Something went wrong while running stage %s on worker %s: %v", s.id, w.Id, err)
+		errors <- fmt.Errorf("Something went wrong while running stage %s on worker %s: %v", s.ID(), w.Id, err)
 		return
 	}
 	// TODO do something with response

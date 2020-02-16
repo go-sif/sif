@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
+	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
 	uuid "github.com/gofrs/uuid"
 	"google.golang.org/grpc"
@@ -87,15 +88,15 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	w.server = grpc.NewServer()
 	w.lifecycleLock.Unlock()
 	// optimize dataframe to create plan
-	eframe, ok := frame.(executableDataFrame)
+	eframe, ok := frame.(itypes.ExecutableDataFrame)
 	if !ok {
 		return fmt.Errorf("DataFrame must be executable")
 	}
-	planExecutor := eframe.optimize().execute(&planExecutorConfig{
-		tempFilePath:       w.opts.TempDir,
-		inMemoryPartitions: w.opts.NumInMemoryPartitions,
-		streaming:          eframe.getParent().GetDataSource().IsStreaming(),
-		ignoreRowErrors:    w.opts.IgnoreRowErrors,
+	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
+		TempFilePath:       w.opts.TempDir,
+		InMemoryPartitions: w.opts.NumInMemoryPartitions,
+		Streaming:          eframe.GetParent().GetDataSource().IsStreaming(),
+		IgnoreRowErrors:    w.opts.IgnoreRowErrors,
 	})
 	// register rpc handlers for frame execution
 	pb.RegisterLifecycleServiceServer(w.server, createLifecycleServer(w))

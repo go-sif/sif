@@ -13,19 +13,19 @@ import (
 )
 
 type partitionServer struct {
-	planExecutor *planExecutor
+	planExecutor itypes.PlanExecutor
 	cache        map[string]itypes.TransferrablePartition
 	cacheLock    sync.Mutex
 }
 
 // createPartitionServer creates a new partitionServer
-func createPartitionServer(planExecutor *planExecutor) *partitionServer {
+func createPartitionServer(planExecutor itypes.PlanExecutor) *partitionServer {
 	return &partitionServer{planExecutor: planExecutor, cache: make(map[string]itypes.TransferrablePartition)}
 }
 
 // AssignPartition assigns a partition to a Worker
 func (s *partitionServer) AssignPartition(ctx context.Context, req *pb.MAssignPartitionRequest) (*pb.MAssignPartitionResponse, error) {
-	s.planExecutor.assignPartitionLoader(req.Loader)
+	s.planExecutor.AssignPartitionLoader(req.Loader)
 	return &pb.MAssignPartitionResponse{}, nil
 }
 
@@ -34,10 +34,10 @@ func (s *partitionServer) AssignPartition(ctx context.Context, req *pb.MAssignPa
 // contains a single partition if one is available to shuffle, along with a bool
 // indicating whether or not another one is available.
 func (s *partitionServer) ShufflePartition(ctx context.Context, req *pb.MShufflePartitionRequest) (*pb.MShufflePartitionResponse, error) {
-	if !s.planExecutor.isShuffleReady() {
+	if !s.planExecutor.IsShuffleReady() {
 		return &pb.MShufflePartitionResponse{Ready: false}, nil
 	}
-	pi, err := s.planExecutor.getShufflePartitionIterator(req.Bucket)
+	pi, err := s.planExecutor.GetShufflePartitionIterator(req.Bucket)
 	if err != nil {
 		return nil, err
 	}

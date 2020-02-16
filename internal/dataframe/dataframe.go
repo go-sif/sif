@@ -1,4 +1,4 @@
-package core
+package dataframe
 
 import "github.com/go-sif/sif"
 

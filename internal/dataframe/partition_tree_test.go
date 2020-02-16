@@ -1,4 +1,4 @@
-package core
+package dataframe
 
 import (
 	"testing"
@@ -7,6 +7,7 @@ import (
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/partition"
 	"github.com/go-sif/sif/internal/schema"
+	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,7 +41,7 @@ func pTreeTestKeyer(row sif.Row) ([]byte, error) {
 
 func TestCreatePartitionTree(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &planExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
 
 	require.NotNil(t, root.part)
@@ -55,7 +56,7 @@ func TestCreatePartitionTree(t *testing.T) {
 
 func TestMergeRow(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &planExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
 
 	// add the first row
@@ -120,7 +121,7 @@ func TestMergeRow(t *testing.T) {
 
 func TestMergeRowWithSplit(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &planExecutorConfig{tempFilePath: "./", inMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
 
 	for i := byte(0); i < byte(6); i++ {

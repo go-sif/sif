@@ -1,4 +1,4 @@
-package core
+package dataframe
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 // Stage is a group of tasks which share a common schema.
 // stages block the execution of further stages until they
 // are complete.
-type stage struct {
+type stageImpl struct {
 	id             string
 	incomingSchema sif.Schema // the true, final schema for partitions which come from a previous stage (received during a shuffle, for example). This may include columns which have been removed, but not repacked
 	outgoingSchema sif.Schema // the true, final schema for partitions which exit this stage (dispatched during a shuffle, for example). This may include columns which have been removed, but not repacked
@@ -20,22 +20,37 @@ type stage struct {
 }
 
 // createStage is a factory for Stages, safely assigning deterministic IDs
-func createStage(nextID int) *stage {
-	s := &stage{fmt.Sprintf("stage-%d", nextID), nil, nil, []*dataFrameImpl{}, nil, nil}
+func createStage(nextID int) *stageImpl {
+	s := &stageImpl{fmt.Sprintf("stage-%d", nextID), nil, nil, []*dataFrameImpl{}, nil, nil}
 	nextID++
 	return s
 }
 
-// finalSchema returns the schema from the final task of the stage, or the nil if there are no tasks
-func (s *stage) finalSchema() sif.Schema {
+// ID returns the ID for this Stage
+func (s *stageImpl) ID() string {
+	return s.id
+}
+
+// IncomingSchema is the Schema for data entering this Stage
+func (s *stageImpl) IncomingSchema() sif.Schema {
+	return s.incomingSchema
+}
+
+// OutgoingSchema is the Schema for data leaving this Stage
+func (s *stageImpl) OutgoingSchema() sif.Schema {
+	return s.outgoingSchema
+}
+
+// FinalSchema returns the schema from the final task of the stage, or the nil if there are no tasks
+func (s *stageImpl) FinalSchema() sif.Schema {
 	if len(s.frames) > 0 {
 		return s.frames[len(s.frames)-1].schema
 	}
 	return nil
 }
 
-// initialSchemaSize returns the number of bytes
-func (s *stage) widestInitialSchema() sif.Schema {
+// InitialSchemaSize returns the number of bytes
+func (s *stageImpl) WidestInitialSchema() sif.Schema {
 	var widest sif.Schema
 	for _, f := range s.frames {
 		if f.taskType == "repack" {
@@ -50,8 +65,8 @@ func (s *stage) widestInitialSchema() sif.Schema {
 
 // workerExecute runs a stage against a Partition of data, returning
 // the modified Partition (which may have been modified in-place, filtered,
-// or turned into multiple Partitions)
-func (s *stage) workerExecute(part sif.OperablePartition) ([]sif.OperablePartition, error) {
+// Or turned into multiple Partitions)
+func (s *stageImpl) WorkerExecute(part sif.OperablePartition) ([]sif.OperablePartition, error) {
 	var prev = []sif.OperablePartition{part}
 	for _, frame := range s.frames {
 		next := make([]sif.OperablePartition, 0, len(prev))
@@ -69,19 +84,19 @@ func (s *stage) workerExecute(part sif.OperablePartition) ([]sif.OperablePartiti
 	return prev, nil
 }
 
-// endsInShuffle returns true iff this Stage ends with a reduction task
-func (s *stage) endsInShuffle() bool {
+// EndsInShuffle returns true iff this Stage ends with a reduction task
+func (s *stageImpl) EndsInShuffle() bool {
 	return s.reduceFn != nil && s.keyFn != nil
 }
 
-// endsInCollect returns true iff this Stage represents a collect task
-func (s *stage) endsInCollect() bool {
+// EndsInCollect returns true iff this Stage represents a collect task
+func (s *stageImpl) EndsInCollect() bool {
 	return len(s.frames) > 0 && s.frames[len(s.frames)-1].taskType == "collect"
 }
 
 // GetCollectionLimit returns the maximum number of Partitions to collect
-func (s *stage) GetCollectionLimit() int64 {
-	if !s.endsInCollect() {
+func (s *stageImpl) GetCollectionLimit() int64 {
+	if !s.EndsInCollect() {
 		return 0
 	}
 	cTask, ok := s.frames[len(s.frames)-1].task.(collectionTask)
@@ -91,12 +106,22 @@ func (s *stage) GetCollectionLimit() int64 {
 	return cTask.GetCollectionLimit()
 }
 
+// KeyingOperation retrieves the KeyingOperation for this Stage (if it exists)
+func (s *stageImpl) KeyingOperation() sif.KeyingOperation {
+	return s.keyFn
+}
+
 // Configure the keying operation for the end of this stage
-func (s *stage) setKeyingOperation(keyFn sif.KeyingOperation) {
+func (s *stageImpl) SetKeyingOperation(keyFn sif.KeyingOperation) {
 	s.keyFn = keyFn
 }
 
+// ReductionOperation retrieves the ReductionOperation for this Stage (if it exists)
+func (s *stageImpl) ReductionOperation() sif.ReductionOperation {
+	return s.reduceFn
+}
+
 // Configure the reduction operation for the end of this stage
-func (s *stage) setReductionOperation(reduceFn sif.ReductionOperation) {
+func (s *stageImpl) SetReductionOperation(reduceFn sif.ReductionOperation) {
 	s.reduceFn = reduceFn
 }

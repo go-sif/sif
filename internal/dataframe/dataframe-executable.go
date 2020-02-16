@@ -1,28 +1,29 @@
-package core
+package dataframe
 
 import (
 	"log"
 
 	"github.com/go-sif/sif"
+	itypes "github.com/go-sif/sif/internal/types"
 )
 
 // An executableDataFrame adds methods specific to cluster execution of DataFrames
 type executableDataFrame interface {
 	sif.DataFrame
 	getParent() sif.DataFrame                                                          // getParent returns the parent DataFrame of a DataFrame
-	optimize() *plan                                                                   // optimize splits the DataFrame chain into stages which each share a schema. Each stage's execution will be blocked until the completion of the previous stage
+	optimize() itypes.Plan                                                             // optimize splits the DataFrame chain into stages which each share a schema. Each stage's execution will be blocked until the completion of the previous stage
 	analyzeSource() (sif.PartitionMap, error)                                          // analyzeSource returns a PartitionMap for the source data for this DataFrame
 	workerExecuteTask(previous sif.OperablePartition) ([]sif.OperablePartition, error) // workerExecuteTask runs this DataFrame's task against the previous Partition, returning the modified Partition (or a new one(s) if necessary). The previous Partition may be nil.
 }
 
 // getParent returns the parent DataFrame of a DataFrame
-func (df *dataFrameImpl) getParent() sif.DataFrame {
+func (df *dataFrameImpl) GetParent() sif.DataFrame {
 	return df.parent
 }
 
 // optimize splits the DataFrame chain into stages which each share a schema.
 // Each stage's execution will be blocked until the completion of the previous stage
-func (df *dataFrameImpl) optimize() *plan {
+func (df *dataFrameImpl) Optimize() itypes.Plan {
 	// create a slice of frames, in order of execution, by following parent links
 	frames := []*dataFrameImpl{}
 	for next := df; next != nil; next = next.parent {
@@ -30,7 +31,7 @@ func (df *dataFrameImpl) optimize() *plan {
 	}
 	// split into stages at reductions and repacks, discovering incoming and outgoing schemas for the stage
 	nextID := 0
-	stages := []*stage{createStage(nextID)}
+	stages := []*stageImpl{createStage(nextID)}
 	nextID++
 	for _, f := range frames {
 		currentStage := stages[len(stages)-1]
@@ -46,8 +47,8 @@ func (df *dataFrameImpl) optimize() *plan {
 			if !ok {
 				log.Panicf("taskType is reduce but Task is not a reductionTask")
 			}
-			currentStage.setKeyingOperation(rTask.GetKeyingOperation())
-			currentStage.setReductionOperation(rTask.GetReductionOperation())
+			currentStage.SetKeyingOperation(rTask.GetKeyingOperation())
+			currentStage.SetReductionOperation(rTask.GetReductionOperation())
 			stages = append(stages, createStage(nextID))
 			nextID++
 		} else if f.taskType == "repack" {
@@ -59,23 +60,19 @@ func (df *dataFrameImpl) optimize() *plan {
 			break // no tasks can come after a collect
 		}
 	}
-	return &plan{stages, df.parser, df.source}
+	return &planImpl{stages, df.parser, df.source}
 }
 
 // analyzeSource returns a PartitionMap for the source data for this DataFrame
-func (df *dataFrameImpl) analyzeSource() (sif.PartitionMap, error) {
+func (df *dataFrameImpl) AnalyzeSource() (sif.PartitionMap, error) {
 	return df.source.Analyze()
-}
-
-func test(p sif.OperablePartition) sif.OperablePartition {
-	return p
 }
 
 // workerExecuteTask runs this DataFrame's task against the previous Partition,
 // returning the modified Partition (or a new one(s) if necessary).
 // The previous Partition may be nil.
 func (df *dataFrameImpl) workerExecuteTask(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
-	res, err := df.task.RunWorker(test(previous))
+	res, err := df.task.RunWorker(previous)
 	if err != nil {
 		return nil, err
 	}

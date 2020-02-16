@@ -1,18 +1,16 @@
-package types
+package sif
 
-import (
-	"github.com/go-sif/sif/types"
-)
+import "github.com/go-sif/sif"
 
 // AccessibleRow allows access to Row internals
 type AccessibleRow interface {
-	types.Row
+	sif.Row
 	GetMeta() []byte
 	GetData() []byte
 	GetVarData() map[string]interface{}
 	GetSerializedVarData() map[string][]byte
-	GetSchema() types.Schema
-	CheckIsNil(colName string, offset types.Column) error
-	SetNotNil(offset types.Column)
-	Repack(newSchema types.Schema) (AccessibleRow, error)
+	GetSchema() sif.Schema
+	CheckIsNil(colName string, offset sif.Column) error
+	SetNotNil(offset sif.Column)
+	Repack(newSchema sif.Schema) (AccessibleRow, error)
 }

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
 	iutil "github.com/go-sif/sif/internal/util"
-	"github.com/go-sif/sif/types"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 )
@@ -22,7 +22,7 @@ type coordinator struct {
 	opts          *NodeOptions
 	server        *grpc.Server
 	clusterServer *clusterServer
-	frame         types.DataFrame
+	frame         sif.DataFrame
 }
 
 func createCoordinator(opts *NodeOptions) (*coordinator, error) {
@@ -32,7 +32,7 @@ func createCoordinator(opts *NodeOptions) (*coordinator, error) {
 }
 
 // Start the Coordinator - blocking unless run in a goroutine
-func (c *coordinator) Start(frame types.DataFrame) error {
+func (c *coordinator) Start(frame sif.DataFrame) error {
 	if frame == nil {
 		return fmt.Errorf("DataFrame cannot be nil")
 	}
@@ -72,7 +72,7 @@ func (c *coordinator) Stop() error {
 }
 
 // Run a DataFrame Plan within this cluster
-func (c *coordinator) Run(ctx context.Context) (map[string]types.CollectedPartition, error) {
+func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
 	var wg sync.WaitGroup
 	waitCtx, cancel := context.WithTimeout(ctx, c.opts.WorkerJoinTimeout)
 	defer cancel()
@@ -142,7 +142,7 @@ func (c *coordinator) Run(ctx context.Context) (map[string]types.CollectedPartit
 				asyncErrors = iutil.CreateAsyncErrorChannel()
 				// run collect
 				wg.Add(len(workers))
-				collected := make(map[string]types.CollectedPartition)
+				collected := make(map[string]sif.CollectedPartition)
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
 				var collectedLock sync.Mutex
 				for i := range workers {
@@ -201,7 +201,7 @@ func asyncStopWorker(w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.Wa
 	fmt.Printf("Stopped worker %s\n", w.Id)
 }
 
-func asyncAssignPartition(ctx context.Context, part types.PartitionLoader, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.WaitGroup, errors chan<- error) {
+func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Assign partition loader to worker
@@ -237,7 +237,7 @@ func asyncRunStage(ctx context.Context, s *stage, w *pb.MWorkerDescriptor, conn 
 	// TODO do something with response
 }
 
-func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, currentSchema types.Schema, incomingSchema types.Schema, collected map[string]types.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, currentSchema sif.Schema, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Collect from worker
@@ -264,7 +264,7 @@ func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 					return
 				}
 				collectedLock.Lock()
-				collected[res.Part.Id] = part.(types.CollectedPartition)
+				collected[res.Part.Id] = part.(sif.CollectedPartition)
 				collectedLock.Unlock()
 			} else {
 				break

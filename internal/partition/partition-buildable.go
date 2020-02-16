@@ -3,12 +3,12 @@ package partition
 import (
 	"fmt"
 
+	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	"github.com/go-sif/sif/types"
 )
 
 // CreateBuildablePartition creates a new Partition containing an empty byte array and a schema
-func CreateBuildablePartition(maxRows int, widestSchema types.Schema, currentSchema types.Schema) types.BuildablePartition {
+func CreateBuildablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.BuildablePartition {
 	return createPartitionImpl(maxRows, widestSchema, currentSchema)
 }
 
@@ -25,7 +25,7 @@ func (p *partitionImpl) CanInsertRowData(row []byte) error {
 }
 
 // AppendEmptyRowData is a convenient way to add an empty Row to the end of this Partition, returning the Row so that Row methods can be used to populate it
-func (p *partitionImpl) AppendEmptyRowData() (types.Row, error) {
+func (p *partitionImpl) AppendEmptyRowData() (sif.Row, error) {
 	newRowNum := p.numRows
 	err := p.AppendRowData([]byte{0}, []byte{0}, make(map[string]interface{}), make(map[string][]byte))
 	if err != nil {

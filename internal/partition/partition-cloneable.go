@@ -3,12 +3,12 @@ package partition
 import (
 	"fmt"
 
+	"github.com/go-sif/sif"
 	itypes "github.com/go-sif/sif/internal/types"
-	"github.com/go-sif/sif/types"
 )
 
 // createCloneablePartition creates a new Partition containing an empty byte array and a schema
-func createCloneablePartition(maxRows int, widestSchema types.Schema, currentSchema types.Schema) itypes.CloneablePartition {
+func createCloneablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) itypes.CloneablePartition {
 	return createPartitionImpl(maxRows, widestSchema, currentSchema)
 }
 
@@ -61,12 +61,12 @@ func (p *partitionImpl) GetSerializedVarRowData(rowNum int) map[string][]byte {
 }
 
 // GetCurrentSchema retrieves the Schema from the most recent task that manipulated this Partition
-func (p *partitionImpl) GetCurrentSchema() types.Schema {
+func (p *partitionImpl) GetCurrentSchema() sif.Schema {
 	return p.currentSchema
 }
 
 // GetWidestSchema retrieves the widest Schema from the stage that produced this Partition, which is equal to the size of a row
-func (p *partitionImpl) GetWidestSchema() types.Schema {
+func (p *partitionImpl) GetWidestSchema() sif.Schema {
 	return p.widestSchema
 }
 

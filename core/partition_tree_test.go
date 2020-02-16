@@ -4,20 +4,20 @@ import (
 	"testing"
 
 	xxhash "github.com/cespare/xxhash"
+	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/partition"
 	"github.com/go-sif/sif/internal/schema"
-	"github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createPTreeTestSchema() types.Schema {
+func createPTreeTestSchema() sif.Schema {
 	schema := schema.CreateSchema()
-	schema.CreateColumn("key", &types.ByteColumnType{})
-	schema.CreateColumn("val", &types.ByteColumnType{})
+	schema.CreateColumn("key", &sif.ByteColumnType{})
+	schema.CreateColumn("val", &sif.ByteColumnType{})
 	return schema
 }
 
-func pTreeTestReducer(lrow types.Row, rrow types.Row) error {
+func pTreeTestReducer(lrow sif.Row, rrow sif.Row) error {
 	lval, err := lrow.GetByte("val")
 	if err != nil {
 		return err
@@ -30,7 +30,7 @@ func pTreeTestReducer(lrow types.Row, rrow types.Row) error {
 	return nil
 }
 
-func pTreeTestKeyer(row types.Row) ([]byte, error) {
+func pTreeTestKeyer(row sif.Row) ([]byte, error) {
 	val, err := row.GetByte("key")
 	if err != nil {
 		return nil, err

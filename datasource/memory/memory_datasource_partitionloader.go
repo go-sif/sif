@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/go-sif/sif/types"
+	"github.com/go-sif/sif"
 )
 
 // PartitionLoader is capable of loading partitions of data from a file
@@ -20,7 +20,7 @@ func (pl *PartitionLoader) ToString() string {
 }
 
 // Load is capable of loading partitions of data from a file
-func (pl *PartitionLoader) Load(parser types.DataSourceParser, widestInitialSchema types.Schema) (types.PartitionIterator, error) {
+func (pl *PartitionLoader) Load(parser sif.DataSourceParser, widestInitialSchema sif.Schema) (sif.PartitionIterator, error) {
 	r := bytes.NewReader(pl.source.data[pl.idx])
 	pi, err := parser.Parse(r, pl.source, pl.source.schema, widestInitialSchema, nil)
 	if err != nil {

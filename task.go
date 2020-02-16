@@ -1,4 +1,4 @@
-package types
+package sif
 
 // A Task is an action or transformation applied
 // to Partitions of columnar data.

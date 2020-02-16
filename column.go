@@ -1,4 +1,4 @@
-package types
+package sif
 
 // Column describes the byte offsets of the start
 // and end of a field in a Row.

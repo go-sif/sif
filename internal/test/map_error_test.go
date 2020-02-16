@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-sif/sif"
 	core "github.com/go-sif/sif/core"
 	memory "github.com/go-sif/sif/datasource/memory"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
-	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestMapErrorDataFrame(t *testing.T, numRows int) types.DataFrame {
+func createTestMapErrorDataFrame(t *testing.T, numRows int) sif.DataFrame {
 	data := make([][]byte, numRows)
 	for i := 0; i < len(data); i++ {
 		data[i] = []byte(fmt.Sprintf("{\"col1\": %d}", i))
@@ -23,7 +23,7 @@ func createTestMapErrorDataFrame(t *testing.T, numRows int) types.DataFrame {
 
 	// Create a dataframe for the data
 	schema := schema.CreateSchema()
-	schema.CreateColumn("col1", &types.Int32ColumnType{})
+	schema.CreateColumn("col1", &sif.Int32ColumnType{})
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
 		PartitionSize: 5,
 	})
@@ -34,7 +34,7 @@ func createTestMapErrorDataFrame(t *testing.T, numRows int) types.DataFrame {
 func TestMapErrors(t *testing.T) {
 	// create dataframe, erroring on all odd numbers
 	frame, err := createTestMapErrorDataFrame(t, 10).To(
-		ops.Map(func(row types.Row) error {
+		ops.Map(func(row sif.Row) error {
 			col1, err := row.GetInt32("col1")
 			if err != nil {
 				return err
@@ -55,7 +55,7 @@ func TestMapErrors(t *testing.T) {
 	wopts := &core.NodeOptions{IgnoreRowErrors: true}
 	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	for _, part := range res {
-		part.ForEachRow(func(row types.Row) error {
+		part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetInt32("col1")
 			require.Nil(t, err)
 			require.Equal(t, int32(0), val%2)

@@ -1,4 +1,4 @@
-package types
+package sif
 
 // A Partition is a portion of a columnar dataset, consisting of multiple Rows.
 // Partitions are not generally interacted with directly, instead being

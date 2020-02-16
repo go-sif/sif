@@ -1,4 +1,4 @@
-package types
+package sif
 
 // PartitionLoader is a description of how to load specific Partitions of data from a particular DataSource.
 // DataSources implement this interface to implement data-loading logic. PartitionLoaders are assigned round-robin

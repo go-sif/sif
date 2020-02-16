@@ -3,7 +3,7 @@ package schema
 import (
 	"fmt"
 
-	"github.com/go-sif/sif/types"
+	"github.com/go-sif/sif"
 )
 
 // Column describes the byte offsets of the start
@@ -11,11 +11,11 @@ import (
 type column struct {
 	idx     int
 	start   int
-	colType types.ColumnType
+	colType sif.ColumnType
 }
 
 // Clone returns a copy of this Column
-func (c *column) Clone() types.Column {
+func (c *column) Clone() sif.Column {
 	return &column{c.idx, c.start, c.colType} // TODO careful with not cloning column type
 }
 
@@ -35,7 +35,7 @@ func (c *column) Start() int {
 }
 
 // Type returns the ColumnType of this Column
-func (c *column) Type() types.ColumnType {
+func (c *column) Type() sif.ColumnType {
 	return c.colType
 }
 
@@ -43,21 +43,21 @@ func (c *column) Type() types.ColumnType {
 // within a Row. It allows one to obtain offsets by name,
 // define new columns, remove columns, etc.
 type schema struct {
-	schema map[string]types.Column
+	schema map[string]sif.Column
 	size   int
 }
 
 // CreateSchema is a factory for Schemas
-func CreateSchema() types.Schema {
+func CreateSchema() sif.Schema {
 	return &schema{
-		schema: make(map[string]types.Column),
+		schema: make(map[string]sif.Column),
 		size:   0,
 	}
 }
 
 // Clone returns a copy of this Schema
-func (s *schema) Clone() types.Schema {
-	newSchema := make(map[string]types.Column)
+func (s *schema) Clone() sif.Schema {
+	newSchema := make(map[string]sif.Column)
 	for k, v := range s.schema {
 		newSchema[k] = v.Clone()
 	}
@@ -78,7 +78,7 @@ func (s *schema) NumColumns() int {
 func (s *schema) NumFixedLengthColumns() int {
 	i := 0
 	for _, col := range s.schema {
-		if !types.IsVariableLength(col.Type()) {
+		if !sif.IsVariableLength(col.Type()) {
 			i++
 		}
 	}
@@ -89,7 +89,7 @@ func (s *schema) NumFixedLengthColumns() int {
 func (s *schema) NumVariableLengthColumns() int {
 	i := 0
 	for _, col := range s.schema {
-		if types.IsVariableLength(col.Type()) {
+		if sif.IsVariableLength(col.Type()) {
 			i++
 		}
 	}
@@ -97,9 +97,9 @@ func (s *schema) NumVariableLengthColumns() int {
 }
 
 // Repack optimizes the memory layout of the Schema, removing any gaps in fixed-length data.
-func (s *schema) Repack() (newSchema types.Schema) {
+func (s *schema) Repack() (newSchema sif.Schema) {
 	newSchema = &schema{
-		schema: make(map[string]types.Column),
+		schema: make(map[string]sif.Column),
 	}
 	for k, v := range s.schema {
 		newSchema, _ = newSchema.CreateColumn(k, v.Type())
@@ -108,7 +108,7 @@ func (s *schema) Repack() (newSchema types.Schema) {
 }
 
 // GetOffset returns the byte offset of a particular column within a row.
-func (s *schema) GetOffset(colName string) (offset types.Column, err error) {
+func (s *schema) GetOffset(colName string) (offset sif.Column, err error) {
 	offset, ok := s.schema[colName]
 	if !ok {
 		err = fmt.Errorf("Schema does not contain column with name %s", colName)
@@ -123,12 +123,12 @@ func (s *schema) HasColumn(colName string) bool {
 }
 
 // CreateColumn defines a new column within the Schema
-func (s *schema) CreateColumn(colName string, columnType types.ColumnType) (newSchema types.Schema, err error) {
+func (s *schema) CreateColumn(colName string, columnType sif.ColumnType) (newSchema sif.Schema, err error) {
 	_, containsOffset := s.schema[colName]
 	if containsOffset {
 		err = fmt.Errorf("Schema already contains column with name %s", colName)
 	} else {
-		if !types.IsVariableLength(columnType) {
+		if !sif.IsVariableLength(columnType) {
 			s.schema[colName] = &column{len(s.schema), s.size, columnType}
 			s.size += columnType.Size()
 		} else {
@@ -140,7 +140,7 @@ func (s *schema) CreateColumn(colName string, columnType types.ColumnType) (newS
 }
 
 // RenameColumn renames a column within the Schema
-func (s *schema) RenameColumn(oldName string, newName string) (newSchema types.Schema, err error) {
+func (s *schema) RenameColumn(oldName string, newName string) (newSchema sif.Schema, err error) {
 	_, err = s.GetOffset(oldName)
 	if err == nil {
 		s.schema[newName] = s.schema[oldName]
@@ -153,7 +153,7 @@ func (s *schema) RenameColumn(oldName string, newName string) (newSchema types.S
 // RemoveColumn removes a column from the Schema
 // This does not adjust the size of the Schema, as data is not moved
 // when a column is deleted.
-func (s *schema) RemoveColumn(colName string) (newSchema types.Schema, wasRemoved bool) {
+func (s *schema) RemoveColumn(colName string) (newSchema sif.Schema, wasRemoved bool) {
 	newSchema = s
 	removed, wasRemoved := s.schema[colName]
 	if wasRemoved {
@@ -178,8 +178,8 @@ func (s *schema) ColumnNames() []string {
 }
 
 // ColumnTypes returns the types in the schema, in index order
-func (s *schema) ColumnTypes() []types.ColumnType {
-	types := make([]types.ColumnType, len(s.schema))
+func (s *schema) ColumnTypes() []sif.ColumnType {
+	types := make([]sif.ColumnType, len(s.schema))
 	for _, v := range s.schema {
 		types[v.Index()] = v.Type()
 	}
@@ -187,7 +187,7 @@ func (s *schema) ColumnTypes() []types.ColumnType {
 }
 
 // ForEachColumn iterates over the columns in this Schema. Does not necessarily iterate in order of column index.
-func (s *schema) ForEachColumn(fn func(name string, col types.Column) error) error {
+func (s *schema) ForEachColumn(fn func(name string, col sif.Column) error) error {
 	for k, v := range s.schema {
 		err := fn(k, v)
 		if err != nil {

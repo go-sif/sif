@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
 	iutil "github.com/go-sif/sif/internal/util"
-	"github.com/go-sif/sif/types"
 	uuid "github.com/gofrs/uuid"
 	"google.golang.org/grpc"
 )
@@ -68,7 +68,7 @@ func (w *worker) ID() string {
 }
 
 // Start the worker - will block the current thread
-func (w *worker) Start(frame types.DataFrame) error {
+func (w *worker) Start(frame sif.DataFrame) error {
 	if frame == nil {
 		return fmt.Errorf("DataFrame cannot be nil")
 	}
@@ -143,7 +143,7 @@ func (w *worker) Stop() error {
 }
 
 // Run is a no-op for workers
-func (w *worker) Run(ctx context.Context) (map[string]types.CollectedPartition, error) {
+func (w *worker) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
 	return nil, nil
 }
 

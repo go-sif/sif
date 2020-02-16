@@ -3,20 +3,20 @@ package core
 import (
 	"sync"
 
+	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	"github.com/go-sif/sif/types"
 )
 
 // partitionSliceIterator produces a simple iterator for Partitions stored in a slice
 type partitionSliceIterator struct {
-	partitions   []types.Partition
+	partitions   []sif.Partition
 	next         int
 	lock         sync.Mutex
 	endListeners []func()
 }
 
 // createPartitionSliceIterator produces a new PartitionIterator for iterating over a slice of Partitions
-func createPartitionSliceIterator(partitions []types.Partition) types.PartitionIterator {
+func createPartitionSliceIterator(partitions []sif.Partition) sif.PartitionIterator {
 	return &partitionSliceIterator{
 		partitions:   partitions,
 		next:         0,
@@ -39,7 +39,7 @@ func (psi *partitionSliceIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (psi *partitionSliceIterator) NextPartition() (types.Partition, error) {
+func (psi *partitionSliceIterator) NextPartition() (sif.Partition, error) {
 	psi.lock.Lock()
 	defer psi.lock.Unlock()
 	if psi.next >= len(psi.partitions) {
@@ -56,16 +56,16 @@ func (psi *partitionSliceIterator) NextPartition() (types.Partition, error) {
 
 // PartitionLoaderIterator produces Partitions from PartitionLoaders
 type partitionLoaderIterator struct {
-	partitionLoaders    []types.PartitionLoader
-	partitionGroup      types.PartitionIterator
-	parser              types.DataSourceParser
-	widestInitialSchema types.Schema
+	partitionLoaders    []sif.PartitionLoader
+	partitionGroup      sif.PartitionIterator
+	parser              sif.DataSourceParser
+	widestInitialSchema sif.Schema
 	next                int
 	lock                sync.Mutex
 	endListeners        []func()
 }
 
-func createPartitionLoaderIterator(partitionLoaders []types.PartitionLoader, parser types.DataSourceParser, widestInitialSchema types.Schema) types.PartitionIterator {
+func createPartitionLoaderIterator(partitionLoaders []sif.PartitionLoader, parser sif.DataSourceParser, widestInitialSchema sif.Schema) sif.PartitionIterator {
 	return &partitionLoaderIterator{
 		partitionLoaders:    partitionLoaders,
 		partitionGroup:      nil,
@@ -89,7 +89,7 @@ func (pli *partitionLoaderIterator) HasNextPartition() bool {
 	return pli.next < len(pli.partitionLoaders) || pli.partitionGroup.HasNextPartition()
 }
 
-func (pli *partitionLoaderIterator) NextPartition() (types.Partition, error) {
+func (pli *partitionLoaderIterator) NextPartition() (sif.Partition, error) {
 	pli.lock.Lock()
 	defer pli.lock.Unlock()
 	// TODO switch to round robin across all loaders, for streaming data
@@ -120,7 +120,7 @@ func (pli *partitionLoaderIterator) NextPartition() (types.Partition, error) {
 
 // PartitionCacheIterator produces Partitions non-sorted, cached data
 type partitionCacheIterator struct {
-	partitions   map[string]types.Partition // partition id -> partition
+	partitions   map[string]sif.Partition // partition id -> partition
 	keys         []string
 	next         int
 	destructive  bool
@@ -128,7 +128,7 @@ type partitionCacheIterator struct {
 	endListeners []func()
 }
 
-func createPartitionCacheIterator(partitions map[string]types.Partition, destructive bool) types.PartitionIterator {
+func createPartitionCacheIterator(partitions map[string]sif.Partition, destructive bool) sif.PartitionIterator {
 	keys := make([]string, len(partitions))
 	i := 0
 	for k := range partitions {
@@ -157,7 +157,7 @@ func (pci *partitionCacheIterator) HasNextPartition() bool {
 	return pci.next < len(pci.keys)
 }
 
-func (pci *partitionCacheIterator) NextPartition() (types.Partition, error) {
+func (pci *partitionCacheIterator) NextPartition() (sif.Partition, error) {
 	pci.lock.Lock()
 	defer pci.lock.Unlock()
 	if pci.next >= len(pci.keys) {
@@ -184,7 +184,7 @@ type pTreePartitionIterator struct {
 	endListeners []func()
 }
 
-func createPTreeIterator(tree *pTreeRoot, destructive bool) types.PartitionIterator {
+func createPTreeIterator(tree *pTreeRoot, destructive bool) sif.PartitionIterator {
 	if tree == nil {
 		return &pTreePartitionIterator{next: nil, destructive: destructive, endListeners: []func(){}}
 	}
@@ -204,7 +204,7 @@ func (tpi *pTreePartitionIterator) HasNextPartition() bool {
 	return tpi.next != nil
 }
 
-func (tpi *pTreePartitionIterator) NextPartition() (types.Partition, error) {
+func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, error) {
 	tpi.lock.Lock()
 	defer tpi.lock.Unlock()
 	if tpi.next == nil {

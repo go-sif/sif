@@ -1,8 +1,8 @@
 package transform
 
 import (
+	"github.com/go-sif/sif"
 	iutil "github.com/go-sif/sif/internal/util"
-	types "github.com/go-sif/sif/types"
 )
 
 // With inspiration from:
@@ -10,30 +10,30 @@ import (
 // https://github.com/cespare/xxhash
 
 type reduceTask struct {
-	kfn types.KeyingOperation
-	fn  types.ReductionOperation
+	kfn sif.KeyingOperation
+	fn  sif.ReductionOperation
 }
 
-func (s *reduceTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
+func (s *reduceTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	// Start by keying the rows in the partition
 	part, err := previous.KeyRows(s.kfn)
 	if err != nil {
 		return nil, err
 	}
-	return []types.OperablePartition{part}, nil
+	return []sif.OperablePartition{part}, nil
 }
 
-func (s *reduceTask) GetKeyingOperation() types.KeyingOperation {
+func (s *reduceTask) GetKeyingOperation() sif.KeyingOperation {
 	return s.kfn
 }
 
-func (s *reduceTask) GetReductionOperation() types.ReductionOperation {
+func (s *reduceTask) GetReductionOperation() sif.ReductionOperation {
 	return s.fn
 }
 
 // Reduce combines rows across workers, using a key
-func Reduce(kfn types.KeyingOperation, fn types.ReductionOperation) types.DataFrameOperation {
-	return func(d types.DataFrame) (types.Task, string, types.Schema, error) {
+func Reduce(kfn sif.KeyingOperation, fn sif.ReductionOperation) sif.DataFrameOperation {
+	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
 		nextTask := reduceTask{
 			kfn: iutil.SafeKeyingOperation(kfn),
 			fn:  iutil.SafeReductionOperation(fn),

@@ -1,4 +1,4 @@
-package types
+package sif
 
 // RowFactory is a function that produces a fresh Row. Used specifically within a FlatMapOperation, a RowFactory gives the client a mechanism to return more Rows than were originally within a Partition.
 type RowFactory func() Row

@@ -1,25 +1,25 @@
 package transform
 
 import (
+	"github.com/go-sif/sif"
 	iutil "github.com/go-sif/sif/internal/util"
-	types "github.com/go-sif/sif/types"
 )
 
 type mapTask struct {
-	fn types.MapOperation
+	fn sif.MapOperation
 }
 
-func (s *mapTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
+func (s *mapTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	next, err := previous.MapRows(s.fn)
 	if err != nil {
 		return nil, err
 	}
-	return []types.OperablePartition{next}, nil
+	return []sif.OperablePartition{next}, nil
 }
 
 // Map transforms a Row in-place
-func Map(fn types.MapOperation) types.DataFrameOperation {
-	return func(d types.DataFrame) (types.Task, string, types.Schema, error) {
+func Map(fn sif.MapOperation) sif.DataFrameOperation {
+	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
 		nextTask := mapTask{fn: iutil.SafeMapOperation(fn)}
 		return &nextTask, "map", d.GetSchema().Clone(), nil
 	}

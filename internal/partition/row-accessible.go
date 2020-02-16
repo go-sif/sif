@@ -1,6 +1,6 @@
 package partition
 
-import "github.com/go-sif/sif/types"
+import "github.com/go-sif/sif"
 
 // GetMeta returns Row internal data
 func (r *rowImpl) GetMeta() []byte {
@@ -23,6 +23,6 @@ func (r *rowImpl) GetSerializedVarData() map[string][]byte {
 }
 
 // GetSchema returns Row internal data
-func (r *rowImpl) GetSchema() types.Schema {
+func (r *rowImpl) GetSchema() sif.Schema {
 	return r.schema
 }

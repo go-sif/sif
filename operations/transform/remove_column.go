@@ -1,18 +1,18 @@
 package transform
 
-import types "github.com/go-sif/sif/types"
+import "github.com/go-sif/sif"
 
 // removeColumnTask is a task that does nothing
 type removeColumnTask struct{}
 
 // RunWorker for removeColumnTask does nothing
-func (s *removeColumnTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
-	return []types.OperablePartition{previous}, nil
+func (s *removeColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+	return []sif.OperablePartition{previous}, nil
 }
 
 // RemoveColumn removes existing columns
-func RemoveColumn(oldNames ...string) types.DataFrameOperation {
-	return func(d types.DataFrame) (types.Task, string, types.Schema, error) {
+func RemoveColumn(oldNames ...string) sif.DataFrameOperation {
+	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
 		newSchema := d.GetSchema().Clone()
 		for _, oldName := range oldNames {
 			newSchema, _ = newSchema.RemoveColumn(oldName)

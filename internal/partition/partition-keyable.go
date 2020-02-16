@@ -2,17 +2,17 @@ package partition
 
 import (
 	xxhash "github.com/cespare/xxhash"
-	"github.com/go-sif/sif/types"
+	"github.com/go-sif/sif"
 	"github.com/hashicorp/go-multierror"
 )
 
 // createKeyablePartition creates a new Partition containing an empty byte array and a schema
-func createKeyablePartition(maxRows int, widestSchema types.Schema, currentSchema types.Schema) types.KeyablePartition {
+func createKeyablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.KeyablePartition {
 	return createPartitionImpl(maxRows, widestSchema, currentSchema)
 }
 
 // KeyRows generates hash keys for a row from a key column. Attempts to manipulate partition in-place, falling back to creating a fresh partition if there are row errors
-func (p *partitionImpl) KeyRows(kfn types.KeyingOperation) (types.OperablePartition, error) {
+func (p *partitionImpl) KeyRows(kfn sif.KeyingOperation) (sif.OperablePartition, error) {
 	var multierr *multierror.Error
 	inPlace := true // start by attempting to manipulate rows in-place
 	result := p

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-sif/sif/types"
+	"github.com/go-sif/sif"
 )
 
 // NodeRole describes the intended role of a Node
@@ -24,10 +24,10 @@ const (
 // Node is a member of a Sif cluster, either coordinating or performing work.
 // Nodes present several methods to control their lifecycle.
 type Node interface {
-	Start(types.DataFrame) error
+	Start(sif.DataFrame) error
 	GracefulStop() error
 	Stop() error
-	Run(ctx context.Context) (map[string]types.CollectedPartition, error)
+	Run(ctx context.Context) (map[string]sif.CollectedPartition, error)
 }
 
 // NodeOptions are options for a Node, configuring elements of a Sif cluster

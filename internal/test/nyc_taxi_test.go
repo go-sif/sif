@@ -15,32 +15,32 @@ import (
 	"path"
 	"testing"
 
+	"github.com/go-sif/sif"
 	core "github.com/go-sif/sif/core"
 	"github.com/go-sif/sif/datasource/file"
 	dsv "github.com/go-sif/sif/datasource/parser/dsv"
 	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
-	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestNYCTaxiDataFrame(t *testing.T) types.DataFrame {
+func createTestNYCTaxiDataFrame(t *testing.T) sif.DataFrame {
 	schema := schema.CreateSchema()
-	schema.CreateColumn("hack", &types.StringColumnType{Length: 32})
-	schema.CreateColumn("license", &types.StringColumnType{Length: 32})
-	schema.CreateColumn("code", &types.StringColumnType{Length: 3})
-	schema.CreateColumn("flag", &types.Uint8ColumnType{})
-	schema.CreateColumn("type", &types.VarStringColumnType{})
-	schema.CreateColumn("pickup_time", &types.VarStringColumnType{})
-	schema.CreateColumn("dropoff_time", &types.VarStringColumnType{})
-	schema.CreateColumn("passengers", &types.Uint8ColumnType{})
-	schema.CreateColumn("duration", &types.Uint32ColumnType{})
-	schema.CreateColumn("distance", &types.Float32ColumnType{})
-	schema.CreateColumn("pickup_lon", &types.Float64ColumnType{})
-	schema.CreateColumn("pickup_lat", &types.Float64ColumnType{})
-	schema.CreateColumn("dropoff_lon", &types.Float64ColumnType{})
-	schema.CreateColumn("dropoff_lat", &types.Float64ColumnType{})
+	schema.CreateColumn("hack", &sif.StringColumnType{Length: 32})
+	schema.CreateColumn("license", &sif.StringColumnType{Length: 32})
+	schema.CreateColumn("code", &sif.StringColumnType{Length: 3})
+	schema.CreateColumn("flag", &sif.Uint8ColumnType{})
+	schema.CreateColumn("type", &sif.VarStringColumnType{})
+	schema.CreateColumn("pickup_time", &sif.VarStringColumnType{})
+	schema.CreateColumn("dropoff_time", &sif.VarStringColumnType{})
+	schema.CreateColumn("passengers", &sif.Uint8ColumnType{})
+	schema.CreateColumn("duration", &sif.Uint32ColumnType{})
+	schema.CreateColumn("distance", &sif.Float32ColumnType{})
+	schema.CreateColumn("pickup_lon", &sif.Float64ColumnType{})
+	schema.CreateColumn("pickup_lat", &sif.Float64ColumnType{})
+	schema.CreateColumn("dropoff_lon", &sif.Float64ColumnType{})
+	schema.CreateColumn("dropoff_lat", &sif.Float64ColumnType{})
 
 	cwd, err := os.Getwd()
 	require.Nil(t, err)
@@ -125,7 +125,7 @@ func TestNYCTaxi(t *testing.T) {
 		// create column for heatmap reduction
 		ops.AddColumn("heatmap", &VarHeatmapColumnType{}),
 		// compute partial heatmaps
-		ops.Map(func(row types.Row) error {
+		ops.Map(func(row sif.Row) error {
 			if row.IsNil("dropoff_lat") || row.IsNil("dropoff_lon") {
 				return nil
 			}
@@ -148,9 +148,9 @@ func TestNYCTaxi(t *testing.T) {
 			return err
 		}),
 		// perform heatmap reduction
-		ops.Reduce(func(row types.Row) ([]byte, error) {
+		ops.Reduce(func(row sif.Row) ([]byte, error) {
 			return []byte{byte(1)}, nil
-		}, func(lrow types.Row, rrow types.Row) error {
+		}, func(lrow sif.Row, rrow sif.Row) error {
 			lval, err := lrow.GetVarCustomData("heatmap")
 			if err != nil {
 				return err

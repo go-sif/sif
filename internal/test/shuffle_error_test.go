@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-sif/sif"
 	core "github.com/go-sif/sif/core"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
-	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestShuffleErrors(t *testing.T) {
 	// create dataframe, summing all even numbers and erroring for all odd
 	frame, err := createTestMapErrorDataFrame(t, 10).To(
-		ops.AddColumn("res", &types.Int32ColumnType{}),
-		ops.Reduce(func(row types.Row) ([]byte, error) {
+		ops.AddColumn("res", &sif.Int32ColumnType{}),
+		ops.Reduce(func(row sif.Row) ([]byte, error) {
 			col1, err := row.GetInt32("col1")
 			if err != nil {
 				return nil, err
@@ -24,7 +24,7 @@ func TestShuffleErrors(t *testing.T) {
 				return nil, fmt.Errorf("Don't key numbers smaller than 2")
 			}
 			return []byte{0}, nil // reduce all rows together
-		}, func(lrow types.Row, rrow types.Row) error {
+		}, func(lrow sif.Row, rrow sif.Row) error {
 			rcol1, err := rrow.GetInt32("col1")
 			if err != nil {
 				return err
@@ -47,7 +47,7 @@ func TestShuffleErrors(t *testing.T) {
 	wopts := &core.NodeOptions{IgnoreRowErrors: true}
 	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	for _, part := range res {
-		part.ForEachRow(func(row types.Row) error {
+		part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetInt32("res")
 			require.Nil(t, err)
 			require.True(t, val < 15)

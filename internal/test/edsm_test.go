@@ -13,20 +13,20 @@ import (
 	"path"
 	"testing"
 
+	"github.com/go-sif/sif"
 	core "github.com/go-sif/sif/core"
 	"github.com/go-sif/sif/datasource/file"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
-	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestEDSMDataFrame(t *testing.T) types.DataFrame {
+func createTestEDSMDataFrame(t *testing.T) sif.DataFrame {
 	schema := schema.CreateSchema()
-	schema.CreateColumn("coords.x", &types.Float64ColumnType{})
-	schema.CreateColumn("coords.z", &types.Float64ColumnType{})
-	schema.CreateColumn("date", &types.TimeColumnType{Format: "2006-01-02 15:04:05"})
+	schema.CreateColumn("coords.x", &sif.Float64ColumnType{})
+	schema.CreateColumn("coords.z", &sif.Float64ColumnType{})
+	schema.CreateColumn("date", &sif.TimeColumnType{Format: "2006-01-02 15:04:05"})
 
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
 		PartitionSize: 256,
@@ -74,7 +74,7 @@ func TestEDSMHeatmap(t *testing.T) {
 		// create column for heatmap reduction
 		ops.AddColumn("heatmap", &VarHeatmapColumnType{}),
 		// compute partial heatmaps
-		ops.Map(func(row types.Row) error {
+		ops.Map(func(row sif.Row) error {
 			if row.IsNil("coords.x") || row.IsNil("coords.z") {
 				return nil
 			}
@@ -97,7 +97,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			return err
 		}),
 		// perform heatmap reduction
-		ops.Reduce(func(row types.Row) ([]byte, error) {
+		ops.Reduce(func(row sif.Row) ([]byte, error) {
 			tval, err := row.GetTime("date")
 			if err != nil {
 				return nil, err
@@ -105,7 +105,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			key := tval.Format("2006")
 			// key := tval.Format("2006-01-02-15") // uncomment for hourly
 			return []byte(key), nil
-		}, func(lrow types.Row, rrow types.Row) error {
+		}, func(lrow sif.Row, rrow sif.Row) error {
 			lval, err := lrow.GetVarCustomData("heatmap")
 			if err != nil {
 				return err
@@ -129,7 +129,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			}
 			return lrow.SetVarCustomData("heatmap", lheatmap)
 		}),
-		ops.Map(func(row types.Row) error {
+		ops.Map(func(row sif.Row) error {
 			tval, err := row.GetTime("date")
 			if err != nil {
 				return err

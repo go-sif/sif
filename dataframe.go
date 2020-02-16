@@ -1,4 +1,4 @@
-package types
+package sif
 
 // A DataFrame is a tool for constructing a chain of
 // transformations and actions applied to columnar data

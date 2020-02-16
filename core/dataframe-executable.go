@@ -3,20 +3,20 @@ package core
 import (
 	"log"
 
-	"github.com/go-sif/sif/types"
+	"github.com/go-sif/sif"
 )
 
 // An executableDataFrame adds methods specific to cluster execution of DataFrames
 type executableDataFrame interface {
-	types.DataFrame
-	getParent() types.DataFrame                                                            // getParent returns the parent DataFrame of a DataFrame
-	optimize() *plan                                                                       // optimize splits the DataFrame chain into stages which each share a schema. Each stage's execution will be blocked until the completion of the previous stage
-	analyzeSource() (types.PartitionMap, error)                                            // analyzeSource returns a PartitionMap for the source data for this DataFrame
-	workerExecuteTask(previous types.OperablePartition) ([]types.OperablePartition, error) // workerExecuteTask runs this DataFrame's task against the previous Partition, returning the modified Partition (or a new one(s) if necessary). The previous Partition may be nil.
+	sif.DataFrame
+	getParent() sif.DataFrame                                                          // getParent returns the parent DataFrame of a DataFrame
+	optimize() *plan                                                                   // optimize splits the DataFrame chain into stages which each share a schema. Each stage's execution will be blocked until the completion of the previous stage
+	analyzeSource() (sif.PartitionMap, error)                                          // analyzeSource returns a PartitionMap for the source data for this DataFrame
+	workerExecuteTask(previous sif.OperablePartition) ([]sif.OperablePartition, error) // workerExecuteTask runs this DataFrame's task against the previous Partition, returning the modified Partition (or a new one(s) if necessary). The previous Partition may be nil.
 }
 
 // getParent returns the parent DataFrame of a DataFrame
-func (df *dataFrameImpl) getParent() types.DataFrame {
+func (df *dataFrameImpl) getParent() sif.DataFrame {
 	return df.parent
 }
 
@@ -63,18 +63,18 @@ func (df *dataFrameImpl) optimize() *plan {
 }
 
 // analyzeSource returns a PartitionMap for the source data for this DataFrame
-func (df *dataFrameImpl) analyzeSource() (types.PartitionMap, error) {
+func (df *dataFrameImpl) analyzeSource() (sif.PartitionMap, error) {
 	return df.source.Analyze()
 }
 
-func test(p types.OperablePartition) types.OperablePartition {
+func test(p sif.OperablePartition) sif.OperablePartition {
 	return p
 }
 
 // workerExecuteTask runs this DataFrame's task against the previous Partition,
 // returning the modified Partition (or a new one(s) if necessary).
 // The previous Partition may be nil.
-func (df *dataFrameImpl) workerExecuteTask(previous types.OperablePartition) ([]types.OperablePartition, error) {
+func (df *dataFrameImpl) workerExecuteTask(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	res, err := df.task.RunWorker(test(previous))
 	if err != nil {
 		return nil, err

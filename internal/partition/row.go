@@ -8,8 +8,8 @@ import (
 
 	time "time"
 
+	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	types "github.com/go-sif/sif/types"
 )
 
 const (
@@ -26,16 +26,16 @@ type rowImpl struct {
 	data              []byte                 // likely a slice of a partition array
 	varData           map[string]interface{} // variable-length data
 	serializedVarData map[string][]byte      // variable-length data
-	schema            types.Schema           // schema lets us pick the values we need out of the row
+	schema            sif.Schema             // schema lets us pick the values we need out of the row
 }
 
 // CreateRow builds a new row from individual internal components
-func CreateRow(meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema types.Schema) types.Row {
+func CreateRow(meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) sif.Row {
 	return &rowImpl{meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
 }
 
 // Schema returns a read-only copy of the schema for a row
-func (r *rowImpl) Schema() types.Schema {
+func (r *rowImpl) Schema() sif.Schema {
 	return r.schema.Clone() // TODO expensive but safe?
 }
 
@@ -43,7 +43,7 @@ func (r *rowImpl) Schema() types.Schema {
 func (r *rowImpl) ToString() string {
 	var res strings.Builder
 	fmt.Fprint(&res, "{")
-	r.schema.ForEachColumn(func(name string, col types.Column) error {
+	r.schema.ForEachColumn(func(name string, col sif.Column) error {
 		var val string
 		if r.IsNil(name) {
 			val = "nil"
@@ -67,7 +67,7 @@ func (r *rowImpl) IsNil(colName string) bool {
 	if e != nil {
 		return false
 	}
-	if !types.IsVariableLength(offset.Type()) {
+	if !sif.IsVariableLength(offset.Type()) {
 		return r.meta[offset.Index()]&colValueIsNilFlag > 0
 	}
 	_, ok := r.varData[colName]
@@ -80,7 +80,7 @@ func (r *rowImpl) SetNil(colName string) error {
 	if err != nil {
 		return err
 	}
-	if !types.IsVariableLength(offset.Type()) {
+	if !sif.IsVariableLength(offset.Type()) {
 		r.meta[offset.Index()] = r.meta[offset.Index()] & colValueIsNilFlag
 	} else {
 		r.varData[colName] = nil
@@ -89,10 +89,10 @@ func (r *rowImpl) SetNil(colName string) error {
 }
 
 // CheckIsNil is for internal use only
-func (r *rowImpl) CheckIsNil(colName string, offset types.Column) error {
-	if !types.IsVariableLength(offset.Type()) && r.meta[offset.Index()]&colValueIsNilFlag > 0 {
+func (r *rowImpl) CheckIsNil(colName string, offset sif.Column) error {
+	if !sif.IsVariableLength(offset.Type()) && r.meta[offset.Index()]&colValueIsNilFlag > 0 {
 		return errors.NilValueError{Name: colName}
-	} else if types.IsVariableLength(offset.Type()) {
+	} else if sif.IsVariableLength(offset.Type()) {
 		if _, ok := r.varData[colName]; !ok {
 			return errors.NilValueError{Name: colName}
 		}
@@ -101,8 +101,8 @@ func (r *rowImpl) CheckIsNil(colName string, offset types.Column) error {
 }
 
 // SetNotNil is for internal use only
-func (r *rowImpl) SetNotNil(offset types.Column) {
-	if !types.IsVariableLength(offset.Type()) {
+func (r *rowImpl) SetNotNil(offset sif.Column) {
+	if !sif.IsVariableLength(offset.Type()) {
 		r.meta[offset.Index()] = r.meta[offset.Index()] &^ colValueIsNilFlag
 	}
 }
@@ -112,46 +112,46 @@ func (r *rowImpl) Get(colName string) (col interface{}, err error) {
 	offset, err := r.Schema().GetOffset(colName)
 	if err != nil {
 		return nil, err
-	} else if types.IsVariableLength(offset.Type()) {
+	} else if sif.IsVariableLength(offset.Type()) {
 		switch offset.Type().(type) {
-		case *types.VarStringColumnType:
+		case *sif.VarStringColumnType:
 			return r.GetVarString(colName)
-		case *types.VarBytesColumnType:
+		case *sif.VarBytesColumnType:
 			return r.GetVarBytes(colName)
 		default:
 			return r.GetVarCustomData(colName)
 		}
 	} else {
 		switch offset.Type().(type) {
-		case *types.ByteColumnType:
+		case *sif.ByteColumnType:
 			return r.GetByte(colName)
-		case *types.BytesColumnType:
+		case *sif.BytesColumnType:
 			return r.GetBytes(colName)
-		case *types.BoolColumnType:
+		case *sif.BoolColumnType:
 			return r.GetBool(colName)
-		case *types.Uint8ColumnType:
+		case *sif.Uint8ColumnType:
 			return r.GetUint8(colName)
-		case *types.Uint16ColumnType:
+		case *sif.Uint16ColumnType:
 			return r.GetUint16(colName)
-		case *types.Uint32ColumnType:
+		case *sif.Uint32ColumnType:
 			return r.GetUint32(colName)
-		case *types.Uint64ColumnType:
+		case *sif.Uint64ColumnType:
 			return r.GetUint64(colName)
-		case *types.Int8ColumnType:
+		case *sif.Int8ColumnType:
 			return r.GetInt8(colName)
-		case *types.Int16ColumnType:
+		case *sif.Int16ColumnType:
 			return r.GetInt16(colName)
-		case *types.Int32ColumnType:
+		case *sif.Int32ColumnType:
 			return r.GetInt32(colName)
-		case *types.Int64ColumnType:
+		case *sif.Int64ColumnType:
 			return r.GetInt64(colName)
-		case *types.Float32ColumnType:
+		case *sif.Float32ColumnType:
 			return r.GetFloat32(colName)
-		case *types.Float64ColumnType:
+		case *sif.Float64ColumnType:
 			return r.GetFloat64(colName)
-		case *types.TimeColumnType:
+		case *sif.TimeColumnType:
 			return r.GetTime(colName)
-		case *types.StringColumnType:
+		case *sif.StringColumnType:
 			return r.GetString(colName)
 		default:
 			return nil, fmt.Errorf("Cannot fetch value for unknown column type")
@@ -353,7 +353,7 @@ func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
 	}
 	// deserialize serialized data if present
 	if ser, ok := r.serializedVarData[colName]; ok {
-		vcol, ok := offset.Type().(types.VarColumnType)
+		vcol, ok := offset.Type().(sif.VarColumnType)
 		if !ok {
 			return nil, fmt.Errorf("Column %s is not a VarColumnType", colName)
 		}
@@ -555,19 +555,19 @@ func (r *rowImpl) SetVarString(colName string, value string) (err error) {
 }
 
 // Repack resizes a row to a new Schema
-func (r *rowImpl) Repack(newSchema types.Schema) (types.Row, error) {
+func (r *rowImpl) Repack(newSchema sif.Schema) (sif.Row, error) {
 	meta := make([]byte, newSchema.NumColumns())
 	buff := make([]byte, newSchema.Size())
 	varData := make(map[string]interface{})
 	serializedVarData := make(map[string][]byte)
 	// transfer values
 	offset := 0
-	err := newSchema.ForEachColumn(func(name string, col types.Column) error {
+	err := newSchema.ForEachColumn(func(name string, col sif.Column) error {
 		oldCol, err := r.schema.GetOffset(name)
 		if err != nil {
 			return err
 		}
-		if !types.IsVariableLength(oldCol.Type()) {
+		if !sif.IsVariableLength(oldCol.Type()) {
 			// copy data
 			copy(buff[col.Start():col.Start()+col.Type().Size()], r.data[oldCol.Start():oldCol.Start()+oldCol.Type().Size()])
 			offset += col.Start()

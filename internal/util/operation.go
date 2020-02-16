@@ -3,12 +3,12 @@ package util
 import (
 	"fmt"
 
-	"github.com/go-sif/sif/types"
+	"github.com/go-sif/sif"
 )
 
 // SafeMapOperation wraps a MapOperation such that panics are recovered and nice error messages are constructed
-func SafeMapOperation(mapOp types.MapOperation) (safeMapOp types.MapOperation) {
-	return func(row types.Row) (err error) {
+func SafeMapOperation(mapOp sif.MapOperation) (safeMapOp sif.MapOperation) {
+	return func(row sif.Row) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				if anErr, ok := r.(error); ok {
@@ -26,8 +26,8 @@ func SafeMapOperation(mapOp types.MapOperation) (safeMapOp types.MapOperation) {
 }
 
 // SafeFilterOperation wraps a FilterOperation such that panics are recovered and nice error messages are constructed
-func SafeFilterOperation(filterOp types.FilterOperation) (safeFilterOp types.FilterOperation) {
-	return func(row types.Row) (shouldFilter bool, err error) {
+func SafeFilterOperation(filterOp sif.FilterOperation) (safeFilterOp sif.FilterOperation) {
+	return func(row sif.Row) (shouldFilter bool, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				if anErr, ok := r.(error); ok {
@@ -45,8 +45,8 @@ func SafeFilterOperation(filterOp types.FilterOperation) (safeFilterOp types.Fil
 }
 
 // SafeFlatMapOperation wraps a FlatMapOperation such that panics are recovered and nice error messages are constructed
-func SafeFlatMapOperation(flatMapOp types.FlatMapOperation) (safeFlatMapOp types.FlatMapOperation) {
-	return func(row types.Row, newRow types.RowFactory) (result []types.Row, err error) {
+func SafeFlatMapOperation(flatMapOp sif.FlatMapOperation) (safeFlatMapOp sif.FlatMapOperation) {
+	return func(row sif.Row, newRow sif.RowFactory) (result []sif.Row, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				if anErr, ok := r.(error); ok {
@@ -64,8 +64,8 @@ func SafeFlatMapOperation(flatMapOp types.FlatMapOperation) (safeFlatMapOp types
 }
 
 // SafeKeyingOperation wraps a KeyingOperation such that panics are recovered and nice error messages are constructed
-func SafeKeyingOperation(keyingOp types.KeyingOperation) (safeKeyingOp types.KeyingOperation) {
-	return func(row types.Row) (key []byte, err error) {
+func SafeKeyingOperation(keyingOp sif.KeyingOperation) (safeKeyingOp sif.KeyingOperation) {
+	return func(row sif.Row) (key []byte, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				if anErr, ok := r.(error); ok {
@@ -83,8 +83,8 @@ func SafeKeyingOperation(keyingOp types.KeyingOperation) (safeKeyingOp types.Key
 }
 
 // SafeReductionOperation wraps a ReductionOperation such that panics are recovered and nice error messages are constructed
-func SafeReductionOperation(reductionOp types.ReductionOperation) (safeReductionOp types.ReductionOperation) {
-	return func(lrow, rrow types.Row) (err error) {
+func SafeReductionOperation(reductionOp sif.ReductionOperation) (safeReductionOp sif.ReductionOperation) {
+	return func(lrow, rrow sif.Row) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				if anErr, ok := r.(error); ok {

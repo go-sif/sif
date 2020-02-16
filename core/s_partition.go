@@ -6,10 +6,10 @@ import (
 	"log"
 	"sync"
 
+	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
 	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
-	types "github.com/go-sif/sif/types"
 )
 
 type partitionServer struct {
@@ -101,7 +101,7 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 			}
 			// no need to serialize values for columns we've dropped
 			if col, err := part.GetCurrentSchema().GetOffset(k); err == nil {
-				if vcol, ok := col.Type().(types.VarColumnType); ok {
+				if vcol, ok := col.Type().(sif.VarColumnType); ok {
 					sdata, err := vcol.Serialize(v)
 					if err != nil {
 						return err

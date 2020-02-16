@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"io"
 
-	"github.com/go-sif/sif/types"
+	"github.com/go-sif/sif"
 )
 
 // ParserConf configures a JSONL Parser, suitable for JSON lines data
@@ -33,7 +33,7 @@ func (p *Parser) PartitionSize() int {
 }
 
 // Parse parses JSONL data to produce Partitions
-func (p *Parser) Parse(r io.Reader, source types.DataSource, schema types.Schema, widestInitialSchema types.Schema, onIteratorEnd func()) (types.PartitionIterator, error) {
+func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, widestInitialSchema sif.Schema, onIteratorEnd func()) (sif.PartitionIterator, error) {
 	// start parsing by creating a scanner
 	scanner := bufio.NewScanner(r)
 

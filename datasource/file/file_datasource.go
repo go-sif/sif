@@ -4,25 +4,25 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/go-sif/sif"
 	core "github.com/go-sif/sif/core"
-	"github.com/go-sif/sif/types"
 )
 
 // DataSource is a file containing data which will be manipulating according to a DataFrame
 type DataSource struct {
 	glob   string
-	schema types.Schema
+	schema sif.Schema
 }
 
 // CreateDataFrame is a factory for DataSources
-func CreateDataFrame(glob string, parser types.DataSourceParser, schema types.Schema) types.DataFrame {
+func CreateDataFrame(glob string, parser sif.DataSourceParser, schema sif.Schema) sif.DataFrame {
 	source := &DataSource{glob, schema}
 	df := core.CreateDataFrame(source, parser, schema)
 	return df
 }
 
 // Analyze returns a PartitionMap, describing how the source file will be divided into Partitions
-func (fs *DataSource) Analyze() (types.PartitionMap, error) {
+func (fs *DataSource) Analyze() (sif.PartitionMap, error) {
 	matches, err := filepath.Glob(fs.glob)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func (fs *DataSource) Analyze() (types.PartitionMap, error) {
 }
 
 // DeserializeLoader creates a PartitionLoader for this DataSource from a serialized representation
-func (fs *DataSource) DeserializeLoader(bytes []byte) (types.PartitionLoader, error) {
+func (fs *DataSource) DeserializeLoader(bytes []byte) (sif.PartitionLoader, error) {
 	pl := PartitionLoader{path: "", source: fs}
 	err := pl.GobDecode(bytes)
 	if err != nil {

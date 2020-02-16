@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/schema"
-	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetUint64(t *testing.T) {
 	schema := schema.CreateSchema()
-	_, err := schema.CreateColumn("col1", &types.Uint64ColumnType{})
+	_, err := schema.CreateColumn("col1", &sif.Uint64ColumnType{})
 	require.Nil(t, err)
 	row := rowImpl{
 		schema: schema,
@@ -32,7 +32,7 @@ func TestGetUint64(t *testing.T) {
 
 func TestTime(t *testing.T) {
 	schema := schema.CreateSchema()
-	_, err := schema.CreateColumn("col1", &types.TimeColumnType{})
+	_, err := schema.CreateColumn("col1", &sif.TimeColumnType{})
 	require.Nil(t, err)
 	row := rowImpl{
 		schema: schema,
@@ -56,7 +56,7 @@ func TestDeserialization(t *testing.T) {
 	serialized["hello"] = b.Bytes()
 	require.Nil(t, err)
 	schema := schema.CreateSchema()
-	_, err = schema.CreateColumn("hello", &types.VarStringColumnType{})
+	_, err = schema.CreateColumn("hello", &sif.VarStringColumnType{})
 	require.Nil(t, err)
 	row := rowImpl{
 		schema:            schema,

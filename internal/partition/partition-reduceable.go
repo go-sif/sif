@@ -5,15 +5,15 @@ import (
 	"log"
 	"reflect"
 
+	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
 	pb "github.com/go-sif/sif/internal/rpc"
 	itypes "github.com/go-sif/sif/internal/types"
-	"github.com/go-sif/sif/types"
 	"github.com/golang/protobuf/proto"
 )
 
 // CreateReduceablePartition creates a new Partition containing an empty byte array and a schema
-func CreateReduceablePartition(maxRows int, widestSchema types.Schema, currentSchema types.Schema) itypes.ReduceablePartition {
+func CreateReduceablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) itypes.ReduceablePartition {
 	return createPartitionImpl(maxRows, widestSchema, currentSchema)
 }
 
@@ -49,7 +49,7 @@ func (p *partitionImpl) FindFirstKey(key uint64) (int, error) {
 // exist within the Partition, an error is returned along with the position it should
 // be located at.
 // PRECONDITION: Partition must already be sorted by key
-func (p *partitionImpl) FindFirstRowKey(keyBuf []byte, key uint64, keyfn types.KeyingOperation) (int, error) {
+func (p *partitionImpl) FindFirstRowKey(keyBuf []byte, key uint64, keyfn sif.KeyingOperation) (int, error) {
 	// find the first matching uint64 key
 	firstKey, err := p.FindFirstKey(key)
 	if err != nil {
@@ -182,7 +182,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 			}
 			// no need to serialize values for columns we've dropped
 			if col, err := p.currentSchema.GetOffset(k); err == nil {
-				if vcol, ok := col.Type().(types.VarColumnType); ok {
+				if vcol, ok := col.Type().(sif.VarColumnType); ok {
 					sdata, err := vcol.Serialize(v)
 					if err != nil {
 						return nil, err
@@ -217,7 +217,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 }
 
 // FromBytes converts disk-serialized bytes into a Partition
-func FromBytes(data []byte, widestSchema types.Schema, currentSchema types.Schema) (itypes.ReduceablePartition, error) {
+func FromBytes(data []byte, widestSchema sif.Schema, currentSchema sif.Schema) (itypes.ReduceablePartition, error) {
 	m := &pb.DPartition{}
 	err := proto.Unmarshal(data, m)
 	if err != nil {

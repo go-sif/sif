@@ -5,10 +5,10 @@ import (
 	"log"
 
 	xxhash "github.com/cespare/xxhash"
-	errors "github.com/go-sif/sif/errors"
+	"github.com/go-sif/sif"
+	"github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/partition"
 	itypes "github.com/go-sif/sif/internal/types"
-	"github.com/go-sif/sif/types"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -18,8 +18,8 @@ type pTreeNode struct {
 	left                    *pTreeNode
 	right                   *pTreeNode
 	part                    itypes.ReduceablePartition
-	nextStageWidestSchema   types.Schema
-	nextStageIncomingSchema types.Schema
+	nextStageWidestSchema   sif.Schema
+	nextStageIncomingSchema sif.Schema
 	diskPath                string
 	prev                    *pTreeNode // btree-like link between leaves
 	next                    *pTreeNode // btree-like link between leaves
@@ -31,7 +31,7 @@ type pTreeNode struct {
 type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
-func createPTreeNode(conf *planExecutorConfig, maxRows int, nextStageWidestSchema types.Schema, nextStageIncomingSchema types.Schema) *pTreeNode {
+func createPTreeNode(conf *planExecutorConfig, maxRows int, nextStageWidestSchema sif.Schema, nextStageIncomingSchema sif.Schema) *pTreeNode {
 	cache, err := lru.NewWithEvict(conf.inMemoryPartitions, func(key interface{}, value interface{}) {
 		partID, ok := key.(string)
 		if !ok {
@@ -59,7 +59,7 @@ func createPTreeNode(conf *planExecutorConfig, maxRows int, nextStageWidestSchem
 }
 
 // mergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
-func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn types.KeyingOperation, reducefn types.ReductionOperation) error {
+func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	for i := 0; i < part.GetNumRows(); i++ {
 		row := part.GetRow(i)
 		if err := t.mergeRow(row, keyfn, reducefn); err != nil {
@@ -70,7 +70,7 @@ func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn types.
 }
 
 // mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
-func (t *pTreeRoot) mergeRow(row types.Row, keyfn types.KeyingOperation, reducefn types.ReductionOperation) error {
+func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	// compute key for row
 	keyBuf, err := keyfn(row)
 	if err != nil {

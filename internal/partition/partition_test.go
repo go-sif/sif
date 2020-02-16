@@ -3,15 +3,15 @@ package partition
 import (
 	"testing"
 
+	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/schema"
-	types "github.com/go-sif/sif/types"
 	"github.com/stretchr/testify/require"
 )
 
-func createPartitionTestSchema() types.Schema {
+func createPartitionTestSchema() sif.Schema {
 	schema := schema.CreateSchema()
-	schema.CreateColumn("col1", &types.Uint8ColumnType{})
+	schema.CreateColumn("col1", &sif.Uint8ColumnType{})
 	return schema
 }
 
@@ -124,7 +124,7 @@ func TestMapRows(t *testing.T) {
 		require.Nil(t, err)
 	}
 	sum := 0
-	_, err := part.MapRows(func(row types.Row) error {
+	_, err := part.MapRows(func(row sif.Row) error {
 		val, err := row.GetUint8("col1")
 		sum += int(val)
 		return err
@@ -150,7 +150,7 @@ func TestKeyRows(t *testing.T) {
 	_, err = part.GetKey(0)
 	require.NotNil(t, err)
 	// key rows
-	_, err = part.KeyRows(func(row types.Row) ([]byte, error) {
+	_, err = part.KeyRows(func(row sif.Row) ([]byte, error) {
 		val, err := row.GetUint8("col1")
 		if err != nil {
 			return nil, err
@@ -194,7 +194,7 @@ func TestSplit(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, val, uint8(4))
 	// key rows
-	_, err = part.KeyRows(func(row types.Row) ([]byte, error) {
+	_, err = part.KeyRows(func(row sif.Row) ([]byte, error) {
 		val, err := row.GetUint8("col1")
 		if err != nil {
 			return nil, err
@@ -219,7 +219,7 @@ func TestSerialization(t *testing.T) {
 	// TODO test pre-serialized var row data
 	// create partition
 	schema := createPartitionTestSchema()
-	schema.CreateColumn("col2", &types.VarStringColumnType{})
+	schema.CreateColumn("col2", &sif.VarStringColumnType{})
 	part := createPartitionImpl(8, schema, schema)
 	// append rows
 	for i := 0; i < 8; i++ {
@@ -259,8 +259,8 @@ func TestSerialization(t *testing.T) {
 func TestRepack(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	schema.CreateColumn("col2", &types.Float64ColumnType{})
-	schema.CreateColumn("col3", &types.VarStringColumnType{})
+	schema.CreateColumn("col2", &sif.Float64ColumnType{})
+	schema.CreateColumn("col3", &sif.VarStringColumnType{})
 	part := createPartitionImpl(8, schema, schema)
 	// append rows
 	for i := 0; i < 8; i++ {

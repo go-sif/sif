@@ -5,10 +5,10 @@ import (
 	"io"
 	"log"
 
+	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
 	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
-	"github.com/go-sif/sif/types"
 	uuid "github.com/gofrs/uuid"
 )
 
@@ -21,14 +21,14 @@ type partitionImpl struct {
 	varRowData           []map[string]interface{}
 	serializedVarRowData []map[string][]byte // for receiving serialized data from a shuffle (temporary)
 	rowMeta              []byte
-	widestSchema         types.Schema
-	currentSchema        types.Schema
+	widestSchema         sif.Schema
+	currentSchema        sif.Schema
 	keys                 []uint64
 	isKeyed              bool
 }
 
 // createPartitionImpl creates a new Partition containing an empty byte array and a schema
-func createPartitionImpl(maxRows int, widestSchema types.Schema, currentSchema types.Schema) *partitionImpl {
+func createPartitionImpl(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) *partitionImpl {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID for Partition: %v", err)
@@ -49,7 +49,7 @@ func createPartitionImpl(maxRows int, widestSchema types.Schema, currentSchema t
 }
 
 // CreatePartition creates a new Partition containing an empty byte array and a schema
-func CreatePartition(maxRows int, widestSchema types.Schema, currentSchema types.Schema) types.Partition {
+func CreatePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.Partition {
 	return createPartitionImpl(maxRows, widestSchema, currentSchema)
 }
 
@@ -69,7 +69,7 @@ func (p *partitionImpl) GetNumRows() int {
 }
 
 // GetRow retrieves a specific row from this Partition
-func (p *partitionImpl) GetRow(rowNum int) types.Row {
+func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 	return &rowImpl{
 		meta:              p.GetRowMeta(rowNum),
 		data:              p.GetRowData(rowNum),
@@ -90,7 +90,7 @@ func (p *partitionImpl) ToMetaMessage() *pb.MPartitionMeta {
 }
 
 // ReceiveStreamedData loads data from a protobuf stream into this Partition
-func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema types.Schema) error {
+func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema sif.Schema) error {
 	// stream data for Partition
 	rowOffset := 0
 	metaOffset := 0
@@ -139,7 +139,7 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 }
 
 // FromMetaMessage deserializes a Partition from a protobuf message
-func FromMetaMessage(m *pb.MPartitionMeta, widestSchema types.Schema, currentSchema types.Schema) itypes.TransferrablePartition {
+func FromMetaMessage(m *pb.MPartitionMeta, widestSchema sif.Schema, currentSchema sif.Schema) itypes.TransferrablePartition {
 	part := &partitionImpl{
 		m.Id,
 		int(m.MaxRows),

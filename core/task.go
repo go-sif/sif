@@ -1,17 +1,17 @@
 package core
 
-import "github.com/go-sif/sif/types"
+import "github.com/go-sif/sif"
 
 // A reductionTask is a task that represents an aggregation
 type reductionTask interface {
-	types.Task
-	GetKeyingOperation() types.KeyingOperation
-	GetReductionOperation() types.ReductionOperation
+	sif.Task
+	GetKeyingOperation() sif.KeyingOperation
+	GetReductionOperation() sif.ReductionOperation
 }
 
 // A collectionTask is a task that represents collecting data to the coordinator
 type collectionTask interface {
-	types.Task
+	sif.Task
 	GetCollectionLimit() int64
 }
 
@@ -19,6 +19,6 @@ type collectionTask interface {
 type noOpTask struct{}
 
 // RunWorker for noOpTask does nothing
-func (s *noOpTask) RunWorker(previous types.OperablePartition) ([]types.OperablePartition, error) {
-	return []types.OperablePartition{previous}, nil
+func (s *noOpTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+	return []sif.OperablePartition{previous}, nil
 }

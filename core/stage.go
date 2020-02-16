@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/go-sif/sif/types"
+	"github.com/go-sif/sif"
 )
 
 // Stage is a group of tasks which share a common schema.
@@ -12,11 +12,11 @@ import (
 // are complete.
 type stage struct {
 	id             string
-	incomingSchema types.Schema // the true, final schema for partitions which come from a previous stage (received during a shuffle, for example). This may include columns which have been removed, but not repacked
-	outgoingSchema types.Schema // the true, final schema for partitions which exit this stage (dispatched during a shuffle, for example). This may include columns which have been removed, but not repacked
+	incomingSchema sif.Schema // the true, final schema for partitions which come from a previous stage (received during a shuffle, for example). This may include columns which have been removed, but not repacked
+	outgoingSchema sif.Schema // the true, final schema for partitions which exit this stage (dispatched during a shuffle, for example). This may include columns which have been removed, but not repacked
 	frames         []*dataFrameImpl
-	keyFn          types.KeyingOperation
-	reduceFn       types.ReductionOperation
+	keyFn          sif.KeyingOperation
+	reduceFn       sif.ReductionOperation
 }
 
 // createStage is a factory for Stages, safely assigning deterministic IDs
@@ -27,7 +27,7 @@ func createStage(nextID int) *stage {
 }
 
 // finalSchema returns the schema from the final task of the stage, or the nil if there are no tasks
-func (s *stage) finalSchema() types.Schema {
+func (s *stage) finalSchema() sif.Schema {
 	if len(s.frames) > 0 {
 		return s.frames[len(s.frames)-1].schema
 	}
@@ -35,8 +35,8 @@ func (s *stage) finalSchema() types.Schema {
 }
 
 // initialSchemaSize returns the number of bytes
-func (s *stage) widestInitialSchema() types.Schema {
-	var widest types.Schema
+func (s *stage) widestInitialSchema() sif.Schema {
+	var widest sif.Schema
 	for _, f := range s.frames {
 		if f.taskType == "repack" {
 			return widest
@@ -51,10 +51,10 @@ func (s *stage) widestInitialSchema() types.Schema {
 // workerExecute runs a stage against a Partition of data, returning
 // the modified Partition (which may have been modified in-place, filtered,
 // or turned into multiple Partitions)
-func (s *stage) workerExecute(part types.OperablePartition) ([]types.OperablePartition, error) {
-	var prev = []types.OperablePartition{part}
+func (s *stage) workerExecute(part sif.OperablePartition) ([]sif.OperablePartition, error) {
+	var prev = []sif.OperablePartition{part}
 	for _, frame := range s.frames {
-		next := make([]types.OperablePartition, 0, len(prev))
+		next := make([]sif.OperablePartition, 0, len(prev))
 		for _, p := range prev {
 			out, err := frame.workerExecuteTask(p)
 			if err != nil {
@@ -92,11 +92,11 @@ func (s *stage) GetCollectionLimit() int64 {
 }
 
 // Configure the keying operation for the end of this stage
-func (s *stage) setKeyingOperation(keyFn types.KeyingOperation) {
+func (s *stage) setKeyingOperation(keyFn sif.KeyingOperation) {
 	s.keyFn = keyFn
 }
 
 // Configure the reduction operation for the end of this stage
-func (s *stage) setReductionOperation(reduceFn types.ReductionOperation) {
+func (s *stage) setReductionOperation(reduceFn sif.ReductionOperation) {
 	s.reduceFn = reduceFn
 }

@@ -1,23 +1,23 @@
 package partition
 
 import (
+	"github.com/go-sif/sif"
 	itypes "github.com/go-sif/sif/internal/types"
-	types "github.com/go-sif/sif/types"
 	"github.com/hashicorp/go-multierror"
 )
 
 // createOperablePartition creates a new Partition containing an empty byte array and a schema
-func createOperablePartition(maxRows int, widestSchema types.Schema, currentSchema types.Schema) types.OperablePartition {
+func createOperablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.OperablePartition {
 	return createPartitionImpl(maxRows, widestSchema, currentSchema)
 }
 
 // UpdateCurrentSchema updates the Schema of this Partition
-func (p *partitionImpl) UpdateCurrentSchema(currentSchema types.Schema) {
+func (p *partitionImpl) UpdateCurrentSchema(currentSchema sif.Schema) {
 	p.currentSchema = currentSchema
 }
 
 // MapRows runs a MapOperation on each row in this Partition, manipulating them in-place. Will fall back to creating a fresh partition if PartitionRowErrors occur.
-func (p *partitionImpl) MapRows(fn types.MapOperation) (types.OperablePartition, error) {
+func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, error) {
 	inPlace := true // start by attempting to manipulate rows in-place
 	result := p
 	var multierr *multierror.Error
@@ -47,10 +47,10 @@ func (p *partitionImpl) MapRows(fn types.MapOperation) (types.OperablePartition,
 }
 
 // FlatMapRows runs a FlatMapOperation on each row in this Partition, creating new Partitions
-func (p *partitionImpl) FlatMapRows(fn types.FlatMapOperation) ([]types.OperablePartition, error) {
+func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePartition, error) {
 	var multierr *multierror.Error
 	// factory for producing new rows compatible with this Partition
-	factory := func() types.Row {
+	factory := func() sif.Row {
 		return &rowImpl{
 			meta:              make([]byte, p.widestSchema.NumColumns()),
 			data:              make([]byte, p.widestSchema.Size()),
@@ -59,7 +59,7 @@ func (p *partitionImpl) FlatMapRows(fn types.FlatMapOperation) ([]types.Operable
 			schema:            p.currentSchema,
 		}
 	}
-	parts := make([]types.OperablePartition, 1)
+	parts := make([]sif.OperablePartition, 1)
 	parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
 	for i := 0; i < p.GetNumRows(); i++ {
 		newRows, err := fn(p.GetRow(i), factory)
@@ -73,7 +73,7 @@ func (p *partitionImpl) FlatMapRows(fn types.FlatMapOperation) ([]types.Operable
 					appendTarget = parts[len(parts)-1]
 				}
 				irow := row.(itypes.AccessibleRow)
-				appendTarget.(types.BuildablePartition).AppendRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData())
+				appendTarget.(sif.BuildablePartition).AppendRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData())
 			}
 		}
 	}
@@ -81,7 +81,7 @@ func (p *partitionImpl) FlatMapRows(fn types.FlatMapOperation) ([]types.Operable
 }
 
 // FilterRows filters the Rows in the current Partition, creating a new one
-func (p *partitionImpl) FilterRows(fn types.FilterOperation) (types.OperablePartition, error) {
+func (p *partitionImpl) FilterRows(fn sif.FilterOperation) (sif.OperablePartition, error) {
 	var multierr *multierror.Error
 	result := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
 	for i := 0; i < p.GetNumRows(); i++ {
@@ -102,7 +102,7 @@ func (p *partitionImpl) FilterRows(fn types.FilterOperation) (types.OperablePart
 }
 
 // Repack repacks a Partition according to a new Schema
-func (p *partitionImpl) Repack(newSchema types.Schema) (types.OperablePartition, error) {
+func (p *partitionImpl) Repack(newSchema sif.Schema) (sif.OperablePartition, error) {
 	// create a new Partition
 	part := createPartitionImpl(p.maxRows, newSchema, newSchema)
 	for i := 0; i < p.GetNumRows(); i++ {

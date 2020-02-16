@@ -1,6 +1,6 @@
 package memory
 
-import "github.com/go-sif/sif/types"
+import "github.com/go-sif/sif"
 
 // PartitionMap is an iterator producing a sequence of PartitionLoaders
 type PartitionMap struct {
@@ -14,7 +14,7 @@ func (pm *PartitionMap) HasNext() bool {
 }
 
 // Next returns the next PartitionLoader for a file
-func (pm *PartitionMap) Next() types.PartitionLoader {
+func (pm *PartitionMap) Next() sif.PartitionLoader {
 	result := &PartitionLoader{idx: pm.idx, source: pm.source}
 	pm.idx++
 	return result

@@ -1,4 +1,4 @@
-package types
+package sif
 
 // Schema is a mapping from column names to byte offsets
 // within a Row. It allows one to obtain offsets by name,

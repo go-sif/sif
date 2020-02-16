@@ -1,8 +1,6 @@
 package file
 
-import (
-	core "github.com/go-sif/sif/core"
-)
+import "github.com/go-sif/sif"
 
 // PartitionMap is an iterator producing a sequence of PartitionLoaders
 type PartitionMap struct {
@@ -16,7 +14,7 @@ func (pm *PartitionMap) HasNext() bool {
 }
 
 // Next returns the next PartitionLoader for a file
-func (pm *PartitionMap) Next() core.PartitionLoader {
+func (pm *PartitionMap) Next() sif.PartitionLoader {
 	result := &PartitionLoader{path: pm.files[0], source: pm.source}
 	pm.files = pm.files[1:]
 	return result

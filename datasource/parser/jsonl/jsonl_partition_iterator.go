@@ -5,16 +5,17 @@ import (
 	"log"
 	"sync"
 
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif"
+	"github.com/go-sif/sif/internal/partition"
 )
 
 type jsonlFilePartitionIterator struct {
 	parser              *Parser
 	scanner             *bufio.Scanner
 	hasNext             bool
-	source              core.DataSource
-	schema              *core.Schema
-	widestInitialSchema *core.Schema
+	source              sif.DataSource
+	schema              sif.Schema
+	widestInitialSchema sif.Schema
 	lock                sync.Mutex
 	endListeners        []func()
 }
@@ -34,12 +35,12 @@ func (jsonli *jsonlFilePartitionIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (jsonli *jsonlFilePartitionIterator) NextPartition() (*core.Partition, error) {
+func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error) {
 	jsonli.lock.Lock()
 	defer jsonli.lock.Unlock()
 	colNames := jsonli.schema.ColumnNames()
 	colTypes := jsonli.schema.ColumnTypes()
-	part := core.CreatePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialSchema, jsonli.schema)
+	part := partition.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialSchema, jsonli.schema)
 	// parse lines
 	for {
 		// If the partition is full, we're done

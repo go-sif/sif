@@ -5,29 +5,29 @@ import (
 	"path"
 	"testing"
 
-	types "github.com/go-sif/sif/columntype"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif"
 	file "github.com/go-sif/sif/datasource/file"
+	"github.com/go-sif/sif/internal/schema"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDSVDatasourceParser(t *testing.T) {
 	// Create a dataframe for the file, load it, and test things
-	schema := core.CreateSchema()
-	schema.CreateColumn("hack", &types.BytesColumnType{Length: 32})
-	schema.CreateColumn("license", &types.BytesColumnType{Length: 32})
-	schema.CreateColumn("code", &types.BytesColumnType{Length: 3})
-	schema.CreateColumn("flag", &types.Uint8ColumnType{})
-	schema.CreateColumn("type", &types.VarStringColumnType{})
-	schema.CreateColumn("pickup_time", &types.VarStringColumnType{})
-	schema.CreateColumn("dropoff_time", &types.VarStringColumnType{})
-	schema.CreateColumn("passengers", &types.Uint8ColumnType{})
-	schema.CreateColumn("duration", &types.Uint32ColumnType{})
-	schema.CreateColumn("distance", &types.Float32ColumnType{})
-	schema.CreateColumn("pickup_lon", &types.Float32ColumnType{})
-	schema.CreateColumn("pickup_lat", &types.Float32ColumnType{})
-	schema.CreateColumn("dropoff_lon", &types.Float32ColumnType{})
-	schema.CreateColumn("dropoff_lat", &types.Float32ColumnType{})
+	schema := schema.CreateSchema()
+	schema.CreateColumn("hack", &sif.BytesColumnType{Length: 32})
+	schema.CreateColumn("license", &sif.BytesColumnType{Length: 32})
+	schema.CreateColumn("code", &sif.BytesColumnType{Length: 3})
+	schema.CreateColumn("flag", &sif.Uint8ColumnType{})
+	schema.CreateColumn("type", &sif.VarStringColumnType{})
+	schema.CreateColumn("pickup_time", &sif.VarStringColumnType{})
+	schema.CreateColumn("dropoff_time", &sif.VarStringColumnType{})
+	schema.CreateColumn("passengers", &sif.Uint8ColumnType{})
+	schema.CreateColumn("duration", &sif.Uint32ColumnType{})
+	schema.CreateColumn("distance", &sif.Float32ColumnType{})
+	schema.CreateColumn("pickup_lon", &sif.Float32ColumnType{})
+	schema.CreateColumn("pickup_lat", &sif.Float32ColumnType{})
+	schema.CreateColumn("dropoff_lon", &sif.Float32ColumnType{})
+	schema.CreateColumn("dropoff_lat", &sif.Float32ColumnType{})
 
 	cwd, err := os.Getwd()
 	require.Nil(t, err)

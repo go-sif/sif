@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"io"
 
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif"
 )
 
 // ParserConf configures a DSV Parser
@@ -38,7 +38,7 @@ func (p *Parser) PartitionSize() int {
 }
 
 // Parse parses DSV data to produce Partitions
-func (p *Parser) Parse(r io.Reader, source core.DataSource, schema *core.Schema, widestInitialSchema *core.Schema, onIteratorEnd func()) (core.PartitionIterator, error) {
+func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, widestInitialSchema sif.Schema, onIteratorEnd func()) (sif.PartitionIterator, error) {
 	// start parsing by creating a reader
 	reader := csv.NewReader(r)
 	reader.Comma = p.conf.Delimiter

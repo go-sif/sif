@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
-	types "github.com/go-sif/sif/columntype"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif"
+	"github.com/go-sif/sif/cluster"
 	memstream "github.com/go-sif/sif/datasource/memorystream"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
+	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestStreamDataFrame(t *testing.T, numGenerators int) *core.DataFrame {
+func createTestStreamDataFrame(t *testing.T, numGenerators int) sif.DataFrame {
 	data := make([]func() []byte, numGenerators)
 	generator := func() []byte {
 		num := rand.Intn(10)
@@ -28,8 +29,8 @@ func createTestStreamDataFrame(t *testing.T, numGenerators int) *core.DataFrame 
 	}
 
 	// Create a dataframe for the data
-	schema := core.CreateSchema()
-	schema.CreateColumn("col1", &types.Int32ColumnType{})
+	schema := schema.CreateSchema()
+	schema.CreateColumn("col1", &sif.Int32ColumnType{})
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
 		PartitionSize: 5,
 	})
@@ -42,8 +43,8 @@ func TestStream(t *testing.T) {
 	var processedRows []string       // multiple workers will record their processed rows here
 	// create dataframe
 	frame, err := createTestStreamDataFrame(t, 4).To(
-		ops.AddColumn("res", &types.VarStringColumnType{}),
-		ops.Map(func(row *core.Row) error {
+		ops.AddColumn("res", &sif.VarStringColumnType{}),
+		ops.Map(func(row sif.Row) error {
 			col1, err := row.GetInt32("col1")
 			if err != nil {
 				return err
@@ -55,10 +56,10 @@ func TestStream(t *testing.T) {
 			return nil
 		}),
 		ops.Reduce(
-			func(row *core.Row) ([]byte, error) {
+			func(row sif.Row) ([]byte, error) {
 				return []byte("key"), nil
 			},
-			func(lrow *core.Row, rrow *core.Row) error {
+			func(lrow sif.Row, rrow sif.Row) error {
 				l, err := lrow.GetVarString("res")
 				if err != nil {
 					return err
@@ -73,7 +74,7 @@ func TestStream(t *testing.T) {
 				}
 				return nil
 			}),
-		ops.Map(func(row *core.Row) error {
+		ops.Map(func(row sif.Row) error {
 			col1, err := row.GetVarString("res")
 			if err != nil {
 				return err
@@ -89,8 +90,8 @@ func TestStream(t *testing.T) {
 	// run dataframe
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	copts := &core.NodeOptions{}
-	wopts := &core.NodeOptions{}
+	copts := &cluster.NodeOptions{}
+	wopts := &cluster.NodeOptions{}
 	_, err = runTestFrame(ctx, t, frame, copts, wopts, 2)
 	require.True(t, len(processedRows) > 6)
 	for _, r := range processedRows {

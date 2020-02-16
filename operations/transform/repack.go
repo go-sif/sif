@@ -1,24 +1,22 @@
 package transform
 
-import (
-	core "github.com/go-sif/sif/core"
-)
+import "github.com/go-sif/sif"
 
 type repackTask struct {
-	newSchema *core.Schema
+	newSchema sif.Schema
 }
 
-func (s *repackTask) RunWorker(previous *core.Partition) ([]*core.Partition, error) {
+func (s *repackTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	part, err := previous.Repack(s.newSchema)
 	if err != nil {
 		return nil, err
 	}
-	return []*core.Partition{part}, nil
+	return []sif.OperablePartition{part}, nil
 }
 
 // Repack rearranges memory layout of rows to respect a new schema
-func Repack() core.DataFrameOperation {
-	return func(d *core.DataFrame) (core.Task, string, *core.Schema, error) {
+func Repack() sif.DataFrameOperation {
+	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
 		nextTask := repackTask{d.GetSchema().Repack()}
 		return &nextTask, "repack", nextTask.newSchema, nil
 	}

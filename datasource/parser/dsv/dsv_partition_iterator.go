@@ -5,16 +5,17 @@ import (
 	"io"
 	"sync"
 
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif"
+	"github.com/go-sif/sif/internal/partition"
 )
 
 type dsvFilePartitionIterator struct {
 	parser              *Parser
 	reader              *csv.Reader
 	hasNext             bool
-	source              core.DataSource
-	schema              *core.Schema
-	widestInitialSchema *core.Schema
+	source              sif.DataSource
+	schema              sif.Schema
+	widestInitialSchema sif.Schema
 	lock                sync.Mutex
 	endListeners        []func()
 }
@@ -34,12 +35,12 @@ func (dsvi *dsvFilePartitionIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (dsvi *dsvFilePartitionIterator) NextPartition() (*core.Partition, error) {
+func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
 	dsvi.lock.Lock()
 	defer dsvi.lock.Unlock()
 	colNames := dsvi.schema.ColumnNames()
 	colTypes := dsvi.schema.ColumnTypes()
-	part := core.CreatePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialSchema, dsvi.schema)
+	part := partition.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialSchema, dsvi.schema)
 	// parse lines
 	for {
 		// If the partition is full, we're done

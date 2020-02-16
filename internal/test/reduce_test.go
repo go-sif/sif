@@ -4,16 +4,17 @@ import (
 	"context"
 	"testing"
 
-	types "github.com/go-sif/sif/columntype"
-	core "github.com/go-sif/sif/core"
+	"github.com/go-sif/sif"
+	"github.com/go-sif/sif/cluster"
 	memory "github.com/go-sif/sif/datasource/memory"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
+	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestReduceDataFrame(t *testing.T, numRows int) *core.DataFrame {
+func createTestReduceDataFrame(t *testing.T, numRows int) sif.DataFrame {
 	row := []byte("{\"col1\": \"abc\"}")
 	data := make([][]byte, numRows)
 	for i := 0; i < len(data); i++ {
@@ -21,8 +22,8 @@ func createTestReduceDataFrame(t *testing.T, numRows int) *core.DataFrame {
 	}
 
 	// Create a dataframe for the data
-	schema := core.CreateSchema()
-	schema.CreateColumn("col1", &types.StringColumnType{Length: 3})
+	schema := schema.CreateSchema()
+	schema.CreateColumn("col1", &sif.StringColumnType{Length: 3})
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
 		PartitionSize: 5,
 	})
@@ -34,17 +35,17 @@ func TestReduce(t *testing.T) {
 	// create dataframe
 	numRows := 100
 	frame, err := createTestReduceDataFrame(t, numRows).To(
-		ops.AddColumn("count", &types.Uint32ColumnType{}),
-		ops.Map(func(row *core.Row) error {
+		ops.AddColumn("count", &sif.Uint32ColumnType{}),
+		ops.Map(func(row sif.Row) error {
 			err := row.SetInt32("count", int32(1))
 			if err != nil {
 				return err
 			}
 			return nil
 		}),
-		ops.Reduce(func(row *core.Row) ([]byte, error) {
+		ops.Reduce(func(row sif.Row) ([]byte, error) {
 			return []byte{byte(1)}, nil
-		}, func(lrow *core.Row, rrow *core.Row) error {
+		}, func(lrow sif.Row, rrow sif.Row) error {
 			lval, err := lrow.GetInt32("count")
 			if err != nil {
 				return err
@@ -60,8 +61,8 @@ func TestReduce(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	copts := &core.NodeOptions{}
-	wopts := &core.NodeOptions{}
+	copts := &cluster.NodeOptions{}
+	wopts := &cluster.NodeOptions{}
 	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
 	require.Nil(t, err)
 	require.NotNil(t, res)

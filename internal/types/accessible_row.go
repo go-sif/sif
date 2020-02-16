@@ -12,5 +12,5 @@ type AccessibleRow interface {
 	GetSchema() sif.Schema
 	CheckIsNil(colName string, offset sif.Column) error
 	SetNotNil(offset sif.Column)
-	Repack(newSchema sif.Schema) (AccessibleRow, error)
+	Repack(newSchema sif.Schema) (sif.Row, error)
 }

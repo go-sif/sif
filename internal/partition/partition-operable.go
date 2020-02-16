@@ -111,7 +111,8 @@ func (p *partitionImpl) Repack(newSchema sif.Schema) (sif.OperablePartition, err
 		if err != nil {
 			return nil, err
 		}
-		err = part.AppendRowData(newRow.GetData(), newRow.GetMeta(), newRow.GetVarData(), newRow.GetSerializedVarData())
+		aNewRow := newRow.(itypes.AccessibleRow)
+		err = part.AppendRowData(aNewRow.GetData(), aNewRow.GetMeta(), aNewRow.GetVarData(), aNewRow.GetSerializedVarData())
 		if err != nil {
 			return nil, err
 		}

@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/go-sif/sif"
-	"github.com/go-sif/sif/internal/partition"
+	"github.com/go-sif/sif/datasource"
 )
 
 type dsvFilePartitionIterator struct {
@@ -40,7 +40,7 @@ func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
 	defer dsvi.lock.Unlock()
 	colNames := dsvi.schema.ColumnNames()
 	colTypes := dsvi.schema.ColumnTypes()
-	part := partition.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialSchema, dsvi.schema)
+	part := datasource.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialSchema, dsvi.schema)
 	// parse lines
 	for {
 		// If the partition is full, we're done

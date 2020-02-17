@@ -2,7 +2,7 @@ package memorystream
 
 import (
 	"github.com/go-sif/sif"
-	"github.com/go-sif/sif/internal/dataframe"
+	"github.com/go-sif/sif/datasource"
 )
 
 // DataSource is a buffer containing data which will be manipulating according to a DataFrame
@@ -15,7 +15,7 @@ type DataSource struct {
 // CreateDataFrame is a factory for DataSources
 func CreateDataFrame(generators []func() []byte, batchSize int, parser sif.DataSourceParser, schema sif.Schema) sif.DataFrame {
 	source := &DataSource{generators, batchSize, schema}
-	df := dataframe.CreateDataFrame(source, parser, schema)
+	df := datasource.CreateDataFrame(source, parser, schema)
 	return df
 }
 

@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/go-sif/sif"
-	"github.com/go-sif/sif/internal/partition"
+	"github.com/go-sif/sif/datasource"
 )
 
 type jsonlFilePartitionIterator struct {
@@ -40,7 +40,7 @@ func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error)
 	defer jsonli.lock.Unlock()
 	colNames := jsonli.schema.ColumnNames()
 	colTypes := jsonli.schema.ColumnTypes()
-	part := partition.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialSchema, jsonli.schema)
+	part := datasource.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialSchema, jsonli.schema)
 	// parse lines
 	for {
 		// If the partition is full, we're done

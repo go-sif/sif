@@ -32,8 +32,14 @@ clean:
 	@rm -rf ./internal/rpc/*.pb.go
 
 lint:
+	@echo "Running go vet"
 	@go vet ./...
+	@echo "Running golint"
 	@go list ./... | grep -v /vendor/ | xargs -L1 golint --set_exit_status
+	@echo "Ensuring that internal code isn't used in the implementation of datasources"
+	@! grep -ir internal datasource | grep -v util.go
+	@echo "Ensuring that internal code isn't used in the implementation of integration tests"
+	@! grep -ir internal internal/test/integration | grep -v util.go
 
 testenv:
 	@echo "Downloading NYC Taxi test files..."

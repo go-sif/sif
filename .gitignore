@@ -1,4 +1,3 @@
 .vscode
-*.pb.go
 debug.test
 testenv/

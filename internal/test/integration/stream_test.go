@@ -13,8 +13,8 @@ import (
 	"github.com/go-sif/sif/cluster"
 	memstream "github.com/go-sif/sif/datasource/memorystream"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
-	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
+	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
 

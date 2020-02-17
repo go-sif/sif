@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	"github.com/go-sif/sif/internal/schema"
+	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-sif/sif"
 	file "github.com/go-sif/sif/datasource/file"
-	"github.com/go-sif/sif/internal/schema"
+	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
 

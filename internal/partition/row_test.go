@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-sif/sif"
-	"github.com/go-sif/sif/internal/schema"
+	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
 

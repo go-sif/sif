@@ -19,9 +19,9 @@ import (
 	"github.com/go-sif/sif/cluster"
 	"github.com/go-sif/sif/datasource/file"
 	dsv "github.com/go-sif/sif/datasource/parser/dsv"
-	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
+	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
 

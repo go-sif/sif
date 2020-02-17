@@ -6,8 +6,8 @@ import (
 	xxhash "github.com/cespare/xxhash"
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/partition"
-	"github.com/go-sif/sif/internal/schema"
 	itypes "github.com/go-sif/sif/internal/types"
+	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
 

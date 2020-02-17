@@ -10,9 +10,9 @@ import (
 	"github.com/go-sif/sif/cluster"
 	memory "github.com/go-sif/sif/datasource/memory"
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
-	"github.com/go-sif/sif/internal/schema"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
+	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
 

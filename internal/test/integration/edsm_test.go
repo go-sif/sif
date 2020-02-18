@@ -33,7 +33,7 @@ func createTestEDSMDataFrame(t *testing.T) sif.DataFrame {
 	})
 	cwd, err := os.Getwd()
 	require.Nil(t, err)
-	dataframe := file.CreateDataFrame(path.Join(cwd, "../../testenv/*.jsonl"), parser, schema)
+	dataframe := file.CreateDataFrame(path.Join(cwd, "../../../testenv/*.jsonl"), parser, schema)
 	return dataframe
 }
 
@@ -166,7 +166,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			f, err := os.OpenFile(path.Join(cwd, fmt.Sprintf("../../testenv/edsm-%s.png", dateOfImage)), os.O_WRONLY|os.O_CREATE, 0600)
+			f, err := os.OpenFile(path.Join(cwd, fmt.Sprintf("../../../testenv/edsm-%s.png", dateOfImage)), os.O_WRONLY|os.O_CREATE, 0600)
 			if err != nil {
 				return err
 			}

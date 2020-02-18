@@ -24,6 +24,7 @@ const (
 // Node is a member of a Sif cluster, either coordinating or performing work.
 // Nodes present several methods to control their lifecycle.
 type Node interface {
+	IsCoordinator() bool
 	Start(sif.DataFrame) error
 	GracefulStop() error
 	Stop() error

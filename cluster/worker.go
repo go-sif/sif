@@ -23,6 +23,7 @@ type worker struct {
 	lifecycleLock sync.Mutex
 	clusterClient pb.ClusterServiceClient
 	logClient     pb.LogServiceClient
+	jobFinishedWg sync.WaitGroup
 }
 
 // CreateWorker is a factory for Workers
@@ -66,6 +67,11 @@ func (w *worker) register() error {
 // ID returns the ID of this worker
 func (w *worker) ID() string {
 	return w.id
+}
+
+// IsCoordinator returns true for coordinators
+func (w *worker) IsCoordinator() bool {
+	return false
 }
 
 // Start the worker - will block the current thread
@@ -113,11 +119,13 @@ func (w *worker) Start(frame sif.DataFrame) error {
 		return err
 	}
 	// start server
+	w.jobFinishedWg.Add(1)
 	err = w.server.Serve(lis)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %v", err)
 	}
 	// finished
+	w.jobFinishedWg.Done()
 	return nil
 }
 
@@ -143,8 +151,10 @@ func (w *worker) Stop() error {
 	return nil
 }
 
-// Run is a no-op for workers
+// Run is a no-op for workers, blocking until worker is shut down
 func (w *worker) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
+	// Run should block until execution is complete
+	w.jobFinishedWg.Wait()
 	return nil, nil
 }
 

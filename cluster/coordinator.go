@@ -32,6 +32,11 @@ func createCoordinator(opts *NodeOptions) (*coordinator, error) {
 	return &coordinator{opts: opts}, nil
 }
 
+// IsCoordinator returns true for coordinators
+func (c *coordinator) IsCoordinator() bool {
+	return true
+}
+
 // Start the Coordinator - blocking unless run in a goroutine
 func (c *coordinator) Start(frame sif.DataFrame) error {
 	if frame == nil {

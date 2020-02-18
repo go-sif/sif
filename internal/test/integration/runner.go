@@ -68,6 +68,11 @@ func runTestFrame(ctx context.Context, t *testing.T, frame sif.DataFrame, copts 
 			err := worker.Start(frame)
 			require.Nil(t, err)
 		}()
+		// test running worker as well, to make sure blocking is functional
+		go func() {
+			_, err := worker.Run(ctx)
+			require.Nil(t, err)
+		}()
 		defer worker.GracefulStop()
 	}
 	return coordinator.Run(ctx)

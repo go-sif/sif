@@ -47,7 +47,7 @@ func createTestNYCTaxiDataFrame(t *testing.T) sif.DataFrame {
 	parser := dsv.CreateParser(&dsv.ParserConf{
 		NilValue: "null",
 	})
-	dataframe := file.CreateDataFrame(path.Join(cwd, "../../testenv/*.csv"), parser, schema)
+	dataframe := file.CreateDataFrame(path.Join(cwd, "../../../testenv/*.csv"), parser, schema)
 	return dataframe
 }
 
@@ -214,7 +214,7 @@ func TestNYCTaxi(t *testing.T) {
 		}
 		cwd, err := os.Getwd()
 		require.Nil(t, err)
-		f, err := os.OpenFile(path.Join(cwd, "../../testenv/nyc_taxi.png"), os.O_WRONLY|os.O_CREATE, 0600)
+		f, err := os.OpenFile(path.Join(cwd, "../../../testenv/nyc_taxi.png"), os.O_WRONLY|os.O_CREATE, 0600)
 		require.Nil(t, err)
 		defer f.Close()
 		writer := bufio.NewWriter(f)

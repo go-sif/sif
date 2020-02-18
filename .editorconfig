@@ -18,3 +18,7 @@ indent_style = tab
 # Golang source files
 [*.go]
 indent_style = tab
+
+# Golang source files
+[*.md]
+indent_style = tab

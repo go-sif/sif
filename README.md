@@ -1,5 +1,7 @@
 # Sif
 
+![Logo](https://raw.githubusercontent.com/go-sif/sif/master/media/logo.png)
+
 `Sif` is a framework for fast, predictable, general-purpose distributed computing in the map/reduce paradigm.
 
 `Sif` is new, and currently under heavy development. It should be considered **alpha software** prior to a 1.0.0 release, with the API and behaviours subject to change.

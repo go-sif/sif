@@ -18,6 +18,7 @@
 		- [Reduction](#reduction)
 		- [Collection](#collection)
 - [Extending Sif](#extending-sif)
+	- [Custom ColumnTypes](#custom-columntypes)
 	- [Custom DataSources](#custom-datasources)
 	- [Custom Parsers](#custom-parsers)
 - [License](#license)
@@ -329,6 +330,10 @@ if node.IsCoordinator() {
 ```
 
 ## Extending Sif
+
+### Custom ColumnTypes
+
+See [Implementing Custom ColumnTypes](docs/custom-columntypes.md) for details.
 
 ### Custom DataSources
 

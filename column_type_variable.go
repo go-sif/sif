@@ -12,7 +12,7 @@ type VarStringColumnType struct {
 	// TODO store encoding type via https://godoc.org/golang.org/x/text/encoding, for inter-language stringing
 }
 
-// Size in bytes of the fixed-length StringColumn
+// Size returns 0 for any variable-length custom type
 func (b *VarStringColumnType) Size() int {
 	return 0
 }
@@ -49,7 +49,7 @@ func (b *VarStringColumnType) Deserialize(ser []byte) (interface{}, error) {
 type VarBytesColumnType struct {
 }
 
-// Size in bytes of a VarBytesColumn
+// Size returns 0 for any variable-length custom type
 func (b *VarBytesColumnType) Size() int {
 	return 0
 }

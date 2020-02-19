@@ -1,6 +1,8 @@
 package transform
 
-import "github.com/go-sif/sif"
+import (
+	"github.com/go-sif/sif"
+)
 
 // addColumnTask is a task that does nothing
 type addColumnTask struct{}

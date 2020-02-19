@@ -182,7 +182,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 			}
 			// no need to serialize values for columns we've dropped
 			if col, err := p.currentSchema.GetOffset(k); err == nil {
-				if vcol, ok := col.Type().(sif.VarColumnType); ok {
+				if vcol, ok := col.Type().(itypes.VarColumnType); ok {
 					sdata, err := vcol.Serialize(v)
 					if err != nil {
 						return nil, err

@@ -1,6 +1,6 @@
 # Sif
 
-![Logo](https://raw.githubusercontent.com/go-sif/sif/master/media/logo.png)
+![Logo](https://raw.githubusercontent.com/go-sif/sif/master/media/logo-128.png)
 
 `Sif` is a framework for fast, predictable, general-purpose distributed computing in the map/reduce paradigm.
 

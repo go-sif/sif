@@ -20,7 +20,7 @@ type DataSourceParser interface {
 }
 ```
 
-It is common to also provide a `CreateParser` factory method, along with a configuration struct:
+It is common to also provide a `CreateParser` factory function, along with a configuration struct:
 
 ```go
 type ParserConf struct {

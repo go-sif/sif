@@ -32,4 +32,6 @@ func CreateDataFrame(glob string, parser sif.DataSourceParser, schema sif.Schema
 }
 ```
 
+**Note:** It is conceivable that a `DataSource` may not require a parser (such as one that is accessing data from a database). In this case, the factory function may omit a `parser` argument, and calls to `PartitionLoader.Load()` would include a `nil` value in place of a `DataSourceParser`.
+
 **Explore the included `DataSource`s (particularly `datasource.file`) for concrete implementation examples.**

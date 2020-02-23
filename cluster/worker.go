@@ -23,7 +23,7 @@ type worker struct {
 	lifecycleLock sync.Mutex
 	clusterClient pb.ClusterServiceClient
 	logClient     pb.LogServiceClient
-	jobFinishedWg sync.WaitGroup
+	jobFinishedWg sync.Mutex
 }
 
 // CreateWorker is a factory for Workers
@@ -35,7 +35,9 @@ func createWorker(opts *NodeOptions) (*worker, error) {
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)
 	}
-	return &worker{id: id.String(), opts: opts}, nil
+	res := &worker{id: id.String(), opts: opts}
+	res.jobFinishedWg.Lock()
+	return res, nil
 }
 
 func (w *worker) mconnect() (*grpc.ClientConn, error) {
@@ -118,13 +120,12 @@ func (w *worker) Start(frame sif.DataFrame) error {
 		return err
 	}
 	// start server
-	w.jobFinishedWg.Add(1)
 	err = w.server.Serve(lis)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %v", err)
 	}
 	// finished
-	w.jobFinishedWg.Done()
+	w.jobFinishedWg.Unlock()
 	return nil
 }
 
@@ -153,7 +154,7 @@ func (w *worker) Stop() error {
 // Run is a no-op for workers, blocking until worker is shut down
 func (w *worker) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
 	// Run should block until execution is complete
-	w.jobFinishedWg.Wait()
+	w.jobFinishedWg.Lock()
 	return nil, nil
 }
 

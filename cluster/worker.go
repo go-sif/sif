@@ -52,7 +52,7 @@ func (w *worker) mconnect() (*grpc.ClientConn, error) {
 }
 
 func (w *worker) register() error {
-	log.Printf("Attempting to register with coordinator at %s:%d", w.opts.CoordinatorHost, w.opts.CoordinatorPort)
+	log.Printf("[%s] attempting to register with coordinator at %s:%d", w.ID(), w.opts.CoordinatorHost, w.opts.CoordinatorPort)
 	ctx, cancel := context.WithTimeout(context.Background(), w.opts.RPCTimeout)
 	defer cancel()
 	req := pb.MRegisterRequest{
@@ -60,7 +60,7 @@ func (w *worker) register() error {
 		Port: int32(w.opts.Port),
 	}
 	if w.logClient == nil {
-		log.Fatalf("Cannot register before dialing coordinator with mconnect()")
+		log.Fatalf("[%s] Cannot register before dialing coordinator with mconnect()", w.ID())
 	}
 	_, err := w.clusterClient.RegisterWorker(ctx, &req)
 	return err
@@ -121,35 +121,37 @@ func (w *worker) Start(frame sif.DataFrame) error {
 		panic(err) // if we can't reigster with the coordinator, panic now
 	}
 	// start server
-	log.Printf("Starting Sif Worker at %s", w.opts.connectionString())
+	log.Printf("[%s] ready to run job at %s", w.ID(), w.opts.connectionString())
 	err = w.server.Serve(lis)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %v", err)
 	}
-	// finished
-	w.jobFinishedWg.Unlock()
 	return nil
 }
 
 // GracefulStop the worker, waiting for RPCs to finish
 func (w *worker) GracefulStop() error {
+	log.Printf("[%s] Gracefully stopping worker", w.ID())
 	w.lifecycleLock.Lock()
 	defer w.lifecycleLock.Unlock()
 	if w.server != nil {
 		w.server.GracefulStop()
 		w.server = nil
 	}
+	w.jobFinishedWg.Unlock()
 	return nil
 }
 
 // Stop the worker immediately
 func (w *worker) Stop() error {
+	log.Printf("[%s] Stopping worker", w.ID())
 	w.lifecycleLock.Lock()
 	defer w.lifecycleLock.Unlock()
 	if w.server != nil {
 		w.server.Stop()
 		w.server = nil
 	}
+	w.jobFinishedWg.Unlock()
 	return nil
 }
 
@@ -157,6 +159,7 @@ func (w *worker) Stop() error {
 func (w *worker) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
 	// Run should block until execution is complete
 	w.jobFinishedWg.Lock()
+	log.Printf("[%s] Finished worker Run()", w.ID())
 	return nil, nil
 }
 

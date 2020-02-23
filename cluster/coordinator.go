@@ -198,6 +198,7 @@ func stopWorkers(workers []*pb.MWorkerDescriptor, workerConns []*grpc.ClientConn
 	// shutdown workers
 	wg.Add(len(workers))
 	for i := range workers {
+		log.Printf("Stopping worker %s...", workers[i].Id)
 		go asyncStopWorker(workers[i], workerConns[i], &wg, asyncErrors)
 	}
 	// if something went wrong, other than the worker perhaps shutting itself down, return error
@@ -214,7 +215,6 @@ func asyncStopWorker(w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.Wa
 	if err != nil {
 		errors <- fmt.Errorf("Unable to stop worker %v\n%s", w.Id, err.Error())
 	}
-	fmt.Printf("Stopped worker %s\n", w.Id)
 }
 
 func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.WaitGroup, errors chan<- error) {

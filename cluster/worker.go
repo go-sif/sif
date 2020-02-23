@@ -157,13 +157,13 @@ func (w *worker) Run(ctx context.Context) (map[string]sif.CollectedPartition, er
 	return nil, nil
 }
 
-// registerWithCoordinator is a very dirty approach to asynchronously registering workers with coordinators
+// asyncRegisterWithCoordinator is a very dirty approach to asynchronously registering workers with coordinators
 func (w *worker) asyncRegisterWithCoordinator(ctx context.Context, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
-	for retries := 0; retries < 5; retries++ {
+	for retries := 0; retries < w.opts.WorkerJoinRetries; retries++ {
 		// Wait for server to register
 		err := w.register()
-		if err != nil && retries >= 4 {
+		if err != nil && retries >= (w.opts.WorkerJoinRetries-1) {
 			errors <- err
 		} else if err == nil {
 			break

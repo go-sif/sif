@@ -41,6 +41,7 @@ type NodeOptions struct {
 	CoordinatorHost       string        // [REQUIRED] hostname of the Coordinator Node (potentially identical to Host if this is the Coordinator)
 	NumWorkers            int           // [REQUIRED] the number of Workers to wait for before running the job
 	WorkerJoinTimeout     time.Duration // how long the Coordinator should wait for Workers to join
+	WorkerJoinRetries     int           // how many times a Worker should retry connecting to the Coordinator (at one second intervals)
 	RPCTimeout            time.Duration // timeout for all RPC calls
 	TempDir               string        // location for storing temporary files (primarily persisted partitions)
 	NumInMemoryPartitions int           // the number of partitions to retain in memory before swapping to disk
@@ -56,6 +57,7 @@ func CloneNodeOptions(opts *NodeOptions) *NodeOptions {
 		CoordinatorHost:       opts.CoordinatorHost,
 		NumWorkers:            opts.NumWorkers,
 		WorkerJoinTimeout:     opts.WorkerJoinTimeout,
+		WorkerJoinRetries:     opts.WorkerJoinRetries,
 		RPCTimeout:            opts.RPCTimeout,
 		TempDir:               opts.TempDir,
 		NumInMemoryPartitions: opts.NumInMemoryPartitions,
@@ -86,6 +88,9 @@ func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
 	}
 	if opts.WorkerJoinTimeout == 0 {
 		opts.WorkerJoinTimeout = time.Duration(5) * time.Second // TODO sensible default?
+	}
+	if opts.WorkerJoinRetries == 0 {
+		opts.WorkerJoinRetries = 5 // TODO sensible default?
 	}
 	if len(opts.TempDir) == 0 {
 		cwd, err := os.Getwd()

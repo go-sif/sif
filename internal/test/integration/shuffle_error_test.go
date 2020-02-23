@@ -43,9 +43,7 @@ func TestShuffleErrors(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe
-	copts := &cluster.NodeOptions{}
-	wopts := &cluster.NodeOptions{IgnoreRowErrors: true}
-	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
+	res, err := runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{IgnoreRowErrors: true}, 2)
 	for _, part := range res {
 		part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetInt32("res")

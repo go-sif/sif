@@ -9,8 +9,7 @@ service ClusterService {
 
 message MRegisterRequest {
     string id = 1;
-    string host = 2;
-    int32  port = 3;
+    int32  port = 2;
 }
 
 message MRegisterResponse {

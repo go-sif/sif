@@ -180,8 +180,6 @@ func TestEDSMHeatmap(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	copts := &cluster.NodeOptions{}
-	wopts := &cluster.NodeOptions{NumInMemoryPartitions: 20}
-	_, err = runTestFrame(context.Background(), t, frame, copts, wopts, 8)
+	_, err = runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{NumInMemoryPartitions: 20}, 8)
 	require.Nil(t, err)
 }

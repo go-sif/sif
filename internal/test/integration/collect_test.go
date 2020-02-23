@@ -55,9 +55,7 @@ func TestCollect(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe
-	copts := &cluster.NodeOptions{}
-	wopts := &cluster.NodeOptions{}
-	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
+	res, err := runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{}, 2)
 	for _, part := range res {
 		part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetVarString("res")

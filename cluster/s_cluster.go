@@ -3,11 +3,13 @@ package cluster
 import (
 	"fmt"
 	"log"
+	"net"
 	"sync"
 	"time"
 
 	pb "github.com/go-sif/sif/internal/rpc"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/peer"
 )
 
 type clusterServer struct {
@@ -24,9 +26,17 @@ func (s *clusterServer) RegisterWorker(ctx context.Context, req *pb.MRegisterReq
 	if _, exists := s.workers.Load(req.Id); exists {
 		return nil, fmt.Errorf("Worker %s is already registered", req.Id)
 	}
+	peer, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("Unable to fetch peer data for connecting worker %s", req.Id)
+	}
+	tcpAddr, ok := peer.Addr.(*net.TCPAddr)
+	if !ok {
+		return nil, fmt.Errorf("Connecting worker %s is not using TCP", req.Id)
+	}
 	s.workers.Store(req.Id, pb.MWorkerDescriptor{
 		Id:   req.Id,
-		Host: req.Host,
+		Host: tcpAddr.IP.String(),
 		Port: int32(req.Port),
 	})
 	for _, w := range s.Workers() {

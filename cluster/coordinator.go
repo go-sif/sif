@@ -24,6 +24,8 @@ type coordinator struct {
 	server        *grpc.Server
 	clusterServer *clusterServer
 	frame         sif.DataFrame
+	starting      bool
+	startingLock  sync.Mutex
 }
 
 func createCoordinator(opts *NodeOptions) (*coordinator, error) {
@@ -39,6 +41,11 @@ func (c *coordinator) IsCoordinator() bool {
 
 // Start the Coordinator - blocking unless run in a goroutine
 func (c *coordinator) Start(frame sif.DataFrame) error {
+	// lock the node until Start is finished
+	c.starting = true
+	c.startingLock.Lock()
+
+	// start node
 	if frame == nil {
 		return fmt.Errorf("DataFrame cannot be nil")
 	}
@@ -53,6 +60,8 @@ func (c *coordinator) Start(frame sif.DataFrame) error {
 	c.clusterServer = createClusterServer()
 	pb.RegisterClusterServiceServer(c.server, c.clusterServer)
 	pb.RegisterLogServiceServer(c.server, createLogServer())
+	// we're done bootstrapping
+	c.startingLock.Unlock()
 	// start server
 	err = c.server.Serve(lis)
 	if err != nil {
@@ -79,6 +88,12 @@ func (c *coordinator) Stop() error {
 
 // Run a DataFrame Plan within this cluster
 func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
+	if !c.starting {
+		return nil, fmt.Errorf("Cannot call Run() before Start()")
+	}
+	c.startingLock.Lock()
+	defer c.startingLock.Unlock()
+
 	var wg sync.WaitGroup
 	waitCtx, cancel := context.WithTimeout(ctx, c.opts.WorkerJoinTimeout)
 	defer cancel()

@@ -116,9 +116,9 @@ func main() {
 	schema.CreateColumn("meta.name", &sif.VarStringColumnType{})
 
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
-		PartitionSize: 128
+		PartitionSize: 128,
 	})
-	frame := file.CreateDataFrame("path/to/*.jsonl"), parser, schema)
+	frame := file.CreateDataFrame("path/to/*.jsonl", parser, schema)
 }
 ```
 
@@ -148,9 +148,9 @@ func main() {
 	schema.CreateColumn("meta.name", &sif.VarStringColumnType{})
 
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
-		PartitionSize: 128
+		PartitionSize: 128,
 	})
-	frame := file.CreateDataFrame("path/to/*.jsonl"), parser, schema)
+	frame := file.CreateDataFrame("path/to/*.jsonl", parser, schema)
 
 	frame, err := frame.To(
 		ops.AddColumn("lowercase_name", &sif.VarStringColumnType{}),
@@ -199,9 +199,9 @@ func main() {
 	schema.CreateColumn("meta.name", &sif.VarStringColumnType{})
 
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
-		PartitionSize: 128
+		PartitionSize: 128,
 	})
-	frame := file.CreateDataFrame("path/to/*.jsonl"), parser, schema)
+	frame := file.CreateDataFrame("path/to/*.jsonl", parser, schema)
 
 	frame, err := frame.To(
 		ops.AddColumn("lowercase_name", &sif.VarStringColumnType{}),
@@ -224,7 +224,11 @@ func main() {
 	// Sif will read the SIF_NODE_TYPE environment variable to
 	// determine whether this copy of the binary
 	// is a "coordinator" or "worker".
-	node, err := cluster.CreateNode(&cluster.NodeOptions{})
+	opts := &cluster.NodeOptions{
+		NumWorkers: 2,
+		CoordinatorHost: "insert.coordinator.hostname",
+	}
+	node, err := cluster.CreateNode(opts)
 	if err != nil {
 		log.Fatal(err)
 	}

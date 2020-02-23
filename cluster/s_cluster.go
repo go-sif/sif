@@ -52,6 +52,9 @@ func (s *clusterServer) RegisterWorker(ctx context.Context, req *pb.MRegisterReq
 // NumberOfWorkers returns the current worker count
 func (s *clusterServer) NumberOfWorkers() int {
 	i := 0
+	if s == nil {
+		return 0
+	}
 	s.workers.Range(func(_, _ interface{}) bool {
 		i++
 		return true

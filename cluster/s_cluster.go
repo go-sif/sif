@@ -13,7 +13,8 @@ import (
 )
 
 type clusterServer struct {
-	workers sync.Map
+	workers    sync.Map
+	numWorkers int
 }
 
 // createClusterServer creates a new cluster server
@@ -34,29 +35,26 @@ func (s *clusterServer) RegisterWorker(ctx context.Context, req *pb.MRegisterReq
 	if !ok {
 		return nil, fmt.Errorf("Connecting worker %s is not using TCP", req.Id)
 	}
-	s.workers.Store(req.Id, pb.MWorkerDescriptor{
+	wDescriptor := pb.MWorkerDescriptor{
 		Id:   req.Id,
 		Host: tcpAddr.IP.String(),
 		Port: int32(req.Port),
-	})
-	for _, w := range s.Workers() {
-		conn, err := dialWorker(w)
-		if err != nil {
-			log.Fatalf("Unable to connect to worker %s", w.Id)
-		}
-		defer conn.Close()
 	}
+	s.workers.Store(req.Id, wDescriptor)
+	s.numWorkers++
+
+	// test connection
+	conn, err := dialWorker(&wDescriptor)
+	if err != nil {
+		log.Fatalf("Unable to connect to worker %s", wDescriptor.Id)
+	}
+	defer conn.Close()
 	return &pb.MRegisterResponse{Time: time.Now().Unix()}, nil
 }
 
 // NumberOfWorkers returns the current worker count
 func (s *clusterServer) NumberOfWorkers() int {
-	i := 0
-	s.workers.Range(func(_, _ interface{}) bool {
-		i++
-		return true
-	})
-	return i
+	return s.numWorkers
 }
 
 // workers retrieves a slice of connected workers

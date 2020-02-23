@@ -20,18 +20,19 @@ import (
 
 // coordinator is a Coordinator node which has lifecycle methods
 type coordinator struct {
-	opts          *NodeOptions
-	server        *grpc.Server
-	clusterServer *clusterServer
-	frame         sif.DataFrame
-	starting      bool
-	startingLock  sync.Mutex
+	opts              *NodeOptions
+	server            *grpc.Server
+	clusterServer     *clusterServer
+	frame             sif.DataFrame
+	bootstrappingLock sync.Mutex
 }
 
 func createCoordinator(opts *NodeOptions) (*coordinator, error) {
 	// default certain options if not supplied
 	ensureDefaultNodeOptionsValues(opts)
-	return &coordinator{opts: opts}, nil
+	res := &coordinator{opts: opts, clusterServer: createClusterServer()}
+	res.bootstrappingLock.Lock() // lock node as bootstrapping immediately
+	return res, nil
 }
 
 // IsCoordinator returns true for coordinators
@@ -41,10 +42,6 @@ func (c *coordinator) IsCoordinator() bool {
 
 // Start the Coordinator - blocking unless run in a goroutine
 func (c *coordinator) Start(frame sif.DataFrame) error {
-	// lock the node until Start is finished
-	c.starting = true
-	c.startingLock.Lock()
-
 	// start node
 	if frame == nil {
 		return fmt.Errorf("DataFrame cannot be nil")
@@ -57,11 +54,10 @@ func (c *coordinator) Start(frame sif.DataFrame) error {
 	}
 	c.server = grpc.NewServer()
 	// register rpc handlers
-	c.clusterServer = createClusterServer()
 	pb.RegisterClusterServiceServer(c.server, c.clusterServer)
 	pb.RegisterLogServiceServer(c.server, createLogServer())
 	// we're done bootstrapping
-	c.startingLock.Unlock()
+	c.bootstrappingLock.Unlock()
 	// start server
 	err = c.server.Serve(lis)
 	if err != nil {
@@ -88,11 +84,8 @@ func (c *coordinator) Stop() error {
 
 // Run a DataFrame Plan within this cluster
 func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
-	if !c.starting {
-		return nil, fmt.Errorf("Cannot call Run() before Start()")
-	}
-	c.startingLock.Lock()
-	defer c.startingLock.Unlock()
+	c.bootstrappingLock.Lock()
+	defer c.bootstrappingLock.Unlock()
 
 	var wg sync.WaitGroup
 	waitCtx, cancel := context.WithTimeout(ctx, c.opts.WorkerJoinTimeout)

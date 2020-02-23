@@ -177,9 +177,7 @@ func TestNYCTaxi(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	copts := &cluster.NodeOptions{}
-	wopts := &cluster.NodeOptions{NumInMemoryPartitions: 20}
-	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
+	res, err := runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{NumInMemoryPartitions: 20}, 2)
 	require.Nil(t, err)
 	require.NotNil(t, res)
 

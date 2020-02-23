@@ -61,9 +61,7 @@ func TestReduce(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	copts := &cluster.NodeOptions{}
-	wopts := &cluster.NodeOptions{}
-	res, err := runTestFrame(context.Background(), t, frame, copts, wopts, 2)
+	res, err := runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{}, 2)
 	require.Nil(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))

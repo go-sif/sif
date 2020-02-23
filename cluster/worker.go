@@ -54,7 +54,6 @@ func (w *worker) register() error {
 	defer cancel()
 	req := pb.MRegisterRequest{
 		Id:   w.id,
-		Host: w.opts.Host,
 		Port: int32(w.opts.Port),
 	}
 	if w.logClient == nil {

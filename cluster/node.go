@@ -3,6 +3,8 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"time"
 
@@ -33,25 +35,71 @@ type Node interface {
 
 // NodeOptions are options for a Node, configuring elements of a Sif cluster
 type NodeOptions struct {
-	Port                  int           // Port for this Node
-	Host                  string        // Hostname for this Node
-	CoordinatorPort       int           // Port for the Coordinator Node (potentially identical to Port if this is the Coordinator)
-	CoordinatorHost       string        // Hostname of the Coordinator Node (potentially identical to Host if this is the Coordinator)
-	NumWorkers            int           // the number of workers to wait for before running the job
-	WorkerJoinTimeout     time.Duration // how long to wait for workers
+	Port                  int           // port for this Node to bind to
+	Host                  string        // hostname for this Node to bind to
+	CoordinatorPort       int           // port for the Coordinator Node (potentially identical to Port if this is the Coordinator)
+	CoordinatorHost       string        // [REQUIRED] hostname of the Coordinator Node (potentially identical to Host if this is the Coordinator)
+	NumWorkers            int           // [REQUIRED] the number of Workers to wait for before running the job
+	WorkerJoinTimeout     time.Duration // how long the Coordinator should wait for Workers to join
 	RPCTimeout            time.Duration // timeout for all RPC calls
 	TempDir               string        // location for storing temporary files (primarily persisted partitions)
 	NumInMemoryPartitions int           // the number of partitions to retain in memory before swapping to disk
 	IgnoreRowErrors       bool          // iff true, log row transformation errors instead of crashing immediately
 }
 
+// CloneNodeOptions makes a copy of a NodeOptions
+func CloneNodeOptions(opts *NodeOptions) *NodeOptions {
+	return &NodeOptions{
+		Port:                  opts.Port,
+		Host:                  opts.Host,
+		CoordinatorPort:       opts.CoordinatorPort,
+		CoordinatorHost:       opts.CoordinatorHost,
+		NumWorkers:            opts.NumWorkers,
+		WorkerJoinTimeout:     opts.WorkerJoinTimeout,
+		RPCTimeout:            opts.RPCTimeout,
+		TempDir:               opts.TempDir,
+		NumInMemoryPartitions: opts.NumInMemoryPartitions,
+		IgnoreRowErrors:       opts.IgnoreRowErrors,
+	}
+}
+
 func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
+	// crash if certain required options are not supplied
+	if opts.NumWorkers == 0 {
+		log.Fatal("NodeOptions.NumWorkers must be greater than 0")
+	}
+	if len(opts.CoordinatorHost) == 0 {
+		log.Fatal("NodeOptions.CoordinatorHost must be the IP address of the Sif Coordinator")
+	}
 	// default certain options if not supplied
-	if opts.NumInMemoryPartitions == 0 {
-		opts.NumInMemoryPartitions = 100 // TODO should this just be a memory limit, and we compute NumInMemoryPartitions ourselves?
+	if opts.Port == 0 {
+		opts.Port = 1643
+	}
+	if len(opts.Host) == 0 {
+		opts.Host = "0.0.0.0"
+	}
+	if opts.CoordinatorPort == 0 {
+		opts.CoordinatorPort = 1643
 	}
 	if opts.RPCTimeout == 0 {
 		opts.RPCTimeout = time.Duration(5) * time.Second // TODO sensible default?
+	}
+	if opts.WorkerJoinTimeout == 0 {
+		opts.WorkerJoinTimeout = time.Duration(5) * time.Second // TODO sensible default?
+	}
+	if len(opts.TempDir) == 0 {
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatal(err)
+		}
+		tmpDir, err := ioutil.TempDir(cwd, fmt.Sprintf("sif-worker-%d", opts.Port))
+		if err != nil {
+			log.Fatal(err)
+		}
+		opts.TempDir = tmpDir
+	}
+	if opts.NumInMemoryPartitions == 0 {
+		opts.NumInMemoryPartitions = 100 // TODO should this just be a memory limit, and we compute NumInMemoryPartitions ourselves?
 	}
 }
 

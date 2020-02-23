@@ -49,6 +49,7 @@ func (s *clusterServer) RegisterWorker(ctx context.Context, req *pb.MRegisterReq
 		log.Fatalf("Unable to connect to worker %s", wDescriptor.Id)
 	}
 	defer conn.Close()
+	log.Printf("Registered worker %s at %s:%d", wDescriptor.Id, wDescriptor.Host, wDescriptor.Port)
 	return &pb.MRegisterResponse{Time: time.Now().Unix()}, nil
 }
 

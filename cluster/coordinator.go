@@ -59,6 +59,7 @@ func (c *coordinator) Start(frame sif.DataFrame) error {
 	// we're done bootstrapping
 	c.bootstrappingLock.Unlock()
 	// start server
+	log.Printf("Starting Sif Coordinator at %s", c.opts.coordinatorConnectionString())
 	err = c.server.Serve(lis)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %v", err)
@@ -90,6 +91,7 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 	var wg sync.WaitGroup
 	waitCtx, cancel := context.WithTimeout(ctx, c.opts.WorkerJoinTimeout)
 	defer cancel()
+	log.Printf("Waiting for %d workers to connect...", c.opts.NumWorkers)
 	if err := c.clusterServer.waitForWorkers(waitCtx, c.opts.NumWorkers); err != nil {
 		return nil, err
 	}
@@ -104,6 +106,7 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 	if !ok {
 		return nil, fmt.Errorf("DataFrame must be executable")
 	}
+	log.Printf("Running job...")
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
 		TempFilePath:       "",
 		InMemoryPartitions: 0,

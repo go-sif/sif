@@ -52,6 +52,7 @@ func (w *worker) mconnect() (*grpc.ClientConn, error) {
 }
 
 func (w *worker) register() error {
+	log.Printf("Attempting to register with coordinator at %s:%d", w.opts.CoordinatorHost, w.opts.CoordinatorPort)
 	ctx, cancel := context.WithTimeout(context.Background(), w.opts.RPCTimeout)
 	defer cancel()
 	req := pb.MRegisterRequest{
@@ -59,7 +60,7 @@ func (w *worker) register() error {
 		Port: int32(w.opts.Port),
 	}
 	if w.logClient == nil {
-		log.Fatalf("Cannot register before dialing master with mconnect()")
+		log.Fatalf("Cannot register before dialing coordinator with mconnect()")
 	}
 	_, err := w.clusterClient.RegisterWorker(ctx, &req)
 	return err
@@ -117,9 +118,10 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	asyncErrors := iutil.CreateAsyncErrorChannel()
 	go w.asyncRegisterWithCoordinator(ctx, &wg, asyncErrors)
 	if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
-		return err
+		panic(err) // if we can't reigster with the coordinator, panic now
 	}
 	// start server
+	log.Printf("Starting Sif Worker at %s", w.opts.connectionString())
 	err = w.server.Serve(lis)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %v", err)

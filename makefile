@@ -48,7 +48,7 @@ testenv:
 	@echo "Finished downloading NYC Taxi test files."
 	@echo "Downloading EDSM test files..."
 	@mkdir -p testenv
-	@cd testenv && curl -s https://www.edsm.net/dump/systemsWithCoordinates7days.json | tail -n +2 | head -n -1 | sed 's/,$$//' | sed 's/^....//' | split --additional-suffix .jsonl -l 50000
+	@cd testenv && curl -s https://www.edsm.net/dump/systemsWithCoordinates7days.json.gz | gunzip | tail -n +2 | head -n -1 | sed 's/,$$//' | sed 's/^....//' | split --additional-suffix .jsonl -l 50000
 	@echo "Finished downloading EDSM test files."
 
 # Can use this for a much larger dataset

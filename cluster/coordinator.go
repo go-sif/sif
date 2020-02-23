@@ -100,7 +100,14 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 	if err != nil {
 		return nil, err
 	}
-	defer closeGRPCConnections(workerConns)
+	// now that worker connections are open, defer shutting them down
+	defer func() {
+		// shutdown workers, since the job is done
+		if err = stopWorkers(workers, workerConns); err != nil {
+			log.Fatal(err)
+		}
+		closeGRPCConnections(workerConns)
+	}()
 	// optimize dataframe to create plan
 	eframe, ok := c.frame.(itypes.ExecutableDataFrame)
 	if !ok {
@@ -135,10 +142,6 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 		select {
 		// check for shutdown signal
 		case <-ctx.Done():
-			// shutdown workers
-			if err = stopWorkers(workers, workerConns); err != nil {
-				return nil, err
-			}
 			return nil, ctx.Err()
 		default:
 			// run stage on each worker, blocking until stage is complete across the cluster
@@ -171,10 +174,6 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 				return collected, nil
 			}
 		}
-	}
-	// shutdown workers, since the job is done
-	if err = stopWorkers(workers, workerConns); err != nil {
-		return nil, err
 	}
 	return nil, nil
 }

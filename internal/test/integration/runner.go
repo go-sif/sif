@@ -2,8 +2,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"testing"
@@ -44,14 +42,9 @@ func runTestFrame(ctx context.Context, t *testing.T, frame sif.DataFrame, opts *
 		if err != nil {
 			log.Fatal(err)
 		}
-		tmpDir, err := ioutil.TempDir(cwd, fmt.Sprintf("sif-worker-%d", port))
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer os.RemoveAll(tmpDir)
 		wopts := cluster.CloneNodeOptions(opts)
 		wopts.Port = port
-		wopts.TempDir = tmpDir
+		wopts.TempDir = cwd
 		worker, err := cluster.CreateNodeInRole(cluster.Worker, wopts)
 		require.Nil(t, err)
 		go func() {

@@ -3,7 +3,6 @@ package cluster
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -93,15 +92,7 @@ func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
 		opts.WorkerJoinRetries = 5 // TODO sensible default?
 	}
 	if len(opts.TempDir) == 0 {
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Fatal(err)
-		}
-		tmpDir, err := ioutil.TempDir(cwd, fmt.Sprintf("sif-worker-%d", opts.Port))
-		if err != nil {
-			log.Fatal(err)
-		}
-		opts.TempDir = tmpDir
+		opts.TempDir = os.TempDir()
 	}
 	if opts.NumInMemoryPartitions == 0 {
 		opts.NumInMemoryPartitions = 100 // TODO should this just be a memory limit, and we compute NumInMemoryPartitions ourselves?

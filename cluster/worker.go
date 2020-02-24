@@ -3,8 +3,10 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -100,8 +102,13 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	if !ok {
 		return fmt.Errorf("DataFrame must be executable")
 	}
+	tmpDir, err := ioutil.TempDir(w.opts.TempDir, fmt.Sprintf("sif-worker-%d", w.opts.Port))
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
-		TempFilePath:       w.opts.TempDir,
+		TempFilePath:       tmpDir,
 		InMemoryPartitions: w.opts.NumInMemoryPartitions,
 		Streaming:          eframe.GetParent().GetDataSource().IsStreaming(),
 		IgnoreRowErrors:    w.opts.IgnoreRowErrors,

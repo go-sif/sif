@@ -1,7 +1,7 @@
 package partition
 
 import (
-	xxhash "github.com/cespare/xxhash"
+	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
 	"github.com/hashicorp/go-multierror"
 )

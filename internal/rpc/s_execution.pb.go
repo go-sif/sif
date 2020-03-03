@@ -139,7 +139,9 @@ func init() {
 	proto.RegisterType((*MRunStageResponse)(nil), "rpc.MRunStageResponse")
 }
 
-func init() { proto.RegisterFile("s_execution.proto", fileDescriptor_a1270cbd13ab8b72) }
+func init() {
+	proto.RegisterFile("s_execution.proto", fileDescriptor_a1270cbd13ab8b72)
+}
 
 var fileDescriptor_a1270cbd13ab8b72 = []byte{
 	// 270 bytes of a gzipped FileDescriptorProto

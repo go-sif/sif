@@ -3,7 +3,7 @@ package dataframe
 import (
 	"testing"
 
-	xxhash "github.com/cespare/xxhash"
+	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/partition"
 	itypes "github.com/go-sif/sif/internal/types"

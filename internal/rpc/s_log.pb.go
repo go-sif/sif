@@ -131,7 +131,9 @@ func init() {
 	proto.RegisterType((*MLogMsgAck)(nil), "rpc.MLogMsgAck")
 }
 
-func init() { proto.RegisterFile("s_log.proto", fileDescriptor_0a276b15ac053355) }
+func init() {
+	proto.RegisterFile("s_log.proto", fileDescriptor_0a276b15ac053355)
+}
 
 var fileDescriptor_0a276b15ac053355 = []byte{
 	// 185 bytes of a gzipped FileDescriptorProto

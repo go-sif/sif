@@ -525,7 +525,9 @@ func init() {
 	proto.RegisterMapType((map[string][]byte)(nil), "rpc.DPartition.DVarRow.RowDataEntry")
 }
 
-func init() { proto.RegisterFile("s_partition.proto", fileDescriptor_8dfd1f9f5f8b7abf) }
+func init() {
+	proto.RegisterFile("s_partition.proto", fileDescriptor_8dfd1f9f5f8b7abf)
+}
 
 var fileDescriptor_8dfd1f9f5f8b7abf = []byte{
 	// 598 bytes of a gzipped FileDescriptorProto

@@ -12,6 +12,7 @@ import (
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
 	"github.com/go-sif/sif/schema"
+	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +52,8 @@ func TestMapErrors(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe
-	res, err := runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{IgnoreRowErrors: true}, 2)
+	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{IgnoreRowErrors: true}, 2)
+	require.Nil(t, err)
 	for _, part := range res {
 		part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetInt32("col1")

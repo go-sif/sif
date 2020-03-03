@@ -19,6 +19,7 @@ import (
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	ops "github.com/go-sif/sif/operations/transform"
 	"github.com/go-sif/sif/schema"
+	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -180,6 +181,6 @@ func TestEDSMHeatmap(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	_, err = runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{NumInMemoryPartitions: 20}, 8)
+	_, err = siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{NumInMemoryPartitions: 20}, 8)
 	require.Nil(t, err)
 }

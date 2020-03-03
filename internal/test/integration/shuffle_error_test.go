@@ -9,6 +9,7 @@ import (
 	"github.com/go-sif/sif/cluster"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
+	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,7 +44,7 @@ func TestShuffleErrors(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe
-	res, err := runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{IgnoreRowErrors: true}, 2)
+	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{IgnoreRowErrors: true}, 2)
 	for _, part := range res {
 		part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetInt32("res")

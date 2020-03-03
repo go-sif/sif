@@ -15,6 +15,7 @@ import (
 	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	ops "github.com/go-sif/sif/operations/transform"
 	"github.com/go-sif/sif/schema"
+	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,7 +91,7 @@ func TestStream(t *testing.T) {
 	// run dataframe
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, err = runTestFrame(ctx, t, frame, &cluster.NodeOptions{}, 2)
+	_, err = siftest.LocalRunFrame(ctx, frame, &cluster.NodeOptions{}, 2)
 	require.True(t, len(processedRows) > 6)
 	for _, r := range processedRows {
 		// 12 rows per batch x 4 generators across 2 workers = 48 ints per reduction

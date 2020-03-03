@@ -22,6 +22,7 @@ import (
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
 	"github.com/go-sif/sif/schema"
+	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -177,7 +178,7 @@ func TestNYCTaxi(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	res, err := runTestFrame(context.Background(), t, frame, &cluster.NodeOptions{NumInMemoryPartitions: 20}, 2)
+	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{NumInMemoryPartitions: 20}, 2)
 	require.Nil(t, err)
 	require.NotNil(t, res)
 

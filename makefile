@@ -1,7 +1,7 @@
 version=0.1.0
 export GOPROXY=direct
 
-.PHONY: all dependencies clean test
+.PHONY: all dependencies clean test cover testall testvall
 
 all:
 	@echo "make <cmd>"
@@ -72,7 +72,12 @@ testv: build testenv
 
 testvall: build testenv
 	@echo "Running tests..."
-	@go test -timeout 30m -count=1 ./...
+	@go test -timeout 30m -v -count=1 ./...
+
+cover: build testenv
+	@echo "Running tests with coverage..."
+	@go test -coverprofile=cover.out -coverpkg=./... ./...
+	@go tool cover -html=cover.out -o cover.html
 
 edsm: build testenv
 	@echo "Running tests..."

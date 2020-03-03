@@ -172,7 +172,9 @@ func init() {
 	proto.RegisterType((*MWorkerDescriptor)(nil), "rpc.MWorkerDescriptor")
 }
 
-func init() { proto.RegisterFile("s_cluster.proto", fileDescriptor_ea1288847038ea77) }
+func init() {
+	proto.RegisterFile("s_cluster.proto", fileDescriptor_ea1288847038ea77)
+}
 
 var fileDescriptor_ea1288847038ea77 = []byte{
 	// 204 bytes of a gzipped FileDescriptorProto

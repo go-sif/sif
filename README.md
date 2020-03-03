@@ -53,7 +53,7 @@ require(
 	github.com/go-sif/sif v0.1.0
 )
 
-go 1.13
+go 1.14
 ```
 
 ## Getting Started

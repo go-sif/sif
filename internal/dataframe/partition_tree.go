@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"log"
 
-	xxhash "github.com/cespare/xxhash"
+	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/partition"

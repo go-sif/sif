@@ -7,7 +7,7 @@ import (
 
 // With inspiration from:
 // https://blog.cloudera.com/blog/2015/01/improving-sort-performance-in-apache-spark-its-a-double/
-// https://github.com/cespare/xxhash
+// https://github.com/cespare/xxhash/v2
 
 type reduceTask struct {
 	kfn sif.KeyingOperation

@@ -67,7 +67,9 @@ func init() {
 	proto.RegisterType((*MStopResponse)(nil), "rpc.MStopResponse")
 }
 
-func init() { proto.RegisterFile("s_lifecycle.proto", fileDescriptor_5ed52758a02481eb) }
+func init() {
+	proto.RegisterFile("s_lifecycle.proto", fileDescriptor_5ed52758a02481eb)
+}
 
 var fileDescriptor_5ed52758a02481eb = []byte{
 	// 168 bytes of a gzipped FileDescriptorProto

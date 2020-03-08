@@ -12,12 +12,12 @@ func (s *removeColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.Oper
 
 // RemoveColumn removes existing columns
 func RemoveColumn(oldNames ...string) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
+	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		newSchema := d.GetSchema().Clone()
 		for _, oldName := range oldNames {
 			newSchema, _ = newSchema.RemoveColumn(oldName)
 		}
 		nextTask := &removeColumnTask{}
-		return nextTask, "remove_column", newSchema, nil
+		return nextTask, sif.NoOpTaskType, newSchema, nil
 	}
 }

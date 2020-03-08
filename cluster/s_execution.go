@@ -30,7 +30,7 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 	if stage.ID() != req.StageId {
 		return nil, fmt.Errorf("Next stage on worker (%s) does not match expected (%s)", stage.ID(), req.StageId)
 	}
-	err := s.planExecutor.FlatMapPartitions(ctx, stage.WorkerExecute, s.logClient, req.RunShuffle, req.PrepCollect, req.Buckets, req.Workers)
+	err := s.planExecutor.FlatMapPartitions(ctx, stage.WorkerExecute, s.logClient, req)
 	if err != nil {
 		if _, ok := err.(*multierror.Error); !s.planExecutor.GetConf().IgnoreRowErrors || !ok {
 			// either this isn't a multierr or we're supposed to fail immediately

@@ -42,21 +42,21 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 		// the outgoing schema is always the last schema
 		currentStage.outgoingSchema = f.schema
 		// if this is a reduce, this is the end of the Stage
-		if f.taskType == "reduce" {
-			rTask, ok := f.task.(reductionTask)
+		if f.taskType == sif.ShuffleTaskType {
+			sTask, ok := f.task.(shuffleTask)
 			if !ok {
-				log.Panicf("taskType is reduce but Task is not a reductionTask")
+				log.Panicf("taskType is ShuffleTaskType but Task is not a shuffleTask. Task is misdefined.")
 			}
-			currentStage.SetKeyingOperation(rTask.GetKeyingOperation())
-			currentStage.SetReductionOperation(rTask.GetReductionOperation())
+			currentStage.SetKeyingOperation(sTask.GetKeyingOperation())
+			currentStage.SetReductionOperation(sTask.GetReductionOperation())
 			stages = append(stages, createStage(nextID))
 			nextID++
-		} else if f.taskType == "repack" {
+		} else if f.taskType == sif.RepackTaskType {
 			// repack should never be the first frame. Throw error if that is the case
 			if len(currentStage.frames) == 0 {
 				log.Panicf("Repack cannot be the first Task in a DataFrame")
 			}
-		} else if f.taskType == "collect" {
+		} else if f.taskType == sif.CollectTaskType {
 			break // no tasks can come after a collect
 		}
 	}

@@ -76,6 +76,42 @@ func (p *partitionImpl) FindFirstRowKey(keyBuf []byte, key uint64, keyfn sif.Key
 	return firstKey, errors.MissingKeyError{}
 }
 
+// FindLastRowKey locates the last instance of a uint64 key within a sorted Partition,
+// then uses a KeyingOperation to find the actual row whose key bytes match
+// a specific set of key bytes used to produce the uint64 key. If the key does not
+// exist within the Partition, an error is returned along with the position it should
+// be located at.
+// PRECONDITION: Partition must already be sorted by key
+func (p *partitionImpl) FindLastRowKey(keyBuf []byte, key uint64, keyfn sif.KeyingOperation) (int, error) {
+	// find the first matching uint64 key
+	firstKey, err := p.FindFirstRowKey(keyBuf, key, keyfn) // this will error with missing key if it doesn't exist
+	if err != nil {
+		return firstKey, err
+	}
+	lastKey := firstKey
+	// iterate over each row with a matching key to find the last one with identical key bytes
+	for i := firstKey; i < p.GetNumRows(); i++ {
+		if k, err := p.GetKey(i); err != nil || k != key {
+			return -1, err
+		}
+		rowKey, err := keyfn(&rowImpl{
+			meta:              p.GetRowMeta(i),
+			data:              p.GetRowData(i),
+			varData:           p.GetVarRowData(i),
+			serializedVarData: p.GetSerializedVarRowData(i),
+			schema:            p.GetCurrentSchema(),
+		})
+		if err != nil {
+			return -1, err
+		} else if reflect.DeepEqual(keyBuf, rowKey) {
+			lastKey = i
+		} else {
+			break // current key isn't the same, break out
+		}
+	}
+	return lastKey, nil
+}
+
 // AverageKeyValue computes the floored average
 // value of key within this sorted, keyed Partition
 func (p *partitionImpl) AverageKeyValue() (uint64, error) {

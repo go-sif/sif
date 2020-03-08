@@ -27,12 +27,12 @@ func (s *collectTask) GetCollectionLimit() int64 {
 // upon completion of the previous stage. This also signals
 // the end of a Dataframe's tasks.
 func Collect(collectionLimit int64) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
+	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		if d.GetDataSource().IsStreaming() {
-			return nil, "collect", nil, fmt.Errorf("Cannot collect() from a streaming DataSource")
+			return nil, sif.CollectTaskType, nil, fmt.Errorf("Cannot collect() from a streaming DataSource")
 		}
 		newSchema := d.GetSchema().Clone()
 		nextTask := &collectTask{collectionLimit}
-		return nextTask, "collect", newSchema, nil
+		return nextTask, sif.CollectTaskType, newSchema, nil
 	}
 }

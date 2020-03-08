@@ -69,7 +69,8 @@ func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn sif.Ke
 	return nil
 }
 
-// mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
+// mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary.
+// if the ReductionOperation is nil, then the row is simply inserted
 func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	// compute key for row
 	keyBuf, err := keyfn(row)
@@ -89,15 +90,22 @@ func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn si
 	if err != nil {
 		return err
 	}
-	// Once we have the correct partition, find the first row with matching key in it
-	idx, err := partNode.part.FindFirstRowKey(keyBuf, hashedKey, keyfn)
+	// Once we have the correct partition, find the last row with matching key in it
+	idx, err := partNode.part.FindLastRowKey(keyBuf, hashedKey, keyfn)
 	if idx < 0 {
 		// something went wrong while locating the insert/merge position
 		return err
-	} else if _, ok := err.(errors.MissingKeyError); ok {
-		// If the key hash doesn't exist, insert row at sorted position
+	} else if _, ok := err.(errors.MissingKeyError); ok || reducefn == nil {
+		idx++ // we want to insert just after the last matching row
+		// If the key hash doesn't exist, or we're not reducing, insert row at sorted position
 		irow := row.(itypes.AccessibleRow) // access row internals
-		insertErr := partNode.part.(itypes.InternalBuildablePartition).InsertKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey, idx)
+		var insertErr error
+		// append if the target index is at the end of the partition, otherwise insert and shift data
+		if idx >= partNode.part.GetNumRows() {
+			insertErr = partNode.part.(itypes.InternalBuildablePartition).AppendKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey)
+		} else {
+			insertErr = partNode.part.(itypes.InternalBuildablePartition).InsertKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey, idx)
+		}
 		// if the partition was full, split and retry
 		if _, ok = insertErr.(errors.PartitionFullError); ok {
 			avgKey, lp, rp, err := partNode.part.BalancedSplit()
@@ -127,8 +135,12 @@ func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn si
 			// add left and right to front of "visited" queue
 			t.lruCache.Add(partNode.left.part.ID(), partNode.left)
 			t.lruCache.Add(partNode.right.part.ID(), partNode.right)
-			// recurse using this new subtree to save time
-			return partNode.mergeRow(row, keyfn, reducefn)
+			// recurse using this correct subtree to save time
+			if hashedKey < t.k {
+				return partNode.left.mergeRow(row, keyfn, reducefn)
+			} else {
+				return partNode.right.mergeRow(row, keyfn, reducefn)
+			}
 		} else if !ok && insertErr != nil {
 			return insertErr
 		}

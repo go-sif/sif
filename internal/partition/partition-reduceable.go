@@ -174,14 +174,12 @@ func (p *partitionImpl) Split(pos int) (itypes.ReduceablePartition, itypes.Reduc
 
 // BalancedSplit attempts to split a sorted Partition based on the
 // average key value in the Partition, assuring
-// that identical keys (if the Partition is keyed) end up in the same
-// Partition. Identical keys occur due to hash collisions.
-// Split position ends up in right Partition.
+// that identical keys end up in the same Partition.
+// Identical keys can occur due to hash collisions, or if the containing
+// tree is not reducing. Split position ends up in right Partition.
 func (p *partitionImpl) BalancedSplit() (uint64, itypes.ReduceablePartition, itypes.ReduceablePartition, error) {
 	if !p.isKeyed {
-		splitPos := p.GetNumRows() / 2
-		lp, rp, err := p.Split(splitPos)
-		return 0, lp, rp, err
+		return 0, nil, nil, fmt.Errorf("Partition is not keyed")
 	}
 	avgKey, err := p.AverageKeyValue()
 	if err != nil {
@@ -196,6 +194,10 @@ func (p *partitionImpl) BalancedSplit() (uint64, itypes.ReduceablePartition, ity
 			break
 		}
 		splitPos--
+	}
+	// if the split position is the first row, then we don't need to do any work
+	if splitPos == 0 {
+		return avgKey, nil, nil, errors.FullOfIdenticalKeysError{}
 	}
 	lp, rp, err := p.Split(splitPos)
 	return avgKey, lp, rp, err

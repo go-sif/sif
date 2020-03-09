@@ -43,3 +43,11 @@ type NoMorePartitionsError struct{}
 func (e NoMorePartitionsError) Error() string {
 	return "No more partitions"
 }
+
+// FullOfIdenticalKeysError occurs when a keyed Partition is full of identical keys
+type FullOfIdenticalKeysError struct{}
+
+// Error returns a textual representation of this FullOfIdenticalKeysError
+func (e FullOfIdenticalKeysError) Error() string {
+	return "Cannot BalancedSplit Partition that is full of identical keys"
+}

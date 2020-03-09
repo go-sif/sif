@@ -17,6 +17,14 @@ func CreateReduceablePartition(maxRows int, widestSchema sif.Schema, currentSche
 	return createPartitionImpl(maxRows, widestSchema, currentSchema)
 }
 
+// CreateKeyedReduceablePartition creates a new Partition containing an empty byte array and a schema
+func CreateKeyedReduceablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) itypes.ReduceablePartition {
+	part := createPartitionImpl(maxRows, widestSchema, currentSchema)
+	part.isKeyed = true
+	part.keys = make([]uint64, maxRows)
+	return part
+}
+
 // FindFirstKey locates the first instance of a key within a sorted Partition,
 // returning the FIRST index of the key in the Partition, or an error
 // if it isn't found along with the location the key should be

@@ -17,6 +17,7 @@ type pTreeNode struct {
 	k                       uint64
 	left                    *pTreeNode
 	right                   *pTreeNode
+	center                  *pTreeNode
 	part                    itypes.ReduceablePartition
 	nextStageWidestSchema   sif.Schema
 	nextStageIncomingSchema sif.Schema
@@ -69,8 +70,9 @@ func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn sif.Ke
 	return nil
 }
 
-// mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary.
-// if the ReductionOperation is nil, then the row is simply inserted
+// mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation
+// and a ReductionOperation, inserting if necessary. if the ReductionOperation is nil,
+// then the row is simply inserted
 func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	// compute key for row
 	keyBuf, err := keyfn(row)
@@ -96,51 +98,32 @@ func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn si
 		// something went wrong while locating the insert/merge position
 		return err
 	} else if _, ok := err.(errors.MissingKeyError); ok || reducefn == nil {
-		idx++ // we want to insert just after the last matching row
 		// If the key hash doesn't exist, or we're not reducing, insert row at sorted position
 		irow := row.(itypes.AccessibleRow) // access row internals
 		var insertErr error
 		// append if the target index is at the end of the partition, otherwise insert and shift data
-		if idx >= partNode.part.GetNumRows() {
+		if (idx+1) >= partNode.part.GetNumRows() && err == nil {
 			insertErr = partNode.part.(itypes.InternalBuildablePartition).AppendKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey)
 		} else {
 			insertErr = partNode.part.(itypes.InternalBuildablePartition).InsertKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey, idx)
 		}
-		// if the partition was full, split and retry
+		// if the partition was full, try split and retry
 		if _, ok = insertErr.(errors.PartitionFullError); ok {
-			avgKey, lp, rp, err := partNode.part.BalancedSplit()
-			if err != nil {
+			// first try to split the rows in a balanced way, based on the avg key
+			avgKey, nextNode, err := partNode.balancedSplitNode(hashedKey)
+			if _, ok := err.(errors.FullOfIdenticalKeysError); ok {
+				// if we fail because all the keys are the same, we'll
+				// start or add to a linked list of partitions which contain
+				// all the same key, and make a fresh partition to work with
+				nextNode, err = partNode.rotateToCenter(avgKey)
+				if err != nil {
+					return err
+				}
+			} else if err != nil {
 				return err
 			}
-			partNode.k = avgKey
-			partNode.left = &pTreeNode{
-				k:        0,
-				part:     lp,
-				prev:     partNode.prev,
-				parent:   partNode,
-				lruCache: t.lruCache,
-			}
-			partNode.right = &pTreeNode{
-				k:        0,
-				part:     rp,
-				next:     partNode.next,
-				parent:   partNode,
-				lruCache: t.lruCache,
-			}
-			partNode.left.next = partNode.right
-			partNode.right.prev = partNode.left
-			partNode.part = nil // non-leaf nodes don't have partitions
-			partNode.prev = nil // non-leaf nodes don't have horizontal links
-			partNode.next = nil // non-leaf nodes don't have horizontal links
-			// add left and right to front of "visited" queue
-			t.lruCache.Add(partNode.left.part.ID(), partNode.left)
-			t.lruCache.Add(partNode.right.part.ID(), partNode.right)
 			// recurse using this correct subtree to save time
-			if hashedKey < t.k {
-				return partNode.left.mergeRow(row, keyfn, reducefn)
-			} else {
-				return partNode.right.mergeRow(row, keyfn, reducefn)
-			}
+			return nextNode.mergeRow(row, keyfn, reducefn)
 		} else if !ok && insertErr != nil {
 			return insertErr
 		}
@@ -160,6 +143,123 @@ func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn si
 		return reducefn(target, row)
 	}
 	return nil
+}
+
+// uses PartitionREduceable.BalancedSplit to split a single pTreeNode into
+// two nodes (left & right). Fails if all the rows in the current pTreeNode
+// have an identical key, in which case a split achieves nothing.
+func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, error) {
+	avgKey, lp, rp, err := t.part.BalancedSplit()
+	if err != nil {
+		// this is where we end up if all the keys are the same
+		return avgKey, nil, err
+	}
+	t.k = avgKey
+	t.left = &pTreeNode{
+		k:        0,
+		part:     lp,
+		prev:     t.prev,
+		parent:   t,
+		lruCache: t.lruCache,
+	}
+	t.right = &pTreeNode{
+		k:        0,
+		part:     rp,
+		next:     t.next,
+		parent:   t,
+		lruCache: t.lruCache,
+	}
+	t.left.next = t.right
+	t.right.prev = t.left
+	t.part = nil // non-leaf nodes don't have partitions
+	t.prev = nil // non-leaf nodes don't have horizontal links
+	t.next = nil // non-leaf nodes don't have horizontal links
+	// add left and right to front of "visited" queue
+	t.lruCache.Add(t.left.part.ID(), t.left)
+	t.lruCache.Add(t.right.part.ID(), t.right)
+	// tell the caller where to go next
+	if hashedKey < t.k {
+		return avgKey, t.left, nil
+	} else {
+		return avgKey, t.right, nil
+	}
+}
+
+// if a balancedSplit is not possible because the rows in the
+// current pTreeNode all have the same key, we instead store
+// the partition in the "center" of the parent, or ourselves
+func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
+	// if our parent's avgKey is identical to all of the rows in this
+	// pTreeNode, then this pTreeNode belongs in the parents' center chain
+	if t.parent != nil && t.parent.k == avgKey {
+		if t.parent.center != nil {
+			// if there's already a center chain in parent, add to it
+			// TODO this doesn't account for hash collisions. True keys
+			// might not be in sorted order
+			t.prev = t.parent.center
+			t.parent.center.next = t
+		} else {
+			// otherwise, start one
+			t.prev = t.parent.left
+			t.parent.left.next = t
+		}
+		// we are now the new center tail of our parent
+		t.parent.center = t
+		// our parent has a fresh right node to insert into
+		t.parent.right = &pTreeNode{
+			k:        0,
+			part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
+			next:     t.next,
+			prev:     t.parent.center,
+			parent:   t,
+			lruCache: t.lruCache,
+		}
+		t.parent.center.next = t.parent.right
+		// add new partition to front of "visited" queue
+		t.lruCache.Add(t.parent.right.part.ID(), t.right)
+		// we know we got into this situation by adding a row with key == avgKey. These
+		// rows now belong in t.parent.right, so return that as the "next" node to recurse on
+		return t.parent.right, nil
+	} else {
+		t.k = avgKey
+		// we need to start a new center chain at this node to store data
+		t.center = &pTreeNode{
+			k:        0,
+			part:     t.part,
+			parent:   t,
+			lruCache: t.lruCache,
+		}
+		// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
+		t.left = &pTreeNode{
+			k:        0,
+			part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
+			prev:     t.prev,
+			next:     t.center,
+			parent:   t,
+			lruCache: t.lruCache,
+		}
+		t.right = &pTreeNode{
+			k:        0,
+			part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
+			prev:     t.center,
+			next:     t.next,
+			parent:   t,
+			lruCache: t.lruCache,
+		}
+		// add new partitions to front of "visited" queue
+		t.lruCache.Add(t.left.part.ID(), t.left)
+		t.lruCache.Add(t.right.part.ID(), t.left)
+		// update links for center chain
+		t.center.next = t.right
+		t.center.prev = t.left
+		// update links for t
+		t.part = nil // non-leaf nodes don't have partitions
+		t.prev = nil // non-leaf nodes don't have horizontal links
+		t.next = nil // non-leaf nodes don't have horizontal links
+		// we know we got into this situation by adding a row with key == avgKey. These
+		// rows now belong in t.right, so return that as the "next" node to recurse on
+		return t.right, nil
+	}
 }
 
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {

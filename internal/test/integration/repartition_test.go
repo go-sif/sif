@@ -40,9 +40,13 @@ func TestRepartition(t *testing.T) {
 	numFiles := 2
 	frame, err := createTestRepartitionDataFrame(t, numFiles).To(
 		ops.Repartition(func(row sif.Row) ([]byte, error) {
-			return []byte{byte(1)}, nil
+			val, err := row.GetString("col1")
+			if err != nil {
+				return nil, err
+			}
+			return []byte(val), nil
 		}),
-		util.Collect(12), // should be 10 partitions, but we'll take more to confirm
+		util.Collect(4), // should be 2 partitions, but we'll take more to confirm
 	)
 	require.Nil(t, err)
 
@@ -50,7 +54,7 @@ func TestRepartition(t *testing.T) {
 	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{}, 1)
 	require.Nil(t, err)
 	require.NotNil(t, res)
-	require.Equal(t, 10, len(res))
+	require.Equal(t, 2, len(res))
 	for _, part := range res {
 		require.Equal(t, 5, part.GetNumRows())
 		var lastVal string

@@ -98,9 +98,11 @@ func (p *partitionImpl) FindLastRowKey(keyBuf []byte, key uint64, keyfn sif.Keyi
 	}
 	lastKey := firstKey
 	// iterate over each row with a matching key to find the last one with identical key bytes
-	for i := firstKey; i < p.GetNumRows(); i++ {
-		if k, err := p.GetKey(i); err != nil || k != key {
+	for i := firstKey + 1; i < p.GetNumRows(); i++ {
+		if k, err := p.GetKey(i); err != nil {
 			return -1, err
+		} else if k != key {
+			break // current key isn't the same, break out
 		}
 		rowKey, err := keyfn(&rowImpl{
 			meta:              p.GetRowMeta(i),

@@ -207,7 +207,10 @@ func (pe *planExecutorImpl) FlatMapPartitions(ctx context.Context, fn func(sif.O
 				if pe.collectCache[tNewPart.ID()] != nil {
 					return fmt.Errorf("Partition ID collision")
 				}
-				pe.collectCache[tNewPart.ID()] = tNewPart
+				// only collect partitions that have rows
+				if tNewPart.GetNumRows() > 0 {
+					pe.collectCache[tNewPart.ID()] = tNewPart
+				}
 			}
 		}
 	}

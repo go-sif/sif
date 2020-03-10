@@ -180,9 +180,8 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 	// tell the caller where to go next
 	if hashedKey < t.k {
 		return avgKey, t.left, nil
-	} else {
-		return avgKey, t.right, nil
 	}
+	return avgKey, t.right, nil
 }
 
 // if a balancedSplit is not possible because the rows in the
@@ -220,46 +219,46 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		// we know we got into this situation by adding a row with key == avgKey. These
 		// rows now belong in t.parent.right, so return that as the "next" node to recurse on
 		return t.parent.right, nil
-	} else {
-		t.k = avgKey
-		// we need to start a new center chain at this node to store data
-		t.center = &pTreeNode{
-			k:        0,
-			part:     t.part,
-			parent:   t,
-			lruCache: t.lruCache,
-		}
-		// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
-		t.left = &pTreeNode{
-			k:        0,
-			part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
-			prev:     t.prev,
-			next:     t.center,
-			parent:   t,
-			lruCache: t.lruCache,
-		}
-		t.right = &pTreeNode{
-			k:        0,
-			part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
-			prev:     t.center,
-			next:     t.next,
-			parent:   t,
-			lruCache: t.lruCache,
-		}
-		// add new partitions to front of "visited" queue
-		t.lruCache.Add(t.left.part.ID(), t.left)
-		t.lruCache.Add(t.right.part.ID(), t.left)
-		// update links for center chain
-		t.center.next = t.right
-		t.center.prev = t.left
-		// update links for t
-		t.part = nil // non-leaf nodes don't have partitions
-		t.prev = nil // non-leaf nodes don't have horizontal links
-		t.next = nil // non-leaf nodes don't have horizontal links
-		// we know we got into this situation by adding a row with key == avgKey. These
-		// rows now belong in t.right, so return that as the "next" node to recurse on
-		return t.right, nil
 	}
+	// otherwise, we need to start a center chain at this node
+	t.k = avgKey
+	// we need to start a new center chain at this node to store data
+	t.center = &pTreeNode{
+		k:        0,
+		part:     t.part,
+		parent:   t,
+		lruCache: t.lruCache,
+	}
+	// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
+	t.left = &pTreeNode{
+		k:        0,
+		part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
+		prev:     t.prev,
+		next:     t.center,
+		parent:   t,
+		lruCache: t.lruCache,
+	}
+	t.right = &pTreeNode{
+		k:        0,
+		part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
+		prev:     t.center,
+		next:     t.next,
+		parent:   t,
+		lruCache: t.lruCache,
+	}
+	// add new partitions to front of "visited" queue
+	t.lruCache.Add(t.left.part.ID(), t.left)
+	t.lruCache.Add(t.right.part.ID(), t.left)
+	// update links for center chain
+	t.center.next = t.right
+	t.center.prev = t.left
+	// update links for t
+	t.part = nil // non-leaf nodes don't have partitions
+	t.prev = nil // non-leaf nodes don't have horizontal links
+	t.next = nil // non-leaf nodes don't have horizontal links
+	// we know we got into this situation by adding a row with key == avgKey. These
+	// rows now belong in t.right, so return that as the "next" node to recurse on
+	return t.right, nil
 }
 
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {

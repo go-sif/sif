@@ -12,12 +12,12 @@ func (s *renameColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.Oper
 
 // RenameColumn renames an existing column
 func RenameColumn(oldName string, newName string) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
+	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		newSchema, err := d.GetSchema().Clone().RenameColumn(oldName, newName)
 		if err != nil {
 			return nil, "", nil, err
 		}
 		nextTask := &renameColumnTask{}
-		return nextTask, "no_op", newSchema, nil
+		return nextTask, sif.NoOpTaskType, newSchema, nil
 	}
 }

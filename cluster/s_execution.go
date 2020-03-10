@@ -26,11 +26,14 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 	if !s.planExecutor.HasNextStage() {
 		return nil, fmt.Errorf("Plan Executor %s does not have a next stage to run (stage %s expected)", s.planExecutor.ID(), req.StageId)
 	}
+	onRowErrorWithContext := func(err error) error {
+		return s.onRowError(ctx, err)
+	}
 	stage := s.planExecutor.GetNextStage()
 	if stage.ID() != req.StageId {
 		return nil, fmt.Errorf("Next stage on worker (%s) does not match expected (%s)", stage.ID(), req.StageId)
 	}
-	err := s.planExecutor.FlatMapPartitions(ctx, stage.WorkerExecute, s.logClient, req.RunShuffle, req.PrepCollect, req.Buckets, req.Workers)
+	err := s.planExecutor.FlatMapPartitions(stage.WorkerExecute, req, onRowErrorWithContext)
 	if err != nil {
 		if _, ok := err.(*multierror.Error); !s.planExecutor.GetConf().IgnoreRowErrors || !ok {
 			// either this isn't a multierr or we're supposed to fail immediately
@@ -44,6 +47,43 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 		}
 	}
 	return &pb.MRunStageResponse{}, nil
+}
+
+func (s *executionServer) onRowError(ctx context.Context, err error) (outgoingErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if anErr, ok := r.(error); ok {
+				outgoingErr = anErr
+			} else {
+				outgoingErr = fmt.Errorf("Panic was not an error")
+			}
+		}
+	}()
+	// if this is a multierror, it's from a row transformation, which we might want to ignore
+	if multierr, ok := err.(*multierror.Error); s.planExecutor.GetConf().IgnoreRowErrors && ok {
+		multierr.ErrorFormat = iutil.FormatMultiError
+		// log errors and carry on
+		logger, err := s.logClient.Log(ctx)
+		if err != nil {
+			return err
+		}
+		err = logger.Send(&pb.MLogMsg{
+			Level:   logging.ErrorLevel,
+			Source:  s.planExecutor.ID(),
+			Message: fmt.Sprintf("Map error in stage %s:\n%s", s.planExecutor.GetCurrentStage().ID(), multierr.Error()),
+		})
+		if err != nil {
+			return err
+		}
+		_, err = logger.CloseAndRecv()
+		if err != nil {
+			return err
+		}
+	} else {
+		// otherwise, crash immediately
+		return err
+	}
+	return nil
 }
 
 // runShuffle executes a prepared shuffle on a Worker
@@ -85,31 +125,8 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 				return err
 			}
 			err = s.planExecutor.AcceptShuffledPartition(res.Part, stream)
-			if err != nil {
-				// if this is a multierror, it's from a row transformation, which we might want to ignore
-				if multierr, ok := err.(*multierror.Error); s.planExecutor.GetConf().IgnoreRowErrors && ok {
-					multierr.ErrorFormat = iutil.FormatMultiError
-					// log errors and carry on
-					logger, err := s.logClient.Log(ctx)
-					if err != nil {
-						return err
-					}
-					err = logger.Send(&pb.MLogMsg{
-						Level:   logging.ErrorLevel,
-						Source:  s.planExecutor.ID(),
-						Message: fmt.Sprintf("Shuffle error in stage %s:\n%s", s.planExecutor.GetCurrentStage().ID(), multierr.Error()),
-					})
-					if err != nil {
-						return err
-					}
-					_, err = logger.CloseAndRecv()
-					if err != nil {
-						return err
-					}
-				} else {
-					// otherwise, crash immediately
-					return err
-				}
+			if err := s.onRowError(ctx, err); err != nil {
+				return err
 			}
 		}
 		if !res.HasNext {

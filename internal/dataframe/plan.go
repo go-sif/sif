@@ -34,5 +34,5 @@ func (p *planImpl) Source() sif.DataSource {
 
 // Execute creates a planExecutor for this Plan
 func (p *planImpl) Execute(conf *itypes.PlanExecutorConfig) itypes.PlanExecutor {
-	return CreateplanExecutor(p, conf)
+	return CreatePlanExecutor(p, conf)
 }

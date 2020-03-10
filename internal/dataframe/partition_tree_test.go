@@ -142,3 +142,45 @@ func TestMergeRowWithSplit(t *testing.T) {
 	}
 	require.Equal(t, 6, numTreeRows)
 }
+
+func TestMergeRowWithRotate(t *testing.T) {
+	schema := createPTreeTestSchema()
+	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
+	root := createPTreeNode(conf, 3, schema, schema)
+	for i := 0; i < 8; i++ {
+		row := partition.CreateRow([]byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
+		err := root.mergeRow(row, pTreeTestKeyer, nil)
+		require.Nil(t, err)
+	}
+	require.Nil(t, root.part)
+	require.NotNil(t, root.center)
+	require.NotNil(t, root.left)
+	require.NotNil(t, root.right)
+	require.Nil(t, root.prev)
+	require.Nil(t, root.next)
+	numTreeRows := 0
+	for start := root.firstNode(); start != nil; start = start.next {
+		require.NotNil(t, start.part)
+		numTreeRows += start.part.GetNumRows()
+	}
+	require.Equal(t, 8, numTreeRows)
+	// add more rows with a different key, and check that they're sorted properly
+	for i := 0; i < 8; i++ {
+		row := partition.CreateRow([]byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
+		err := root.mergeRow(row, pTreeTestKeyer, nil)
+		require.Nil(t, err)
+	}
+	lastKey := uint64(0)
+	numTreeRows = 0
+	for start := root.firstNode(); start != nil; start = start.next {
+		require.NotNil(t, start.part)
+		numTreeRows += start.part.GetNumRows()
+		for i := 0; i < start.part.GetNumRows(); i++ {
+			k, err := start.part.GetKey(i)
+			require.Nil(t, err)
+			require.True(t, k >= lastKey)
+			lastKey = k
+		}
+	}
+	require.Equal(t, 16, numTreeRows)
+}

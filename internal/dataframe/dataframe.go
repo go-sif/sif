@@ -6,7 +6,7 @@ import "github.com/go-sif/sif"
 type dataFrameImpl struct {
 	parent   *dataFrameImpl       // the parent DataFrame. Nil if this is the root.
 	task     sif.Task             // the task represented by this DataFrame, executed to produce the next one
-	taskType string               // a unique name for the type of task this DataFrame represents
+	taskType sif.TaskType         // a unique name for the type of task this DataFrame represents
 	source   sif.DataSource       // the source of the data
 	parser   sif.DataSourceParser // the parser for the source data
 	schema   sif.Schema           // the current schema of the data at this task
@@ -18,7 +18,7 @@ func CreateDataFrame(source sif.DataSource, parser sif.DataSourceParser, schema 
 	return &dataFrameImpl{
 		parent:   nil,
 		task:     &noOpTask{},
-		taskType: "extract",
+		taskType: sif.ExtractTaskType,
 		source:   source,
 		parser:   parser,
 		schema:   schema,

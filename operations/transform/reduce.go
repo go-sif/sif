@@ -33,11 +33,11 @@ func (s *reduceTask) GetReductionOperation() sif.ReductionOperation {
 
 // Reduce combines rows across workers, using a key
 func Reduce(kfn sif.KeyingOperation, fn sif.ReductionOperation) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
+	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		nextTask := reduceTask{
 			kfn: iutil.SafeKeyingOperation(kfn),
 			fn:  iutil.SafeReductionOperation(fn),
 		}
-		return &nextTask, "reduce", d.GetSchema().Clone(), nil
+		return &nextTask, sif.ShuffleTaskType, d.GetSchema().Clone(), nil
 	}
 }

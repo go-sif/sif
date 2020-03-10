@@ -1,8 +1,6 @@
 package types
 
 import (
-	"context"
-
 	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
 )
@@ -17,13 +15,13 @@ type PlanExecutor interface {
 	GetCurrentStage() Stage // GetCurrentStage returns the current stage without advancing the iterator, or nil if the iterator has never been advanced
 	// OnFirstStage() bool                                                                                                                                                                                                                // OnFirstStage returns true iff we're past the first stage
 	// HasPartitionLoaders() bool                                                                                                                                                                                                         // HasPartitionLoaders returns true iff we have assigned PartitionLoaders
-	GetPartitionSource() sif.PartitionIterator                                                                                                                                                                                         // GetPartitionSource returns the the source of partitions for the current stage
-	IsShuffleReady() bool                                                                                                                                                                                                              // IsShuffleReady returns true iff a shuffle has been prepared in this planExecutor's shuffle trees
-	AssignPartitionLoader(sLoader []byte) error                                                                                                                                                                                        // AssignPartitionLoader assigns a serialized PartitionLoader to this executor
-	FlatMapPartitions(ctx context.Context, fn func(sif.OperablePartition) ([]sif.OperablePartition, error), logClient pb.LogServiceClient, runShuffle bool, prepCollect bool, buckets []uint64, workers []*pb.MWorkerDescriptor) error // FlatMapPartitions applies a Partition operation to all partitions in this plan, regardless of where they come from
-	PrepareShuffle(part TransferrablePartition, buckets []uint64) error                                                                                                                                                                // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
-	AssignShuffleBucket(assignedBucket uint64)                                                                                                                                                                                         // AssignShuffleBucket assigns a ShuffleBucket to this executor
-	GetShufflePartitionIterator(bucket uint64) (sif.PartitionIterator, error)                                                                                                                                                          // GetShufflePartitionIterator serves up an iterator for partitions to shuffle
-	AcceptShuffledPartition(mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) error                                                                                                               // AcceptShuffledPartition receives a Partition that belongs on this worker and merges it into the local shuffle tree
+	GetPartitionSource() sif.PartitionIterator                                                                                                       // GetPartitionSource returns the the source of partitions for the current stage
+	IsShuffleReady() bool                                                                                                                            // IsShuffleReady returns true iff a shuffle has been prepared in this planExecutor's shuffle trees
+	AssignPartitionLoader(sLoader []byte) error                                                                                                      // AssignPartitionLoader assigns a serialized PartitionLoader to this executor
+	FlatMapPartitions(fn func(sif.OperablePartition) ([]sif.OperablePartition, error), req *pb.MRunStageRequest, onRowError func(error) error) error // FlatMapPartitions applies a Partition operation to all partitions in this plan, regardless of where they come from
+	PrepareShuffle(part TransferrablePartition, buckets []uint64) error                                                                              // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
+	AssignShuffleBucket(assignedBucket uint64)                                                                                                       // AssignShuffleBucket assigns a ShuffleBucket to this executor
+	GetShufflePartitionIterator(bucket uint64) (sif.PartitionIterator, error)                                                                        // GetShufflePartitionIterator serves up an iterator for partitions to shuffle
+	AcceptShuffledPartition(mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) error                             // AcceptShuffledPartition receives a Partition that belongs on this worker and merges it into the local shuffle tree
 
 }

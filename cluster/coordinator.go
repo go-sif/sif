@@ -279,9 +279,11 @@ func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 					errors <- err
 					return
 				}
-				collectedLock.Lock()
-				collected[res.Part.Id] = part.(sif.CollectedPartition)
-				collectedLock.Unlock()
+				if part.GetNumRows() > 0 {
+					collectedLock.Lock()
+					collected[res.Part.Id] = part.(sif.CollectedPartition)
+					collectedLock.Unlock()
+				}
 			} else {
 				break
 			}

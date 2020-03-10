@@ -17,6 +17,14 @@ func CreateReduceablePartition(maxRows int, widestSchema sif.Schema, currentSche
 	return createPartitionImpl(maxRows, widestSchema, currentSchema)
 }
 
+// CreateKeyedReduceablePartition creates a new Partition containing an empty byte array and a schema
+func CreateKeyedReduceablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) itypes.ReduceablePartition {
+	part := createPartitionImpl(maxRows, widestSchema, currentSchema)
+	part.isKeyed = true
+	part.keys = make([]uint64, maxRows)
+	return part
+}
+
 // FindFirstKey locates the first instance of a key within a sorted Partition,
 // returning the FIRST index of the key in the Partition, or an error
 // if it isn't found along with the location the key should be
@@ -74,6 +82,44 @@ func (p *partitionImpl) FindFirstRowKey(keyBuf []byte, key uint64, keyfn sif.Key
 		}
 	}
 	return firstKey, errors.MissingKeyError{}
+}
+
+// FindLastRowKey locates the last instance of a uint64 key within a sorted Partition,
+// then uses a KeyingOperation to find the actual row whose key bytes match
+// a specific set of key bytes used to produce the uint64 key. If the key does not
+// exist within the Partition, an error is returned along with the position it should
+// be located at.
+// PRECONDITION: Partition must already be sorted by key
+func (p *partitionImpl) FindLastRowKey(keyBuf []byte, key uint64, keyfn sif.KeyingOperation) (int, error) {
+	// find the first matching uint64 key
+	firstKey, err := p.FindFirstRowKey(keyBuf, key, keyfn) // this will error with missing key if it doesn't exist
+	if err != nil {
+		return firstKey, err
+	}
+	lastKey := firstKey
+	// iterate over each row with a matching key to find the last one with identical key bytes
+	for i := firstKey + 1; i < p.GetNumRows(); i++ {
+		if k, err := p.GetKey(i); err != nil {
+			return -1, err
+		} else if k != key {
+			break // current key isn't the same, break out
+		}
+		rowKey, err := keyfn(&rowImpl{
+			meta:              p.GetRowMeta(i),
+			data:              p.GetRowData(i),
+			varData:           p.GetVarRowData(i),
+			serializedVarData: p.GetSerializedVarRowData(i),
+			schema:            p.GetCurrentSchema(),
+		})
+		if err != nil {
+			return -1, err
+		} else if reflect.DeepEqual(keyBuf, rowKey) {
+			lastKey = i
+		} else {
+			break // current key isn't the same, break out
+		}
+	}
+	return lastKey, nil
 }
 
 // AverageKeyValue computes the floored average
@@ -138,14 +184,12 @@ func (p *partitionImpl) Split(pos int) (itypes.ReduceablePartition, itypes.Reduc
 
 // BalancedSplit attempts to split a sorted Partition based on the
 // average key value in the Partition, assuring
-// that identical keys (if the Partition is keyed) end up in the same
-// Partition. Identical keys occur due to hash collisions.
-// Split position ends up in right Partition.
+// that identical keys end up in the same Partition.
+// Identical keys can occur due to hash collisions, or if the containing
+// tree is not reducing. Split position ends up in right Partition.
 func (p *partitionImpl) BalancedSplit() (uint64, itypes.ReduceablePartition, itypes.ReduceablePartition, error) {
 	if !p.isKeyed {
-		splitPos := p.GetNumRows() / 2
-		lp, rp, err := p.Split(splitPos)
-		return 0, lp, rp, err
+		return 0, nil, nil, fmt.Errorf("Partition is not keyed")
 	}
 	avgKey, err := p.AverageKeyValue()
 	if err != nil {
@@ -160,6 +204,10 @@ func (p *partitionImpl) BalancedSplit() (uint64, itypes.ReduceablePartition, ity
 			break
 		}
 		splitPos--
+	}
+	// if the split position is the first row, then we don't need to do any work
+	if splitPos == 0 {
+		return avgKey, nil, nil, errors.FullOfIdenticalKeysError{}
 	}
 	lp, rp, err := p.Split(splitPos)
 	return avgKey, lp, rp, err

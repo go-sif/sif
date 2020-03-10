@@ -16,12 +16,12 @@ func (s *addColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.Operabl
 // specific type and name should be available to the
 // next Task of the DataFrame pipeline
 func AddColumn(colName string, colType sif.ColumnType) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
+	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		newSchema, err := d.GetSchema().Clone().CreateColumn(colName, colType)
 		if err != nil {
 			return nil, "", nil, err
 		}
 		nextTask := &addColumnTask{}
-		return nextTask, "add_column", newSchema, nil
+		return nextTask, sif.NoOpTaskType, newSchema, nil
 	}
 }

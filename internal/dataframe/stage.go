@@ -53,7 +53,7 @@ func (s *stageImpl) FinalSchema() sif.Schema {
 func (s *stageImpl) WidestInitialSchema() sif.Schema {
 	var widest sif.Schema
 	for _, f := range s.frames {
-		if f.taskType == "repack" {
+		if f.taskType == sif.RepackTaskType {
 			return widest
 		}
 		if widest == nil || f.schema.Size() > widest.Size() {
@@ -86,12 +86,12 @@ func (s *stageImpl) WorkerExecute(part sif.OperablePartition) ([]sif.OperablePar
 
 // EndsInShuffle returns true iff this Stage ends with a reduction task
 func (s *stageImpl) EndsInShuffle() bool {
-	return s.reduceFn != nil && s.keyFn != nil
+	return len(s.frames) > 0 && s.frames[len(s.frames)-1].taskType == sif.ShuffleTaskType
 }
 
 // EndsInCollect returns true iff this Stage represents a collect task
 func (s *stageImpl) EndsInCollect() bool {
-	return len(s.frames) > 0 && s.frames[len(s.frames)-1].taskType == "collect"
+	return len(s.frames) > 0 && s.frames[len(s.frames)-1].taskType == sif.CollectTaskType
 }
 
 // GetCollectionLimit returns the maximum number of Partitions to collect

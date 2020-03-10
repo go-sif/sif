@@ -34,6 +34,7 @@ type ReduceablePartition interface {
 	sif.KeyablePartition
 	FindFirstKey(key uint64) (int, error)                                              // PRECONDITION: Partition must already be sorted by key
 	FindFirstRowKey(keyBuf []byte, key uint64, keyfn sif.KeyingOperation) (int, error) // PRECONDITION: Partition must already be sorted by key
+	FindLastRowKey(keyBuf []byte, key uint64, keyfn sif.KeyingOperation) (int, error)  // PRECONDITION: Partition must already be sorted by key
 	AverageKeyValue() (uint64, error)                                                  // AverageKeyValue is the average value of key within this sorted, keyed Partition
 	Split(pos int) (ReduceablePartition, ReduceablePartition, error)                   // Split splits a Partition into two Partitions. Split position ends up in right Partition.
 	BalancedSplit() (uint64, ReduceablePartition, ReduceablePartition, error)          // Split position ends up in right Partition.

@@ -19,8 +19,8 @@ func (s *filterTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePa
 
 // Filter filters Rows out of a Partition, creating a new one
 func Filter(fn sif.FilterOperation) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
+	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		nextTask := filterTask{fn: iutil.SafeFilterOperation(fn)}
-		return &nextTask, "filter", d.GetSchema().Clone(), nil
+		return &nextTask, sif.FilterTaskType, d.GetSchema().Clone(), nil
 	}
 }

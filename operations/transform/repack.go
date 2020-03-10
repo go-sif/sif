@@ -16,8 +16,8 @@ func (s *repackTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePa
 
 // Repack rearranges memory layout of rows to respect a new schema
 func Repack() sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, string, sif.Schema, error) {
+	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		nextTask := repackTask{d.GetSchema().Repack()}
-		return &nextTask, "repack", nextTask.newSchema, nil
+		return &nextTask, sif.RepackTaskType, nextTask.newSchema, nil
 	}
 }

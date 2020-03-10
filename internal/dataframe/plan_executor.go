@@ -1,7 +1,6 @@
 package dataframe
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -10,8 +9,6 @@ import (
 	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
 	itypes "github.com/go-sif/sif/internal/types"
-	iutil "github.com/go-sif/sif/internal/util"
-	logging "github.com/go-sif/sif/logging"
 	uuid "github.com/gofrs/uuid"
 	"github.com/hashicorp/go-multierror"
 )
@@ -34,8 +31,8 @@ type planExecutorImpl struct {
 	collectCacheLock     sync.Mutex
 }
 
-// CreateplanExecutor is a factory for planExecutors
-func CreateplanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig) itypes.PlanExecutor {
+// CreatePlanExecutor is a factory for planExecutors
+func CreatePlanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig) itypes.PlanExecutor {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)
@@ -151,7 +148,7 @@ func (pe *planExecutorImpl) AssignPartitionLoader(sLoader []byte) error {
 }
 
 // FlatMapPartitions applies a Partition operation to all partitions in this plan, regardless of where they come from
-func (pe *planExecutorImpl) FlatMapPartitions(ctx context.Context, fn func(sif.OperablePartition) ([]sif.OperablePartition, error), logClient pb.LogServiceClient, runShuffle bool, prepCollect bool, buckets []uint64, workers []*pb.MWorkerDescriptor) error {
+func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]sif.OperablePartition, error), req *pb.MRunStageRequest, onRowError func(error) error) error {
 	if pe.plan.Size() == 0 {
 		return fmt.Errorf("Plan has no stages")
 	}
@@ -164,52 +161,33 @@ func (pe *planExecutorImpl) FlatMapPartitions(ctx context.Context, fn func(sif.O
 		}
 		opart := part.(sif.OperablePartition)
 		newParts, err := fn(opart)
-		if err != nil {
-			// TODO eliminate this duplication from s_execution
-			// if this is a multierror, it's from a row transformation, which we might want to ignore
-			if multierr, ok := err.(*multierror.Error); pe.conf.IgnoreRowErrors && ok {
-				multierr.ErrorFormat = iutil.FormatMultiError
-				// log errors and carry on
-				logger, err := logClient.Log(ctx)
-				if err != nil {
-					return err
-				}
-				err = logger.Send(&pb.MLogMsg{
-					Level:   logging.ErrorLevel,
-					Source:  pe.id,
-					Message: fmt.Sprintf("Map error in stage %s:\n%s", pe.GetCurrentStage().ID(), multierr.Error()),
-				})
-				if err != nil {
-					return err
-				}
-				_, err = logger.CloseAndRecv()
-				if err != nil {
-					return err
-				}
-			} else {
-				// otherwise, crash immediately
-				return err
-			}
+		if err := onRowError(err); err != nil {
+			return err
 		}
+		// Prepare resulting partitions for transfer to next stage
 		for _, newPart := range newParts {
-			tNewPart := newPart.(itypes.TransferrablePartition)
-			if runShuffle {
+			if req.RunShuffle {
+				tNewPart := newPart.(itypes.TransferrablePartition)
 				if !tNewPart.GetIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
 				}
-				err = pe.PrepareShuffle(tNewPart, buckets)
-				if err != nil {
+				err = pe.PrepareShuffle(tNewPart, req.Buckets)
+				if err := onRowError(err); err != nil {
 					return err
 				}
-			} else if prepCollect {
+			} else if req.PrepCollect {
+				tNewPart := newPart.(itypes.TransferrablePartition)
 				if pe.collectCache[tNewPart.ID()] != nil {
 					return fmt.Errorf("Partition ID collision")
 				}
-				pe.collectCache[tNewPart.ID()] = tNewPart
+				// only collect partitions that have rows
+				if tNewPart.GetNumRows() > 0 {
+					pe.collectCache[tNewPart.ID()] = tNewPart
+				}
 			}
 		}
 	}
-	if runShuffle || prepCollect {
+	if req.RunShuffle || req.PrepCollect {
 		pe.shuffleReady = true
 	}
 	return nil
@@ -217,6 +195,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(ctx context.Context, fn func(sif.O
 
 // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
 func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, buckets []uint64) error {
+	var multierr *multierror.Error
 	for i := 0; i < part.GetNumRows(); i++ {
 		key, err := part.GetKey(i)
 		if err != nil {
@@ -229,9 +208,12 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, part.GetMaxRows(), nextStage.WidestInitialSchema(), nextStage.IncomingSchema())
 		}
 		pe.shuffleTreesLock.Unlock()
-		pe.shuffleTrees[buckets[bucket]].mergeRow(part.GetRow(i), pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
+		err = pe.shuffleTrees[buckets[bucket]].mergeRow(part.GetRow(i), pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
+		if err != nil {
+			multierr = multierror.Append(multierr, err)
+		}
 	}
-	return nil
+	return multierr.ErrorOrNil()
 }
 
 func (pe *planExecutorImpl) keyToBuckets(key uint64, buckets []uint64) int {

@@ -2,11 +2,11 @@ package dataframe
 
 import "github.com/go-sif/sif"
 
-// A reductionTask is a task that represents an aggregation
-type reductionTask interface {
+// A shuffleTask is a task that represents a key-based shuffled, with potential aggregation
+type shuffleTask interface {
 	sif.Task
 	GetKeyingOperation() sif.KeyingOperation
-	GetReductionOperation() sif.ReductionOperation
+	GetReductionOperation() sif.ReductionOperation // Might be nil
 }
 
 // A collectionTask is a task that represents collecting data to the coordinator

@@ -4,7 +4,7 @@ package sif
 type RowFactory func() Row
 
 // DataFrameOperation - A generic DataFrame transform, returning a Task that performs the "work", a string representation of the Task, and a (potentially) altered Schema.
-type DataFrameOperation func(df DataFrame) (Task, string, Schema, error)
+type DataFrameOperation func(df DataFrame) (Task, TaskType, Schema, error)
 
 // MapOperation - A generic function for manipulating Rows in-place
 type MapOperation func(row Row) error

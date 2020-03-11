@@ -19,4 +19,6 @@ type Stage interface {
 	SetKeyingOperation(keyFn sif.KeyingOperation)                              // Configure the keying operation for the end of this stage
 	ReductionOperation() sif.ReductionOperation                                // ReductionOperation retrieves the ReductionOperation for this Stage (if it exists)
 	SetReductionOperation(reduceFn sif.ReductionOperation)                     // Configure the reduction operation for the end of this stage
+	TargetPartitionSize() int                                                  // TargetPartitionSize returns the intended Partition maxSize for outgoing Partitions
+	SetTargetPartitionSize(TargetPartitionSize int)                            // SetTargetPartitionSize configures the intended Partition maxSize for outgoing Partitions
 }

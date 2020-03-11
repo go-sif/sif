@@ -11,17 +11,26 @@ import (
 // stages block the execution of further stages until they
 // are complete.
 type stageImpl struct {
-	id             string
-	incomingSchema sif.Schema // the true, final schema for partitions which come from a previous stage (received during a shuffle, for example). This may include columns which have been removed, but not repacked
-	outgoingSchema sif.Schema // the true, final schema for partitions which exit this stage (dispatched during a shuffle, for example). This may include columns which have been removed, but not repacked
-	frames         []*dataFrameImpl
-	keyFn          sif.KeyingOperation
-	reduceFn       sif.ReductionOperation
+	id                  string
+	incomingSchema      sif.Schema // the true, final schema for partitions which come from a previous stage (received during a shuffle, for example). This may include columns which have been removed, but not repacked
+	outgoingSchema      sif.Schema // the true, final schema for partitions which exit this stage (dispatched during a shuffle, for example). This may include columns which have been removed, but not repacked
+	frames              []*dataFrameImpl
+	keyFn               sif.KeyingOperation
+	reduceFn            sif.ReductionOperation
+	targetPartitionSize int
 }
 
 // createStage is a factory for Stages, safely assigning deterministic IDs
 func createStage(nextID int) *stageImpl {
-	s := &stageImpl{fmt.Sprintf("stage-%d", nextID), nil, nil, []*dataFrameImpl{}, nil, nil}
+	s := &stageImpl{
+		id:                  fmt.Sprintf("stage-%d", nextID),
+		incomingSchema:      nil,
+		outgoingSchema:      nil,
+		frames:              []*dataFrameImpl{},
+		keyFn:               nil,
+		reduceFn:            nil,
+		targetPartitionSize: -1,
+	}
 	nextID++
 	return s
 }
@@ -124,4 +133,14 @@ func (s *stageImpl) ReductionOperation() sif.ReductionOperation {
 // Configure the reduction operation for the end of this stage
 func (s *stageImpl) SetReductionOperation(reduceFn sif.ReductionOperation) {
 	s.reduceFn = reduceFn
+}
+
+// TargetPartitionSize retrieves the TargetPartitionSize for this Stage (if it exists)
+func (s *stageImpl) TargetPartitionSize() int {
+	return s.targetPartitionSize
+}
+
+// Configure the reduction operation for the end of this stage
+func (s *stageImpl) SetTargetPartitionSize(targetPartitionSize int) {
+	s.targetPartitionSize = targetPartitionSize
 }

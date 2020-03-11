@@ -7,6 +7,7 @@ type shuffleTask interface {
 	sif.Task
 	GetKeyingOperation() sif.KeyingOperation
 	GetReductionOperation() sif.ReductionOperation // Might be nil
+	GetTargetPartitionSize() int
 }
 
 // A collectionTask is a task that represents collecting data to the coordinator

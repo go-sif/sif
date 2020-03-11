@@ -6,7 +6,8 @@ import (
 )
 
 type repartitionTask struct {
-	kfn sif.KeyingOperation
+	kfn                 sif.KeyingOperation
+	targetPartitionSize int
 }
 
 func (s *repartitionTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
@@ -26,11 +27,17 @@ func (s *repartitionTask) GetReductionOperation() sif.ReductionOperation {
 	return nil
 }
 
-// Repartition shuffles rows across workers, using a key - useful for grouping buckets of data together on single workers
-func Repartition(kfn sif.KeyingOperation) sif.DataFrameOperation {
+func (s *repartitionTask) GetTargetPartitionSize() int {
+	return s.targetPartitionSize
+}
+
+// Repartition is identical to Group, with the added ability to change the
+// number of rows per partition during the shuffle
+func Repartition(targetPartitionSize int, kfn sif.KeyingOperation) sif.DataFrameOperation {
 	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		nextTask := repartitionTask{
-			kfn: iutil.SafeKeyingOperation(kfn),
+			kfn:                 iutil.SafeKeyingOperation(kfn),
+			targetPartitionSize: targetPartitionSize,
 		}
 		return &nextTask, sif.ShuffleTaskType, d.GetSchema().Clone(), nil
 	}

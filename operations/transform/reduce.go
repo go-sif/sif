@@ -10,8 +10,9 @@ import (
 // https://github.com/cespare/xxhash/v2
 
 type reduceTask struct {
-	kfn sif.KeyingOperation
-	fn  sif.ReductionOperation
+	kfn                 sif.KeyingOperation
+	fn                  sif.ReductionOperation
+	targetPartitionSize int
 }
 
 func (s *reduceTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
@@ -31,12 +32,17 @@ func (s *reduceTask) GetReductionOperation() sif.ReductionOperation {
 	return s.fn
 }
 
+func (s *reduceTask) GetTargetPartitionSize() int {
+	return s.targetPartitionSize
+}
+
 // Reduce combines rows across workers, using a key
 func Reduce(kfn sif.KeyingOperation, fn sif.ReductionOperation) sif.DataFrameOperation {
 	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
 		nextTask := reduceTask{
-			kfn: iutil.SafeKeyingOperation(kfn),
-			fn:  iutil.SafeReductionOperation(fn),
+			kfn:                 iutil.SafeKeyingOperation(kfn),
+			fn:                  iutil.SafeReductionOperation(fn),
+			targetPartitionSize: -1,
 		}
 		return &nextTask, sif.ShuffleTaskType, d.GetSchema().Clone(), nil
 	}

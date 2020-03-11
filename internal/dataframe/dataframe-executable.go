@@ -49,6 +49,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			}
 			currentStage.SetKeyingOperation(sTask.GetKeyingOperation())
 			currentStage.SetReductionOperation(sTask.GetReductionOperation())
+			currentStage.SetTargetPartitionSize(sTask.GetTargetPartitionSize())
 			stages = append(stages, createStage(nextID))
 			nextID++
 		} else if f.taskType == sif.RepackTaskType {

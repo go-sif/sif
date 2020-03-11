@@ -196,6 +196,11 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
 func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, buckets []uint64) error {
 	var multierr *multierror.Error
+	currentStage := pe.plan.GetStage(pe.nextStage - 1)
+	targetPartitionSize := part.GetMaxRows()
+	if currentStage.TargetPartitionSize() > 0 {
+		targetPartitionSize = currentStage.TargetPartitionSize()
+	}
 	for i := 0; i < part.GetNumRows(); i++ {
 		key, err := part.GetKey(i)
 		if err != nil {
@@ -205,10 +210,10 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		pe.shuffleTreesLock.Lock()
 		if _, ok := pe.shuffleTrees[buckets[bucket]]; !ok {
 			nextStage := pe.peekNextStage()
-			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, part.GetMaxRows(), nextStage.WidestInitialSchema(), nextStage.IncomingSchema())
+			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialSchema(), nextStage.IncomingSchema())
 		}
 		pe.shuffleTreesLock.Unlock()
-		err = pe.shuffleTrees[buckets[bucket]].mergeRow(part.GetRow(i), pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
+		err = pe.shuffleTrees[buckets[bucket]].mergeRow(part.GetRow(i), currentStage.KeyingOperation(), currentStage.ReductionOperation())
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 		}

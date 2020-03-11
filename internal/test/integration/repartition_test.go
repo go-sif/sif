@@ -19,9 +19,9 @@ func createTestRepartitionDataFrame(t *testing.T, numFiles int) sif.DataFrame {
 	data := make([][]byte, numFiles)
 	for i := 0; i < numFiles; i++ {
 		if i%2 == 0 {
-			data[i] = []byte("{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}")
+			data[i] = []byte("{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}")
 		} else {
-			data[i] = []byte("{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}")
+			data[i] = []byte("{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}\n{\"col1\": \"def\"}\n{\"col1\": \"abc\"}")
 		}
 	}
 
@@ -39,7 +39,7 @@ func TestRepartition(t *testing.T) {
 	// create dataframe
 	numFiles := 2
 	frame, err := createTestRepartitionDataFrame(t, numFiles).To(
-		ops.Repartition(func(row sif.Row) ([]byte, error) {
+		ops.Repartition(10, func(row sif.Row) ([]byte, error) {
 			val, err := row.GetString("col1")
 			if err != nil {
 				return nil, err
@@ -56,7 +56,8 @@ func TestRepartition(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res))
 	for _, part := range res {
-		require.Equal(t, 5, part.GetNumRows())
+		require.Equal(t, 10, part.GetMaxRows())
+		require.Equal(t, 10, part.GetNumRows())
 		var lastVal string
 		err := part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetString("col1")

@@ -8,7 +8,7 @@ import (
 	"github.com/go-sif/sif/datasource"
 )
 
-// DataSource is a file containing data which will be manipulating according to a DataFrame
+// DataSource is a set of files containing data which will be manipulating according to a DataFrame
 type DataSource struct {
 	glob   string
 	schema sif.Schema

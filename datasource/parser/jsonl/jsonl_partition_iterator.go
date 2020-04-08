@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/datasource"
+	"github.com/tidwall/gjson"
 )
 
 type jsonlFilePartitionIterator struct {
@@ -67,7 +68,7 @@ func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error)
 		if err != nil {
 			return nil, err
 		}
-		err = scanRow(jsonli.parser.conf, colNames, colTypes, rowString, row)
+		err = ParseJSONRow(colNames, colTypes, gjson.Parse(rowString), row)
 		if err != nil {
 			log.Printf("Unable to parse line:\n\t%s", rowString)
 			return nil, err

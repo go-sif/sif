@@ -19,7 +19,7 @@ type Parser struct {
 	conf *ParserConf
 }
 
-// CreateParser returns a new JSONL Parser. Columns of the form "x.y.z" are parsed from each row of JSON, if present. Values within the JSON which do not correspond to a Schema column are ignored.
+// CreateParser returns a new JSONL Parser. Columns are parsed lazily from each row of JSON using their column name, which should be a gjson path. Values within the JSON which do not correspond to a Schema column are ignored.
 func CreateParser(conf *ParserConf) *Parser {
 	if conf.PartitionSize == 0 {
 		conf.PartitionSize = 128

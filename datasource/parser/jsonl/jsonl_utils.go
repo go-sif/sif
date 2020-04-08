@@ -46,7 +46,7 @@ func ParseJSONValue(val gjson.Result, colName string, colType sif.ColumnType, ro
 
 // ParseJSONRow parses a json string into a Row, according to a schema
 func ParseJSONRow(names []string, types []sif.ColumnType, rowJSON gjson.Result, row sif.Row) error {
-	for idx, colName := range row.Schema().ColumnNames() {
+	for idx, colName := range names {
 		err := ParseJSONValue(rowJSON.Get(colName), colName, types[idx], row)
 		if err != nil {
 			return err

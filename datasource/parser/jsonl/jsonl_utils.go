@@ -10,6 +10,11 @@ import (
 
 // ParseJSONValue parses a json value into a known Sif type, if possible
 func ParseJSONValue(val gjson.Result, colName string, colType sif.ColumnType, row sif.Row) error {
+	// If the query result does not exist, set nil
+	if !val.Exists() {
+		row.SetNil(colName)
+		return nil
+	}
 	// parse type
 	switch colType.(type) {
 	// TODO array/slice type

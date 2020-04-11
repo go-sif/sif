@@ -38,7 +38,7 @@ type ReduceablePartition interface {
 	AverageKeyValue() (uint64, error)                                                  // AverageKeyValue is the average value of key within this sorted, keyed Partition
 	Split(pos int) (ReduceablePartition, ReduceablePartition, error)                   // Split splits a Partition into two Partitions. Split position ends up in right Partition.
 	BalancedSplit() (uint64, ReduceablePartition, ReduceablePartition, error)          // Split position ends up in right Partition.
-	ToBytes() ([]byte, error)                                                          // ToBytes serializes a Partition to a byte array suitable for persistance to disk
+	ToBytes() ([]byte, error)                                                          // ToBytes serializes a Partition to a byte array suitable for persistence to disk
 }
 
 // An TransferrablePartition can be transferred and cloned. Used in the implementation of Partition shuffling

@@ -165,7 +165,7 @@ func TestKeyRows(t *testing.T) {
 	key2, err := part.GetKey(7)
 	require.Nil(t, err)
 	require.EqualValues(t, key1, key2)
-	// even though the key appears twice, FindFirstKey should always return the first occurance
+	// even though the key appears twice, FindFirstKey should always return the first occurrence
 	idx, err := part.FindFirstKey(key2)
 	require.Nil(t, err)
 	require.Equal(t, 6, idx)

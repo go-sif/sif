@@ -213,7 +213,7 @@ func (p *partitionImpl) BalancedSplit() (uint64, itypes.ReduceablePartition, ity
 	return avgKey, lp, rp, err
 }
 
-// ToBytes serializes a Partition to a byte array suitable for persistance to disk
+// ToBytes serializes a Partition to a byte array suitable for persistence to disk
 func (p *partitionImpl) ToBytes() ([]byte, error) {
 	numRows := p.GetNumRows()
 	svrd := make([]*pb.DPartition_DVarRow, numRows)

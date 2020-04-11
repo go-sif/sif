@@ -1,5 +1,7 @@
 # Sif
 
+[![GoDoc](https://godoc.org/github.com/go-sif/sif?status.svg)](https://pkg.go.dev/github.com/go-sif/sif/v8) [![Go Report Card](https://goreportcard.com/badge/github.com/go-sif/sif)](https://goreportcard.com/report/github.com/go-sif/sif) ![Tests](https://github.com/go-sif/sif/workflows/tests/badge.svg) [![codecov.io](https://codecov.io/github/go-sif/sif/coverage.svg?branch=master)](https://codecov.io/gh/go-sif/sif?branch=master)
+
 ![Logo](https://raw.githubusercontent.com/go-sif/sif/master/media/logo-128.png)
 
 `Sif` is a framework for fast, predictable, general-purpose distributed computing in the map/reduce paradigm.

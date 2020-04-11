@@ -21,6 +21,7 @@ dependencies:
 	@go get -u golang.org/x/tools/cmd/godoc
 	@go get -u github.com/unchartedsoftware/witch
 	@go get -u github.com/golang/protobuf/protoc-gen-go
+	@go get -u github.com/ory/go-acc
 	@make testenv
 	@go get -d -v ./...
 
@@ -76,7 +77,7 @@ testvall: build testenv
 
 cover: build testenv
 	@echo "Running tests with coverage..."
-	@go test -coverprofile=cover.out -coverpkg=./... ./...
+	@go-acc -o cover.out ./...
 	@go tool cover -html=cover.out -o cover.html
 
 edsm: build testenv

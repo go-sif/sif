@@ -21,7 +21,7 @@ jobs:
     - uses: arduino/setup-protoc@v1.1.0
     - run: go version
     - run: make dependencies
-    - run: make test
+    - run: make cover
     - uses: codecov/codecov-action@v1
       with:
         file: cover.out

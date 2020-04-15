@@ -242,12 +242,12 @@ func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor,
 	defer wg.Done()
 
 	// Trigger remote stage execution
-	log.Printf("Asking worker %s to run stage %s", w.Id, s.ID())
+	log.Printf("Asking worker %s to run stage %d", w.Id, s.ID())
 	executionClient := pb.NewExecutionServiceClient(conn)
-	req := &pb.MRunStageRequest{StageId: s.ID(), RunShuffle: runShuffle, PrepCollect: prepCollect, AssignedBucket: assignedBucket, Buckets: shuffleBuckets, Workers: workers}
+	req := &pb.MRunStageRequest{StageId: int32(s.ID()), RunShuffle: runShuffle, PrepCollect: prepCollect, AssignedBucket: assignedBucket, Buckets: shuffleBuckets, Workers: workers}
 	_, err := executionClient.RunStage(ctx, req)
 	if err != nil {
-		errors <- fmt.Errorf("Something went wrong while running stage %s on worker %s: %v", s.ID(), w.Id, err)
+		errors <- fmt.Errorf("Something went wrong while running stage %d on worker %s: %v", s.ID(), w.Id, err)
 		return
 	}
 	// TODO do something with response

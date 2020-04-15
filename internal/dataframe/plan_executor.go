@@ -29,6 +29,7 @@ type planExecutorImpl struct {
 	shuffleIteratorsLock sync.Mutex
 	collectCache         map[string]sif.Partition // staging area used for collection when there has been no shuffle
 	collectCacheLock     sync.Mutex
+	stats                itypes.RunStatistics
 }
 
 // CreatePlanExecutor is a factory for planExecutors

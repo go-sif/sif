@@ -24,14 +24,14 @@ func createExecutionServer(logClient pb.LogServiceClient, planExecutor itypes.Pl
 // RunStage executes a stage on a Worker
 func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest) (*pb.MRunStageResponse, error) {
 	if !s.planExecutor.HasNextStage() {
-		return nil, fmt.Errorf("Plan Executor %s does not have a next stage to run (stage %s expected)", s.planExecutor.ID(), req.StageId)
+		return nil, fmt.Errorf("Plan Executor %s does not have a next stage to run (stage %d expected)", s.planExecutor.ID(), req.StageId)
 	}
 	onRowErrorWithContext := func(err error) error {
 		return s.onRowError(ctx, err)
 	}
 	stage := s.planExecutor.GetNextStage()
-	if stage.ID() != req.StageId {
-		return nil, fmt.Errorf("Next stage on worker (%s) does not match expected (%s)", stage.ID(), req.StageId)
+	if stage.ID() != int(req.StageId) {
+		return nil, fmt.Errorf("Next stage on worker (%d) does not match expected (%d)", stage.ID(), req.StageId)
 	}
 	err := s.planExecutor.FlatMapPartitions(stage.WorkerExecute, req, onRowErrorWithContext)
 	if err != nil {

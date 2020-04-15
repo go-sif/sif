@@ -114,11 +114,12 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 		return nil, fmt.Errorf("DataFrame must be executable")
 	}
 	log.Printf("Running job...")
+	statsTracker := &itypes.RunStatistics{}
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
 		TempFilePath:       "",
 		InMemoryPartitions: 0,
 		Streaming:          c.frame.GetDataSource().IsStreaming(),
-	})
+	}, statsTracker)
 	// analyze and assign partitions
 	partitionMap, err := eframe.AnalyzeSource()
 	if err != nil {

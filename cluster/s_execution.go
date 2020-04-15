@@ -14,15 +14,17 @@ import (
 type executionServer struct {
 	planExecutor itypes.PlanExecutor
 	logClient    pb.LogServiceClient
+	statsTracker *itypes.RunStatistics
 }
 
 // createExecutionServer creates a new execution server
-func createExecutionServer(logClient pb.LogServiceClient, planExecutor itypes.PlanExecutor) *executionServer {
-	return &executionServer{logClient: logClient, planExecutor: planExecutor}
+func createExecutionServer(logClient pb.LogServiceClient, planExecutor itypes.PlanExecutor, statsTracker *itypes.RunStatistics) *executionServer {
+	return &executionServer{logClient: logClient, planExecutor: planExecutor, statsTracker: statsTracker}
 }
 
 // RunStage executes a stage on a Worker
 func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest) (*pb.MRunStageResponse, error) {
+	s.statsTracker.Start(s.planExecutor.GetNumStages())
 	if !s.planExecutor.HasNextStage() {
 		return nil, fmt.Errorf("Plan Executor %s does not have a next stage to run (stage %d expected)", s.planExecutor.ID(), req.StageId)
 	}
@@ -33,19 +35,27 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 	if stage.ID() != int(req.StageId) {
 		return nil, fmt.Errorf("Next stage on worker (%d) does not match expected (%d)", stage.ID(), req.StageId)
 	}
+	s.statsTracker.StartStage()
+	s.statsTracker.StartTransform()
 	err := s.planExecutor.FlatMapPartitions(stage.WorkerExecute, req, onRowErrorWithContext)
 	if err != nil {
 		if _, ok := err.(*multierror.Error); !s.planExecutor.GetConf().IgnoreRowErrors || !ok {
 			// either this isn't a multierr or we're supposed to fail immediately
+			s.statsTracker.EndTransform(stage.ID())
 			return nil, err
 		}
 	}
+	s.statsTracker.EndTransform(stage.ID())
 	if req.RunShuffle {
+		s.statsTracker.StartShuffle()
 		err = s.runShuffle(ctx, req)
 		if err != nil {
+			s.statsTracker.EndShuffle(stage.ID())
 			return nil, err
 		}
+		s.statsTracker.EndShuffle(stage.ID())
 	}
+	s.statsTracker.EndStage(stage.ID())
 	return &pb.MRunStageResponse{}, nil
 }
 

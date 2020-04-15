@@ -6,6 +6,7 @@ const statisticRollingWindows = 5
 
 // RunStatistics contains statistics about a running Sif pipeline
 type RunStatistics struct {
+	started                     bool
 	startTime                   time.Time
 	totalRuntime                time.Duration
 	rowsProcessed               []int64
@@ -24,51 +25,63 @@ type RunStatistics struct {
 	currentPartitionStartTime time.Time
 }
 
-func (rs *RunStatistics) start(numStages int) {
-	rs.startTime = time.Now()
-	rs.rowsProcessed = make([]int64, numStages)
-	rs.partitionsProcessed = make([]int64, numStages)
-	rs.recentPartitionRuntimes = make([]time.Duration, statisticRollingWindows)
-	rs.stageRuntimes = make([]time.Duration, statisticRollingWindows)
-	rs.transformPhaseRuntimes = make([]time.Duration, statisticRollingWindows)
-	rs.shufflePhaseRuntimes = make([]time.Duration, statisticRollingWindows)
+// Start triggers statistics tracking, if it hasn't been started already
+func (rs *RunStatistics) Start(numStages int) {
+	if !rs.started {
+		rs.startTime = time.Now()
+		rs.rowsProcessed = make([]int64, numStages)
+		rs.partitionsProcessed = make([]int64, numStages)
+		rs.recentPartitionRuntimes = make([]time.Duration, statisticRollingWindows)
+		rs.stageRuntimes = make([]time.Duration, statisticRollingWindows)
+		rs.transformPhaseRuntimes = make([]time.Duration, statisticRollingWindows)
+		rs.shufflePhaseRuntimes = make([]time.Duration, statisticRollingWindows)
+	}
 }
 
-func (rs *RunStatistics) finish() {
+// Finish completes statistics tracking
+func (rs *RunStatistics) Finish() {
 	rs.totalRuntime = time.Since(rs.startTime)
 }
 
-func (rs *RunStatistics) startStage() {
+// StartStage tracks the beginning of a new Stage
+func (rs *RunStatistics) StartStage() {
 	rs.currentStageStartTime = time.Now()
 }
 
-func (rs *RunStatistics) endStage(sidx int) {
+// EndStage tracks the end of a Stage
+func (rs *RunStatistics) EndStage(sidx int) {
 	rs.stageRuntimes[sidx] = time.Since(rs.currentStageStartTime)
 	rs.recentPartitionRuntimes = make([]time.Duration, statisticRollingWindows)
 	rs.recentPartitionRuntimesHead = 0
 }
 
-func (rs *RunStatistics) startTransform() {
+// StartTransform tracks the beginning of the transformation portion of a Stage
+func (rs *RunStatistics) StartTransform() {
 	rs.currentTransformStartTime = time.Now()
 }
 
-func (rs *RunStatistics) endTransform(sidx int) {
+// EndTransform tracks the end of the transformation portion of a Stage
+func (rs *RunStatistics) EndTransform(sidx int) {
 	rs.transformPhaseRuntimes[sidx] = time.Since(rs.currentTransformStartTime)
 }
 
-func (rs *RunStatistics) startShuffle() {
+// StartShuffle tracks the beginning of the shuffle portion of a Stage
+func (rs *RunStatistics) StartShuffle() {
 	rs.currentShuffleStartTime = time.Now()
 }
 
-func (rs *RunStatistics) endShuffle(sidx int) {
+// EndShuffle tracks the end of the shuffle portion of a Stage
+func (rs *RunStatistics) EndShuffle(sidx int) {
 	rs.shufflePhaseRuntimes[sidx] = time.Since(rs.currentShuffleStartTime)
 }
 
-func (rs *RunStatistics) startPartition() {
+// StartPartition tracks the beginning of the processing of a partition
+func (rs *RunStatistics) StartPartition() {
 	rs.currentPartitionStartTime = time.Now()
 }
 
-func (rs *RunStatistics) endPartition(sidx int, numRows int) {
+// EndPartition tracks the end of the processing of a partition
+func (rs *RunStatistics) EndPartition(sidx int, numRows int) {
 	rs.recentPartitionRuntimes[rs.recentPartitionRuntimesHead] = time.Since(rs.currentPartitionStartTime)
 	rs.recentPartitionRuntimesHead = (rs.recentPartitionRuntimesHead + 1) % len(rs.recentPartitionRuntimes)
 	rs.rowsProcessed[sidx] += int64(numRows)

@@ -16,7 +16,7 @@ type executionServer struct {
 	logClient    pb.LogServiceClient
 }
 
-// createExecutionServer creatse a new execution server
+// createExecutionServer creates a new execution server
 func createExecutionServer(logClient pb.LogServiceClient, planExecutor itypes.PlanExecutor) *executionServer {
 	return &executionServer{logClient: logClient, planExecutor: planExecutor}
 }
@@ -70,7 +70,7 @@ func (s *executionServer) onRowError(ctx context.Context, err error) (outgoingEr
 		err = logger.Send(&pb.MLogMsg{
 			Level:   logging.ErrorLevel,
 			Source:  s.planExecutor.ID(),
-			Message: fmt.Sprintf("Map error in stage %s:\n%s", s.planExecutor.GetCurrentStage().ID(), multierr.Error()),
+			Message: fmt.Sprintf("Map error in stage %d:\n%s", s.planExecutor.GetCurrentStage().ID(), multierr.Error()),
 		})
 		if err != nil {
 			return err

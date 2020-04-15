@@ -2,7 +2,7 @@ package types
 
 import "time"
 
-const StatisticRollingWindows = 5
+const statisticRollingWindows = 5
 
 // RunStatistics contains statistics about a running Sif pipeline
 type RunStatistics struct {
@@ -28,10 +28,10 @@ func (rs *RunStatistics) start(numStages int) {
 	rs.startTime = time.Now()
 	rs.rowsProcessed = make([]int64, numStages)
 	rs.partitionsProcessed = make([]int64, numStages)
-	rs.recentPartitionRuntimes = make([]time.Duration, StatisticRollingWindows)
-	rs.stageRuntimes = make([]time.Duration, StatisticRollingWindows)
-	rs.transformPhaseRuntimes = make([]time.Duration, StatisticRollingWindows)
-	rs.shufflePhaseRuntimes = make([]time.Duration, StatisticRollingWindows)
+	rs.recentPartitionRuntimes = make([]time.Duration, statisticRollingWindows)
+	rs.stageRuntimes = make([]time.Duration, statisticRollingWindows)
+	rs.transformPhaseRuntimes = make([]time.Duration, statisticRollingWindows)
+	rs.shufflePhaseRuntimes = make([]time.Duration, statisticRollingWindows)
 }
 
 func (rs *RunStatistics) finish() {
@@ -44,7 +44,7 @@ func (rs *RunStatistics) startStage() {
 
 func (rs *RunStatistics) endStage(sidx int) {
 	rs.stageRuntimes[sidx] = time.Since(rs.currentStageStartTime)
-	rs.recentPartitionRuntimes = make([]time.Duration, StatisticRollingWindows)
+	rs.recentPartitionRuntimes = make([]time.Duration, statisticRollingWindows)
 	rs.recentPartitionRuntimesHead = 0
 }
 
@@ -104,7 +104,7 @@ func (rs *RunStatistics) GetCurrentPartitionProcessingTime() time.Duration {
 	for _, d := range rs.recentPartitionRuntimes {
 		total += d
 	}
-	return total / StatisticRollingWindows
+	return total / statisticRollingWindows
 }
 
 // GetStageRuntimes returns all recorded stage runtimes, from the most recent run of each Stage

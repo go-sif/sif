@@ -24,7 +24,6 @@ func createExecutionServer(logClient pb.LogServiceClient, planExecutor itypes.Pl
 
 // RunStage executes a stage on a Worker
 func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest) (*pb.MRunStageResponse, error) {
-	s.statsTracker.Start(s.planExecutor.GetNumStages())
 	if !s.planExecutor.HasNextStage() {
 		return nil, fmt.Errorf("Plan Executor %s does not have a next stage to run (stage %d expected)", s.planExecutor.ID(), req.StageId)
 	}

@@ -120,6 +120,8 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 		InMemoryPartitions: 0,
 		Streaming:          c.frame.GetDataSource().IsStreaming(),
 	}, statsTracker)
+	statsTracker.Start(planExecutor.GetNumStages())
+	defer statsTracker.Finish()
 	// analyze and assign partitions
 	partitionMap, err := eframe.AnalyzeSource()
 	if err != nil {

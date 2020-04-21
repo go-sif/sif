@@ -6,7 +6,7 @@ import "github.com/go-sif/sif"
 // stages block the execution of further stages until they
 // are complete.
 type Stage interface {
-	ID() string                                                                // ID returns the ID for this stage
+	ID() int                                                                   // ID returns the ID for this stage
 	IncomingSchema() sif.Schema                                                // IncomingSchema is the Schema for data entering this Stage
 	OutgoingSchema() sif.Schema                                                // OutgoingSchema is the Schema for data leaving this Stage
 	FinalSchema() sif.Schema                                                   // FinalSchema returns the schema from the final task of the stage, or the nil if there are no tasks

@@ -29,10 +29,11 @@ type planExecutorImpl struct {
 	shuffleIteratorsLock sync.Mutex
 	collectCache         map[string]sif.Partition // staging area used for collection when there has been no shuffle
 	collectCacheLock     sync.Mutex
+	statsTracker         *itypes.RunStatistics
 }
 
 // CreatePlanExecutor is a factory for planExecutors
-func CreatePlanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig) itypes.PlanExecutor {
+func CreatePlanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig, statsTracker *itypes.RunStatistics) itypes.PlanExecutor {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)
@@ -45,6 +46,7 @@ func CreatePlanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig) itype
 		shuffleTrees:     make(map[uint64]*pTreeRoot),
 		shuffleIterators: make(map[uint64]sif.PartitionIterator),
 		collectCache:     make(map[string]sif.Partition),
+		statsTracker:     statsTracker,
 	}
 }
 
@@ -77,6 +79,10 @@ func (pe *planExecutorImpl) GetNextStage() itypes.Stage {
 	return s
 }
 
+func (pe *planExecutorImpl) GetNumStages() int {
+	return pe.plan.Size()
+}
+
 // peekNextStage returns the next stage without advancing the iterator, or nil if there isn't one
 func (pe *planExecutorImpl) peekNextStage() itypes.Stage {
 	if pe.HasNextStage() {
@@ -88,7 +94,7 @@ func (pe *planExecutorImpl) peekNextStage() itypes.Stage {
 // GetCurrentStage returns the current stage without advancing the iterator, or nil if the iterator has never been advanced
 func (pe *planExecutorImpl) GetCurrentStage() itypes.Stage {
 	if pe.nextStage == 0 {
-		return nil
+		return pe.plan.GetStage(pe.nextStage)
 	}
 	return pe.plan.GetStage(pe.nextStage - 1)
 }
@@ -152,9 +158,11 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 	if pe.plan.Size() == 0 {
 		return fmt.Errorf("Plan has no stages")
 	}
+	currentStageID := pe.GetCurrentStage().ID()
 	parts := pe.GetPartitionSource()
 
 	for parts.HasNextPartition() {
+		pe.statsTracker.StartPartition()
 		part, err := parts.NextPartition()
 		if err != nil {
 			return err
@@ -186,6 +194,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 				}
 			}
 		}
+		pe.statsTracker.EndPartition(currentStageID, part.GetNumRows())
 	}
 	if req.RunShuffle || req.PrepCollect {
 		pe.shuffleReady = true

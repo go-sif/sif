@@ -1,7 +1,6 @@
 package dataframe
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/go-sif/sif"
@@ -11,7 +10,7 @@ import (
 // stages block the execution of further stages until they
 // are complete.
 type stageImpl struct {
-	id                  string
+	id                  int
 	incomingSchema      sif.Schema // the true, final schema for partitions which come from a previous stage (received during a shuffle, for example). This may include columns which have been removed, but not repacked
 	outgoingSchema      sif.Schema // the true, final schema for partitions which exit this stage (dispatched during a shuffle, for example). This may include columns which have been removed, but not repacked
 	frames              []*dataFrameImpl
@@ -23,7 +22,7 @@ type stageImpl struct {
 // createStage is a factory for Stages, safely assigning deterministic IDs
 func createStage(nextID int) *stageImpl {
 	s := &stageImpl{
-		id:                  fmt.Sprintf("stage-%d", nextID),
+		id:                  nextID,
 		incomingSchema:      nil,
 		outgoingSchema:      nil,
 		frames:              []*dataFrameImpl{},
@@ -36,7 +35,7 @@ func createStage(nextID int) *stageImpl {
 }
 
 // ID returns the ID for this Stage
-func (s *stageImpl) ID() string {
+func (s *stageImpl) ID() int {
 	return s.id
 }
 

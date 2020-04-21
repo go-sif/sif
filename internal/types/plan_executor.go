@@ -11,6 +11,7 @@ type PlanExecutor interface {
 	GetConf() *PlanExecutorConfig // GetConf returns the configuration for this PlanExecutor
 	HasNextStage() bool           // HasNextStage forms an iterator for planExecutor Stages
 	GetNextStage() Stage          // NextStage forms an iterator for planExecutor Stages
+	GetNumStages() int            // GetNumStages returns the total number of stages
 	// PeekNextStage() Stage   // PeekNextStage returns the next stage without advancing the iterator, or nil if there isn't one
 	GetCurrentStage() Stage // GetCurrentStage returns the current stage without advancing the iterator, or nil if the iterator has never been advanced
 	// OnFirstStage() bool                                                                                                                                                                                                                // OnFirstStage returns true iff we're past the first stage

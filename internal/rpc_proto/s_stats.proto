@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package rpc;
+
+// StatsSourceService provides statistics to a StatsConsumer
+service StatsSourceService {
+    rpc ProvideStatistics (MStatisticsRequest) returns (MStatisticsResponse) {}
+}
+
+message MStatisticsRequest {
+
+}
+
+message MStatisticsResponse {
+    bool started = 1;
+    bool finished = 2;
+	int64 startTime = 3;
+	int64 totalRuntime = 4;
+	repeated int64 rowsProcessed = 5;
+	repeated int64 partitionsProcessed = 6;
+	repeated int64 recentPartitionRuntimes = 7;
+	int32 recentPartitionRuntimesHead = 8;
+    repeated int64 stageRuntimes = 9;
+    repeated int64 transformPhaseRuntimes = 10;
+    repeated int64 shufflePhaseRuntimes = 11;
+}
+
+service StatsServerService {
+    rpc RuntimeStatistics (MClusterStatisticsRequest) returns (MClusterStatisticsResponse) {}
+}
+
+message MClusterStatisticsRequest {
+
+}
+
+message MClusterStatisticsResponse {
+    map<string, MStatisticsResponse> clusterStats = 1;
+}

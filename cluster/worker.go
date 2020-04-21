@@ -107,16 +107,20 @@ func (w *worker) Start(frame sif.DataFrame) error {
 		return err
 	}
 	defer os.RemoveAll(tmpDir)
+	statsTracker := &itypes.RunStatistics{}
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
 		TempFilePath:       tmpDir,
 		InMemoryPartitions: w.opts.NumInMemoryPartitions,
 		Streaming:          eframe.GetParent().GetDataSource().IsStreaming(),
 		IgnoreRowErrors:    w.opts.IgnoreRowErrors,
-	})
+	}, statsTracker)
+	statsTracker.Start(planExecutor.GetNumStages())
+	defer statsTracker.Finish()
 	// register rpc handlers for frame execution
 	pb.RegisterLifecycleServiceServer(w.server, createLifecycleServer(w))
-	pb.RegisterExecutionServiceServer(w.server, createExecutionServer(w.logClient, planExecutor))
+	pb.RegisterExecutionServiceServer(w.server, createExecutionServer(w.logClient, planExecutor, statsTracker))
 	pb.RegisterPartitionsServiceServer(w.server, createPartitionServer(planExecutor))
+	pb.RegisterStatsSourceServiceServer(w.server, createStatsSource(statsTracker))
 	// register with master after we are serving
 	ctx, cancel := context.WithTimeout(context.Background(), w.opts.RPCTimeout)
 	defer cancel()

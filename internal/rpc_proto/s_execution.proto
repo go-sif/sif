@@ -10,7 +10,7 @@ service ExecutionService {
 }
 
 message MRunStageRequest {
-    string stageId = 1;
+    int32 stageId = 1;
     bool   runShuffle = 2;
     bool   prepCollect = 3;
     uint64 assignedBucket = 4;

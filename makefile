@@ -1,7 +1,7 @@
 version=0.1.0
 export GOPROXY=direct
 
-.PHONY: all dependencies clean test cover testall testvall
+.PHONY: all dependencies clean test lint cover testall testvall
 
 all:
 	@echo "make <cmd>"

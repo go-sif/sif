@@ -4,6 +4,8 @@ import "s_cluster.proto";
 
 package rpc;
 
+option go_package = "rpc";
+
 // LifecycleService manages the lifecycle of Sif cluster members
 service LifecycleService {
     rpc GracefulStop (MWorkerDescriptor) returns (MStopResponse) {}

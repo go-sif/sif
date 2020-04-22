@@ -4,6 +4,8 @@ import "s_cluster.proto";
 
 package rpc;
 
+option go_package = "rpc";
+
 // ExecutionService coordinates the execution of DataFrames/Plans/Stages
 service ExecutionService {
     rpc RunStage (MRunStageRequest) returns (MRunStageResponse) {}

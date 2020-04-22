@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package rpc;
 
+option go_package = "rpc";
+
 // LogService provides distributed logging
 service LogService {
     rpc Log (stream MLogMsg) returns (MLogMsgAck) {}

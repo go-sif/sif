@@ -40,7 +40,7 @@ func (s *clusterServer) RegisterWorker(ctx context.Context, req *pb.MRegisterReq
 		Host: tcpAddr.IP.String(),
 		Port: int32(req.Port),
 	}
-	s.workers.Store(req.Id, wDescriptor)
+	s.workers.Store(req.Id, &wDescriptor)
 	s.numWorkers++
 
 	// test connection
@@ -62,8 +62,8 @@ func (s *clusterServer) NumberOfWorkers() int {
 func (s *clusterServer) Workers() []*pb.MWorkerDescriptor {
 	result := make([]*pb.MWorkerDescriptor, 0)
 	s.workers.Range(func(_, v interface{}) bool {
-		w := v.(pb.MWorkerDescriptor)
-		result = append(result, &w)
+		w := v.(*pb.MWorkerDescriptor)
+		result = append(result, w)
 		return true
 	})
 	return result

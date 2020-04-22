@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/go-sif/sif"
+	"github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -162,11 +163,14 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 	parts := pe.GetPartitionSource()
 
 	for parts.HasNextPartition() {
-		pe.statsTracker.StartPartition()
 		part, err := parts.NextPartition()
-		if err != nil {
+		if _, ok := err.(errors.NoMorePartitionsError); ok {
+			// It's ok for a data source to throw this once, as HasNextPartition is just a hint
+			break
+		} else if err != nil {
 			return err
 		}
+		pe.statsTracker.StartPartition()
 		opart := part.(sif.OperablePartition)
 		newParts, err := fn(opart)
 		if err := onRowError(err); err != nil {

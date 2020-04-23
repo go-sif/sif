@@ -10,25 +10,32 @@ import (
 
 // DataSource is a set of files containing data which will be manipulating according to a DataFrame
 type DataSource struct {
-	glob   string
+	conf   *DataSourceConf
 	schema sif.Schema
+	parser sif.DataSourceParser
+}
+
+// DataSourceConf configures a file DataSource
+type DataSourceConf struct {
+	Glob    string
+	Decoder func([]byte) ([]byte, error)
 }
 
 // CreateDataFrame is a factory for DataSources
-func CreateDataFrame(glob string, parser sif.DataSourceParser, schema sif.Schema) sif.DataFrame {
-	source := &DataSource{glob, schema}
+func CreateDataFrame(conf *DataSourceConf, parser sif.DataSourceParser, schema sif.Schema) sif.DataFrame {
+	source := &DataSource{conf: conf, parser: parser, schema: schema}
 	df := datasource.CreateDataFrame(source, parser, schema)
 	return df
 }
 
 // Analyze returns a PartitionMap, describing how the source file will be divided into Partitions
 func (fs *DataSource) Analyze() (sif.PartitionMap, error) {
-	matches, err := filepath.Glob(fs.glob)
+	matches, err := filepath.Glob(fs.conf.Glob)
 	if err != nil {
 		return nil, err
 	}
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("glob %s produced 0 files", fs.glob)
+		return nil, fmt.Errorf("glob %s produced 0 files", fs.conf.Glob)
 	}
 	var toRead []string
 	for _, path := range matches {

@@ -48,7 +48,8 @@ func createTestNYCTaxiDataFrame(t *testing.T) sif.DataFrame {
 	parser := dsv.CreateParser(&dsv.ParserConf{
 		NilValue: "null",
 	})
-	dataframe := file.CreateDataFrame(path.Join(cwd, "../../../testenv/*.csv"), parser, schema)
+	conf := &file.DataSourceConf{Glob: path.Join(cwd, "../../../testenv/*.csv")}
+	dataframe := file.CreateDataFrame(conf, parser, schema)
 	return dataframe
 }
 

@@ -34,7 +34,8 @@ func createTestEDSMDataFrame(t *testing.T) sif.DataFrame {
 	})
 	cwd, err := os.Getwd()
 	require.Nil(t, err)
-	dataframe := file.CreateDataFrame(path.Join(cwd, "../../../testenv/*.jsonl"), parser, schema)
+	conf := &file.DataSourceConf{Glob: path.Join(cwd, "../../../testenv/*.jsonl")}
+	dataframe := file.CreateDataFrame(conf, parser, schema)
 	return dataframe
 }
 

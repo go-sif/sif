@@ -35,7 +35,10 @@ func TestDSVDatasourceParser(t *testing.T) {
 		NilValue:      "null",
 		PartitionSize: 128,
 	})
-	dataframe := file.CreateDataFrame(path.Join(cwd, "../../../testenv/*.csv"), parser, schema)
+	conf := &file.DataSourceConf{
+		Glob: path.Join(cwd, "../../../testenv/*.csv"),
+	}
+	dataframe := file.CreateDataFrame(conf, parser, schema)
 
 	pm, err := dataframe.GetDataSource().Analyze()
 	require.Nil(t, err, "Analyze err should be null")

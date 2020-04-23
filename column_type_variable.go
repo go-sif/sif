@@ -7,6 +7,20 @@ import (
 	"strings"
 )
 
+// IsVariableLength returns true iff colType is a VarColumnType
+func IsVariableLength(colType ColumnType) (isVariableLength bool) {
+	_, isVariableLength = colType.(VarColumnType)
+	return
+}
+
+// VarColumnType is an interface which is implemented to define supported variable-length column types. Size() for VarColumnTypes should always return 0.
+// Sif provides a variety of built-in types.
+type VarColumnType interface {
+	ColumnType
+	Serialize(v interface{}) ([]byte, error) // Defines how this type is serialized
+	Deserialize([]byte) (interface{}, error) // Defines how this type is deserialized
+}
+
 // VarStringColumnType is a column type which stores a variable-length string value
 type VarStringColumnType struct {
 	// TODO store encoding type via https://godoc.org/golang.org/x/text/encoding, for inter-language stringing

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/go-sif/sif"
-	itypes "github.com/go-sif/sif/internal/types"
 )
 
 // Column describes the byte offsets of the start
@@ -79,7 +78,7 @@ func (s *schema) NumColumns() int {
 func (s *schema) NumFixedLengthColumns() int {
 	i := 0
 	for _, col := range s.schema {
-		if !itypes.IsVariableLength(col.Type()) {
+		if !sif.IsVariableLength(col.Type()) {
 			i++
 		}
 	}
@@ -90,7 +89,7 @@ func (s *schema) NumFixedLengthColumns() int {
 func (s *schema) NumVariableLengthColumns() int {
 	i := 0
 	for _, col := range s.schema {
-		if itypes.IsVariableLength(col.Type()) {
+		if sif.IsVariableLength(col.Type()) {
 			i++
 		}
 	}
@@ -129,7 +128,7 @@ func (s *schema) CreateColumn(colName string, columnType sif.ColumnType) (newSch
 	if containsOffset {
 		err = fmt.Errorf("Schema already contains column with name %s", colName)
 	} else {
-		if !itypes.IsVariableLength(columnType) {
+		if !sif.IsVariableLength(columnType) {
 			s.schema[colName] = &column{len(s.schema), s.size, columnType}
 			s.size += columnType.Size()
 		} else {

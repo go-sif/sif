@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	itypes "github.com/go-sif/sif/internal/types"
 )
 
 const (
@@ -68,7 +67,7 @@ func (r *rowImpl) IsNil(colName string) bool {
 	if e != nil {
 		return false
 	}
-	if !itypes.IsVariableLength(offset.Type()) {
+	if !sif.IsVariableLength(offset.Type()) {
 		return r.meta[offset.Index()]&colValueIsNilFlag > 0
 	}
 	_, ok := r.varData[colName]
@@ -81,7 +80,7 @@ func (r *rowImpl) SetNil(colName string) error {
 	if err != nil {
 		return err
 	}
-	if !itypes.IsVariableLength(offset.Type()) {
+	if !sif.IsVariableLength(offset.Type()) {
 		r.meta[offset.Index()] = r.meta[offset.Index()] & colValueIsNilFlag
 	} else {
 		r.varData[colName] = nil
@@ -91,9 +90,9 @@ func (r *rowImpl) SetNil(colName string) error {
 
 // CheckIsNil is for internal use only
 func (r *rowImpl) CheckIsNil(colName string, offset sif.Column) error {
-	if !itypes.IsVariableLength(offset.Type()) && r.meta[offset.Index()]&colValueIsNilFlag > 0 {
+	if !sif.IsVariableLength(offset.Type()) && r.meta[offset.Index()]&colValueIsNilFlag > 0 {
 		return errors.NilValueError{Name: colName}
-	} else if itypes.IsVariableLength(offset.Type()) {
+	} else if sif.IsVariableLength(offset.Type()) {
 		if _, ok := r.varData[colName]; !ok {
 			return errors.NilValueError{Name: colName}
 		}
@@ -103,7 +102,7 @@ func (r *rowImpl) CheckIsNil(colName string, offset sif.Column) error {
 
 // SetNotNil is for internal use only
 func (r *rowImpl) SetNotNil(offset sif.Column) {
-	if !itypes.IsVariableLength(offset.Type()) {
+	if !sif.IsVariableLength(offset.Type()) {
 		r.meta[offset.Index()] = r.meta[offset.Index()] &^ colValueIsNilFlag
 	}
 }
@@ -113,7 +112,7 @@ func (r *rowImpl) Get(colName string) (col interface{}, err error) {
 	offset, err := r.Schema().GetOffset(colName)
 	if err != nil {
 		return nil, err
-	} else if itypes.IsVariableLength(offset.Type()) {
+	} else if sif.IsVariableLength(offset.Type()) {
 		switch offset.Type().(type) {
 		case *sif.VarStringColumnType:
 			return r.GetVarString(colName)
@@ -354,7 +353,7 @@ func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
 	}
 	// deserialize serialized data if present
 	if ser, ok := r.serializedVarData[colName]; ok {
-		vcol, ok := offset.Type().(itypes.VarColumnType)
+		vcol, ok := offset.Type().(sif.VarColumnType)
 		if !ok {
 			return nil, fmt.Errorf("Column %s is not a VarColumnType", colName)
 		}
@@ -568,7 +567,7 @@ func (r *rowImpl) Repack(newSchema sif.Schema) (sif.Row, error) {
 		if err != nil {
 			return err
 		}
-		if !itypes.IsVariableLength(oldCol.Type()) {
+		if !sif.IsVariableLength(oldCol.Type()) {
 			// copy data
 			copy(buff[col.Start():col.Start()+col.Type().Size()], r.data[oldCol.Start():oldCol.Start()+oldCol.Type().Size()])
 			offset += col.Start()

@@ -7,8 +7,7 @@ import (
 )
 
 // ColumnType is an interface which is implemented to define a supported fixed-width column types.
-// Sif provides a variety of built-in types in the columntype package. Additional fixed-width
-// types may not be created at this time.
+// Sif provides a variety of built-in types. Additional fixed-width types may not be created at this time.
 type ColumnType interface {
 	Size() int                     // returns size in bytes of a column type
 	ToString(v interface{}) string // produces a string representation of a value of this type

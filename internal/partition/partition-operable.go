@@ -21,8 +21,9 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 	inPlace := true // start by attempting to manipulate rows in-place
 	result := p
 	var multierr *multierror.Error
+	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
-		row := p.GetRow(i)
+		row := p.getRow(row, i)
 		err := fn(row)
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
@@ -61,8 +62,9 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 	}
 	parts := make([]sif.OperablePartition, 1)
 	parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
+	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
-		newRows, err := fn(p.GetRow(i), factory)
+		newRows, err := fn(p.getRow(row, i), factory)
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 		} else {
@@ -84,8 +86,9 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 func (p *partitionImpl) FilterRows(fn sif.FilterOperation) (sif.OperablePartition, error) {
 	var multierr *multierror.Error
 	result := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
+	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
-		shouldKeep, err := fn(p.GetRow(i))
+		shouldKeep, err := fn(p.getRow(row, i))
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 		}
@@ -105,8 +108,9 @@ func (p *partitionImpl) FilterRows(fn sif.FilterOperation) (sif.OperablePartitio
 func (p *partitionImpl) Repack(newSchema sif.Schema) (sif.OperablePartition, error) {
 	// create a new Partition
 	part := createPartitionImpl(p.maxRows, newSchema, newSchema)
+	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
-		row := p.GetRow(i).(itypes.AccessibleRow)
+		row := p.getRow(row, i).(itypes.AccessibleRow)
 		newRow, err := row.Repack(newSchema)
 		if err != nil {
 			return nil, err

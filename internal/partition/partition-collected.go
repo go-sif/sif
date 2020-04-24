@@ -9,9 +9,9 @@ func createCollectedPartitionPartition(maxRows int, widestSchema sif.Schema, cur
 
 // ForEachRow runs a MapOperation on each row in this Partition, erroring immediately if an error occurs
 func (p *partitionImpl) ForEachRow(fn sif.MapOperation) error {
+	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
-		row := p.GetRow(i)
-		err := fn(row)
+		err := fn(p.getRow(row, i))
 		if err != nil {
 			return err
 		}

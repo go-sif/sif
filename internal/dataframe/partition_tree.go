@@ -61,13 +61,12 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageWide
 
 // mergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
 func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
-	for i := 0; i < part.GetNumRows(); i++ {
-		row := part.GetRow(i)
+	return part.ForEachRow(func(row sif.Row) error {
 		if err := t.mergeRow(row, keyfn, reducefn); err != nil {
 			return err
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation

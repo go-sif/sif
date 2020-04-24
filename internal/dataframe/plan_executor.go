@@ -214,7 +214,8 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 	if currentStage.TargetPartitionSize() > 0 {
 		targetPartitionSize = currentStage.TargetPartitionSize()
 	}
-	for i := 0; i < part.GetNumRows(); i++ {
+	i := 0
+	err := part.ForEachRow(func(row sif.Row) error {
 		key, err := part.GetKey(i)
 		if err != nil {
 			return err
@@ -226,10 +227,15 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialSchema(), nextStage.IncomingSchema())
 		}
 		pe.shuffleTreesLock.Unlock()
-		err = pe.shuffleTrees[buckets[bucket]].mergeRow(part.GetRow(i), currentStage.KeyingOperation(), currentStage.ReductionOperation())
+		err = pe.shuffleTrees[buckets[bucket]].mergeRow(row, currentStage.KeyingOperation(), currentStage.ReductionOperation())
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 		}
+		i++
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	return multierr.ErrorOrNil()
 }
@@ -283,11 +289,12 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 		return err
 	}
 	var multierr *multierror.Error
-	for i := 0; i < part.GetNumRows(); i++ {
-		err = pe.shuffleTrees[pe.assignedBucket].mergeRow(part.GetRow(i), pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
+	part.ForEachRow(func(row sif.Row) error {
+		err = pe.shuffleTrees[pe.assignedBucket].mergeRow(row, pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 		}
-	}
+		return nil
+	})
 	return multierr.ErrorOrNil()
 }

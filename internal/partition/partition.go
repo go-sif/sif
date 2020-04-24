@@ -68,6 +68,16 @@ func (p *partitionImpl) GetNumRows() int {
 	return p.numRows
 }
 
+// getRowInternal retrieves a specific row from this Partition, without allocation
+func (p *partitionImpl) getRow(row *rowImpl, rowNum int) sif.Row {
+	row.meta = p.GetRowMeta(rowNum)
+	row.data = p.GetRowData(rowNum)
+	row.varData = p.GetVarRowData(rowNum)
+	row.serializedVarData = p.GetSerializedVarRowData(rowNum)
+	row.schema = p.currentSchema
+	return row
+}
+
 // GetRow retrieves a specific row from this Partition
 func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 	return &rowImpl{

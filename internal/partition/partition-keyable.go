@@ -18,8 +18,9 @@ func (p *partitionImpl) KeyRows(kfn sif.KeyingOperation) (sif.OperablePartition,
 	result := p
 	result.isKeyed = false // clear keyed status if there was one
 	result.keys = make([]uint64, p.maxRows)
+	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
-		row := p.GetRow(i)
+		row := p.getRow(row, i)
 		hasher := xxhash.New()
 		keyBuf, err := kfn(row)
 		if err != nil {

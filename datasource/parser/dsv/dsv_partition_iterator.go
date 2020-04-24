@@ -42,6 +42,7 @@ func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
 	colTypes := dsvi.schema.ColumnTypes()
 	part := datasource.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialSchema, dsvi.schema)
 	// parse lines
+	tempRow := datasource.CreateTempRow()
 	for {
 		// If the partition is full, we're done
 		if part.GetNumRows() == part.GetMaxRows() {
@@ -61,7 +62,7 @@ func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
 			return nil, err
 		}
 		// create a new row to place values into
-		row, err := part.AppendEmptyRowData()
+		row, err := part.AppendEmptyRowData(tempRow)
 		if err != nil {
 			return nil, err
 		}

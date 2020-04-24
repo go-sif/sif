@@ -263,8 +263,9 @@ func TestRepack(t *testing.T) {
 	schema.CreateColumn("col3", &sif.VarStringColumnType{})
 	part := createPartitionImpl(8, schema, schema)
 	// append rows
+	tempRow := CreateTempRow()
 	for i := 0; i < 8; i++ {
-		row, err := part.AppendEmptyRowData()
+		row, err := part.AppendEmptyRowData(tempRow)
 		require.Nil(t, err)
 		row.SetInt8("col1", int8(i))
 		row.SetFloat64("col2", float64(i+1))

@@ -14,7 +14,7 @@ type Partition interface {
 type BuildablePartition interface {
 	Partition
 	ForEachRow(fn MapOperation) error                                                                                                // ForEachRow iterates over Rows in a Partition
-	AppendEmptyRowData() (Row, error)                                                                                                // AppendEmptyRowData is a convenient way to add an empty Row to the end of this Partition, returning the Row so that Row methods can be used to populate it
+	AppendEmptyRowData(tempRow Row) (Row, error)                                                                                     // AppendEmptyRowData is a convenient way to add an empty Row to the end of this Partition, returning the Row so that Row methods can be used to populate it
 	AppendRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte) error             // AppendRowData adds a Row to the end of this Partition, if it isn't full and if the Row fits within the schema
 	InsertRowData(row []byte, meta []byte, varRowData map[string]interface{}, serializedVarRowData map[string][]byte, pos int) error // InsertRowData inserts a Row at a specific position within this Partition, if it isn't full and if the Row fits within the schema. Other Rows are shifted as necessary.
 }

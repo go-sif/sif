@@ -43,6 +43,7 @@ func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error)
 	colTypes := jsonli.schema.ColumnTypes()
 	part := datasource.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialSchema, jsonli.schema)
 	// parse lines
+	tempRow := datasource.CreateTempRow()
 	for {
 		// If the partition is full, we're done
 		if part.GetNumRows() == part.GetMaxRows() {
@@ -64,7 +65,7 @@ func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error)
 		}
 		rowString := jsonli.scanner.Text()
 		// create a new row to place values into
-		row, err := part.AppendEmptyRowData()
+		row, err := part.AppendEmptyRowData(tempRow)
 		if err != nil {
 			return nil, err
 		}

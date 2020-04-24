@@ -34,7 +34,7 @@ func CreateRow(meta []byte, data []byte, varData map[string]interface{}, seriali
 	return &rowImpl{meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
 }
 
-// CreateTempRow builds an empty row struct
+// CreateTempRow builds an empty row struct which cannot be used until passed to a function which populates it with data
 func CreateTempRow() sif.Row {
 	return &rowImpl{}
 }

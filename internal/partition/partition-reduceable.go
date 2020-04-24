@@ -51,6 +51,29 @@ func (p *partitionImpl) FindFirstKey(key uint64) (int, error) {
 	return l, errors.MissingKeyError{}
 }
 
+// FindLastKey locates the last instance of a uint64 key within a sorted Partition,
+// returning the LAST index of the key in the Partition, or an error
+// if it isn't found along with the location the key should be
+// inserted at.
+// PRECONDITION: Partition must already be sorted by key
+func (p *partitionImpl) FindLastKey(key uint64) (int, error) {
+	firstKey, err := p.FindFirstKey(key) // this will error with missing key if it doesn't exist
+	if err != nil {
+		return firstKey, err
+	}
+	lastKey := firstKey
+	// iterate over each row with a matching key to find the last one with identical key bytes
+	for i := firstKey + 1; i < p.GetNumRows(); i++ {
+		if k, err := p.GetKey(i); err != nil {
+			return -1, err
+		} else if k != key {
+			break // current key isn't the same, break out
+		}
+		lastKey = i
+	}
+	return lastKey, nil
+}
+
 // FindFirstRowKey locates the first instance of a uint64 key within a sorted Partition,
 // then uses a KeyingOperation to find the actual row whose key bytes match
 // a specific set of key bytes used to produce the uint64 key. If the key does not

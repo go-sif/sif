@@ -33,6 +33,7 @@ type ReduceablePartition interface {
 	sif.BuildablePartition
 	sif.KeyablePartition
 	FindFirstKey(key uint64) (int, error)                                              // PRECONDITION: Partition must already be sorted by key
+	FindLastKey(key uint64) (int, error)                                               // PRECONDITION: Partition must already be sorted by key
 	FindFirstRowKey(keyBuf []byte, key uint64, keyfn sif.KeyingOperation) (int, error) // PRECONDITION: Partition must already be sorted by key
 	FindLastRowKey(keyBuf []byte, key uint64, keyfn sif.KeyingOperation) (int, error)  // PRECONDITION: Partition must already be sorted by key
 	AverageKeyValue() (uint64, error)                                                  // AverageKeyValue is the average value of key within this sorted, keyed Partition

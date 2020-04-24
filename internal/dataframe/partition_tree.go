@@ -93,7 +93,8 @@ func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn si
 		return err
 	}
 	// Once we have the correct partition, find the last row with matching key in it
-	idx, err := partNode.part.FindLastRowKey(keyBuf, hashedKey, keyfn)
+	// idx, err := partNode.part.FindLastRowKey(keyBuf, hashedKey, keyfn)
+	idx, err := partNode.part.FindLastKey(hashedKey)
 	if idx < 0 {
 		// something went wrong while locating the insert/merge position
 		return err

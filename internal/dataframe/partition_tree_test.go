@@ -111,7 +111,9 @@ func TestMergeRow(t *testing.T) {
 	hasher := xxhash.New()
 	hasher.Write(keyBuf)
 	hashedKey := hasher.Sum64()
-	idx, err := root.part.FindFirstRowKey(keyBuf, hashedKey, pTreeTestKeyer)
+	// uncomment if true key matching ends up being important
+	// idx, err := root.part.FindFirstRowKey(keyBuf, hashedKey, pTreeTestKeyer)
+	idx, err := root.part.FindFirstKey(hashedKey)
 	require.Nil(t, err)
 	// Test value is correct
 	val, err := root.part.GetRow(idx).GetByte("val")

@@ -63,25 +63,24 @@ func (p *partitionImpl) FindFirstRowKey(keyBuf []byte, key uint64, keyfn sif.Key
 	if err != nil {
 		return firstKey, err
 	}
-	// Uncomment if actual key comparison is essential
 	// iterate over each row with a matching key to find the first one with identical key bytes
-	// for i := firstKey; i < p.GetNumRows(); i++ {
-	// 	if k, err := p.GetKey(i); err != nil || k != key {
-	// 		return -1, err
-	// 	}
-	// 	rowKey, err := keyfn(&rowImpl{
-	// 		meta:              p.GetRowMeta(i),
-	// 		data:              p.GetRowData(i),
-	// 		varData:           p.GetVarRowData(i),
-	// 		serializedVarData: p.GetSerializedVarRowData(i),
-	// 		schema:            p.GetCurrentSchema(),
-	// 	})
-	// 	if err != nil {
-	// 		return -1, err
-	// 	} else if reflect.DeepEqual(keyBuf, rowKey) {
-	// 		return i, nil
-	// 	}
-	// }
+	for i := firstKey; i < p.GetNumRows(); i++ {
+		if k, err := p.GetKey(i); err != nil || k != key {
+			return -1, err
+		}
+		rowKey, err := keyfn(&rowImpl{
+			meta:              p.GetRowMeta(i),
+			data:              p.GetRowData(i),
+			varData:           p.GetVarRowData(i),
+			serializedVarData: p.GetSerializedVarRowData(i),
+			schema:            p.GetCurrentSchema(),
+		})
+		if err != nil {
+			return -1, err
+		} else if reflect.DeepEqual(keyBuf, rowKey) {
+			return i, nil
+		}
+	}
 	return firstKey, nil
 }
 

@@ -26,12 +26,11 @@ func (p *partitionImpl) CanInsertRowData(row []byte) error {
 
 // AppendEmptyRowData is a convenient way to add an empty Row to the end of this Partition, returning the Row so that Row methods can be used to populate it
 func (p *partitionImpl) AppendEmptyRowData() (sif.Row, error) {
-	newRowNum := p.numRows
-	err := p.AppendRowData([]byte{0}, []byte{0}, make(map[string]interface{}), make(map[string][]byte))
-	if err != nil {
-		return nil, err
+	if p.numRows >= p.maxRows {
+		return nil, errors.PartitionFullError{}
 	}
-	return p.GetRow(newRowNum), nil
+	p.numRows++
+	return p.GetRow(p.numRows - 1), nil
 }
 
 // AppendRowData adds a Row to the end of this Partition, if it isn't full and if the Row fits within the schema

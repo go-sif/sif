@@ -61,7 +61,7 @@ func TestMergeRow(t *testing.T) {
 
 	// add the first row
 	row := partition.CreateRow([]byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-	err := root.mergeRow(row, pTreeTestKeyer, pTreeTestReducer)
+	err := root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.NotNil(t, root.part)
 	require.Nil(t, root.parent)
@@ -74,7 +74,7 @@ func TestMergeRow(t *testing.T) {
 
 	// add another distinct row
 	row = partition.CreateRow([]byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-	err = root.mergeRow(row, pTreeTestKeyer, pTreeTestReducer)
+	err = root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.NotNil(t, root.part)
 	require.Nil(t, root.parent)
@@ -87,7 +87,7 @@ func TestMergeRow(t *testing.T) {
 
 	// add a merge row
 	row = partition.CreateRow([]byte{0, 0}, []byte{1, 2}, make(map[string]interface{}), make(map[string][]byte), schema)
-	err = root.mergeRow(row, pTreeTestKeyer, pTreeTestReducer)
+	err = root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.NotNil(t, root.part)
 	require.Nil(t, root.parent)
@@ -126,9 +126,10 @@ func TestMergeRowWithSplit(t *testing.T) {
 	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
 
+	tempRow := partition.CreateTempRow()
 	for i := byte(0); i < byte(6); i++ {
 		row := partition.CreateRow([]byte{0, 0}, []byte{i, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-		err := root.mergeRow(row, pTreeTestKeyer, pTreeTestReducer)
+		err := root.mergeRow(tempRow, row, pTreeTestKeyer, pTreeTestReducer)
 		require.Nil(t, err)
 	}
 	require.Nil(t, root.part)
@@ -149,9 +150,10 @@ func TestMergeRowWithRotate(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
+	tempRow := partition.CreateTempRow()
 	for i := 0; i < 8; i++ {
 		row := partition.CreateRow([]byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-		err := root.mergeRow(row, pTreeTestKeyer, nil)
+		err := root.mergeRow(tempRow, row, pTreeTestKeyer, nil)
 		require.Nil(t, err)
 	}
 	require.Nil(t, root.part)
@@ -169,7 +171,7 @@ func TestMergeRowWithRotate(t *testing.T) {
 	// add more rows with a different key, and check that they're sorted properly
 	for i := 0; i < 8; i++ {
 		row := partition.CreateRow([]byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-		err := root.mergeRow(row, pTreeTestKeyer, nil)
+		err := root.mergeRow(tempRow, row, pTreeTestKeyer, nil)
 		require.Nil(t, err)
 	}
 	lastKey := uint64(0)

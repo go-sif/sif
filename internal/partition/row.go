@@ -34,6 +34,21 @@ func CreateRow(meta []byte, data []byte, varData map[string]interface{}, seriali
 	return &rowImpl{meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
 }
 
+// CreateTempRow builds an empty row struct
+func CreateTempRow() sif.Row {
+	return &rowImpl{}
+}
+
+// PopulateTempRow overwrites the internal data of a temporary row
+func PopulateTempRow(row sif.Row, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) {
+	r := row.(*rowImpl)
+	r.meta = meta
+	r.data = data
+	r.varData = varData
+	r.serializedVarData = serializedVarData
+	r.schema = schema
+}
+
 // Schema returns a read-only copy of the schema for a row
 func (r *rowImpl) Schema() sif.Schema {
 	return r.schema.Clone() // TODO expensive but safe?

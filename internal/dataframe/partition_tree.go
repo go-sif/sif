@@ -61,8 +61,9 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageWide
 
 // mergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
 func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
+	tempRow := partition.CreateTempRow()
 	return part.ForEachRow(func(row sif.Row) error {
-		if err := t.mergeRow(row, keyfn, reducefn); err != nil {
+		if err := t.mergeRow(tempRow, row, keyfn, reducefn); err != nil {
 			return err
 		}
 		return nil
@@ -72,7 +73,7 @@ func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn sif.Ke
 // mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation
 // and a ReductionOperation, inserting if necessary. if the ReductionOperation is nil,
 // then the row is simply inserted
-func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
+func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	// compute key for row
 	keyBuf, err := keyfn(row)
 	if err != nil {
@@ -123,7 +124,7 @@ func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn si
 				return err
 			}
 			// recurse using this correct subtree to save time
-			return nextNode.mergeRow(row, keyfn, reducefn)
+			return nextNode.mergeRow(tempRow, row, keyfn, reducefn)
 		} else if !ok && insertErr != nil {
 			return insertErr
 		}
@@ -133,14 +134,15 @@ func (t *pTreeRoot) mergeRow(row sif.Row, keyfn sif.KeyingOperation, reducefn si
 		return err
 	} else {
 		// If the actual key already exists in the partition, merge into row
-		target := partition.CreateRow(
+		partition.PopulateTempRow(
+			tempRow,
 			partNode.part.GetRowMeta(idx),
 			partNode.part.GetRowData(idx),
 			partNode.part.GetVarRowData(idx),
 			partNode.part.GetSerializedVarRowData(idx),
 			partNode.part.GetCurrentSchema(),
 		)
-		return reducefn(target, row)
+		return reducefn(tempRow, row)
 	}
 	return nil
 }

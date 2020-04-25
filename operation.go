@@ -3,6 +3,9 @@ package sif
 // RowFactory is a function that produces a fresh Row. Used specifically within a FlatMapOperation, a RowFactory gives the client a mechanism to return more Rows than were originally within a Partition.
 type RowFactory func() Row
 
+// AccumulatorFactory is a function that produces a fresh Accumulator
+type AccumulatorFactory func() Accumulator
+
 // DataFrameOperation - A generic DataFrame transform, returning a Task that performs the "work", a string representation of the Task, and a (potentially) altered Schema.
 type DataFrameOperation func(df DataFrame) (Task, TaskType, Schema, error)
 

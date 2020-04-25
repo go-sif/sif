@@ -184,7 +184,7 @@ func TestNYCTaxi(t *testing.T) {
 	require.NotNil(t, res)
 
 	// rasterize result
-	for _, part := range res {
+	for _, part := range res.Collected {
 		require.Equal(t, 1, part.GetNumRows())
 		row := part.GetRow(0)
 		heatmapData, err := row.GetVarCustomData("heatmap")

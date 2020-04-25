@@ -10,7 +10,7 @@ import (
 )
 
 // LocalRunFrame runs a Dataframe on a localhost test cluster with a certain number of workers
-func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeOptions, numWorkers int) (result map[string]sif.CollectedPartition, err error) {
+func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeOptions, numWorkers int) (result *cluster.Result, err error) {
 	// handle panics
 	defer func() {
 		if r := recover(); r != nil {

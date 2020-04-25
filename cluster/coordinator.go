@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net"
@@ -84,7 +85,7 @@ func (c *coordinator) Stop() error {
 }
 
 // Run a DataFrame Plan within this cluster
-func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
+func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	c.bootstrappingLock.Lock()
 	defer c.bootstrappingLock.Unlock()
 
@@ -151,17 +152,31 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 			stage := planExecutor.GetNextStage()
 			runShuffle := stage.EndsInShuffle()
 			prepCollect := stage.EndsInCollect()
+			prepAccumulate := stage.EndsInAccumulate()
 			shuffleBuckets := computeShuffleBuckets(workers)
 			wg.Add(len(workers))
 			for i := range workers {
-				go asyncRunStage(ctx, stage, workers[i], workerConns[i], runShuffle, prepCollect, shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
+				go asyncRunStage(ctx, stage, workers[i], workerConns[i], runShuffle, prepAccumulate, prepCollect, shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
 			}
 			// wait for all the workers to finish the stage
 			if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 				return nil, err
 			}
-			// If we need to run a collect, then trigger that
-			if prepCollect {
+			if prepAccumulate { // If we need to run an accumulate
+				asyncErrors = iutil.CreateAsyncErrorChannel()
+				// run collect
+				wg.Add(len(workers))
+				accumulated := stage.Accumulator()
+				var accumulatedLock sync.Mutex
+				for i := range workers {
+					go asyncRunAccumulate(ctx, workers[i], workerConns[i], accumulated, &accumulatedLock, &wg, asyncErrors)
+				}
+				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
+					return nil, err
+				}
+				// TODO how to return accumulator?
+				return &Result{Accumulated: accumulated}, nil
+			} else if prepCollect { // If we need to run a collect, then trigger that
 				asyncErrors = iutil.CreateAsyncErrorChannel()
 				// run collect
 				wg.Add(len(workers))
@@ -169,12 +184,12 @@ func (c *coordinator) Run(ctx context.Context) (map[string]sif.CollectedPartitio
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
 				var collectedLock sync.Mutex
 				for i := range workers {
-					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, workers, stage.FinalSchema(), stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
+					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.FinalSchema(), stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err
 				}
-				return collected, nil
+				return &Result{Collected: collected}, nil
 			}
 		}
 	}
@@ -241,13 +256,21 @@ func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.M
 	// TODO do something with response
 }
 
-func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepCollect bool, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepAccumulate bool, prepCollect bool, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Trigger remote stage execution
 	log.Printf("Asking worker %s to run stage %d", w.Id, s.ID())
 	executionClient := pb.NewExecutionServiceClient(conn)
-	req := &pb.MRunStageRequest{StageId: int32(s.ID()), RunShuffle: runShuffle, PrepCollect: prepCollect, AssignedBucket: assignedBucket, Buckets: shuffleBuckets, Workers: workers}
+	req := &pb.MRunStageRequest{
+		StageId:        int32(s.ID()),
+		RunShuffle:     runShuffle,
+		PrepCollect:    prepCollect,
+		PrepAccumulate: prepAccumulate,
+		AssignedBucket: assignedBucket,
+		Buckets:        shuffleBuckets,
+		Workers:        workers,
+	}
 	_, err := executionClient.RunStage(ctx, req)
 	if err != nil {
 		errors <- fmt.Errorf("Something went wrong while running stage %d on worker %s: %v", s.ID(), w.Id, err)
@@ -256,7 +279,49 @@ func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor,
 	// TODO do something with response
 }
 
-func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, currentSchema sif.Schema, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunAccumulate(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, accumulator sif.Accumulator, accumulatedLock *sync.Mutex, wg *sync.WaitGroup, errors chan<- error) {
+	defer wg.Done()
+	// Grab accumulators from workers
+	log.Printf("Asking worker %s to supply prepared accumulator", w.Id)
+	partitionClient := pb.NewPartitionsServiceClient(conn)
+	for {
+		req := &pb.MShuffleAccumulatorRequest{}
+		res, err := partitionClient.ShuffleAccumulator(ctx, req)
+		if err != nil {
+			errors <- fmt.Errorf("Something went wrong while running shuffling accumulator from worker %s: %v", w.Id, err)
+			return
+		} else if res.GetReady() {
+			transferReq := &pb.MTransferAccumulatorDataRequest{}
+			buf := make([]byte, 0, res.GetTotalSizeBytes())
+			stream, err := partitionClient.TransferAccumulatorData(ctx, transferReq)
+			if err != nil {
+				errors <- err
+				return
+			}
+			for chunk, err := stream.Recv(); err != io.EOF; chunk, err = stream.Recv() {
+				if err != nil {
+					errors <- err
+					return
+				}
+				buf = append(buf, chunk.Data...)
+			}
+			inAcc, err := accumulator.FromBytes(buf)
+			accumulatedLock.Lock()
+			defer accumulatedLock.Unlock()
+			err = accumulator.Merge(inAcc)
+			if err != nil {
+				errors <- err
+				return
+			}
+			return
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+}
+
+func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, currentSchema sif.Schema, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Collect from worker

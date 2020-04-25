@@ -170,6 +170,10 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 	currentStageID := pe.GetCurrentStage().ID()
 	parts := pe.GetPartitionSource()
 
+	if req.PrepAccumulate && pe.accumulator == nil {
+		pe.accumulator = pe.GetCurrentStage().Accumulator()
+	}
+
 	for parts.HasNextPartition() {
 		part, err := parts.NextPartition()
 		if _, ok := err.(errors.NoMorePartitionsError); ok {
@@ -196,9 +200,6 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 					return err
 				}
 			} else if req.PrepAccumulate {
-				if pe.accumulator == nil {
-					pe.accumulator = pe.GetCurrentStage().Accumulator()
-				}
 				err = pe.PrepareAccumulate(newPart)
 				if err := onRowError(err); err != nil {
 					return err

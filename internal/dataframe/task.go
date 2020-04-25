@@ -16,6 +16,12 @@ type collectionTask interface {
 	GetCollectionLimit() int64
 }
 
+// A accumulationTask is a task that represents a user-defined aggregation
+type accumulationTask interface {
+	sif.Task
+	GetAccumulatorFactory() sif.AccumulatorFactory
+}
+
 // noOpTask is a task that does nothing
 type noOpTask struct{}
 

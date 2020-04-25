@@ -33,7 +33,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 	nextID := 0
 	stages := []*stageImpl{createStage(nextID)}
 	nextID++
-	for _, f := range frames {
+	for i, f := range frames {
 		currentStage := stages[len(stages)-1]
 		currentStage.frames = append(currentStage.frames, f)
 		if len(stages) > 1 {
@@ -57,7 +57,20 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			if len(currentStage.frames) == 0 {
 				log.Panicf("Repack cannot be the first Task in a DataFrame")
 			}
+		} else if f.taskType == sif.AccumulateTaskType {
+			aTask, ok := f.task.(accumulationTask)
+			if !ok {
+				log.Panicf("taskType is AccumulateTaskType but Task is not an accumulationTask. Task is misdefined.")
+			}
+			currentStage.SetAccumulator(aTask.GetAccumulatorFactory()())
+			if i+1 < len(frames) {
+				log.Panicf("No tasks can follow an Accumulate()")
+			}
+			break // no tasks can come after an accumulation
 		} else if f.taskType == sif.CollectTaskType {
+			if i+1 < len(frames) {
+				log.Panicf("No tasks can follow a Collect()")
+			}
 			break // no tasks can come after a collect
 		}
 	}

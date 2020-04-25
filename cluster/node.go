@@ -22,6 +22,12 @@ const (
 	Worker NodeRole = "worker"
 )
 
+// Result represents the result of a job, which may either be nil, an Accumulator or a set of CollectedPartitions
+type Result struct {
+	Accumulated sif.Accumulator
+	Collected   map[string]sif.CollectedPartition
+}
+
 // Node is a member of a Sif cluster, either coordinating or performing work.
 // Nodes present several methods to control their lifecycle.
 type Node interface {
@@ -29,7 +35,7 @@ type Node interface {
 	Start(sif.DataFrame) error
 	GracefulStop() error
 	Stop() error
-	Run(ctx context.Context) (map[string]sif.CollectedPartition, error)
+	Run(ctx context.Context) (*Result, error)
 }
 
 // NodeOptions are options for a Node, configuring elements of a Sif cluster

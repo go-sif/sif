@@ -303,6 +303,29 @@ frame, err := frame.To(
 // ...
 ```
 
+#### Accumulation
+
+Sif `Accumulator`s are an alternative mechanism for reduction, which offers full customization of reduciton technique, in exchange for accumulation ending a `sif` pipeline. In exchange for losing the ability to further transform and reduce data, `Accumulator`s offer the potential for significant performance benefits.
+
+Sif offers built-in `Accumulators` in the `accumulators` package.
+
+For example, we can use `accumulators.Counter` to efficiently count records:
+
+```go
+// ...
+frame, err := frame.To(
+	util.Accumulate(accumulators.Counter)
+)
+// ...
+// In this case, node.Run returns an Accumulator, which can be
+// manipulated on the Coordinator node.
+result, err := node.Run(context.Background())
+if node.IsCoordinator() {
+	res, _ = result.Accumulator.(accumulators.Count)
+	// Do something with res.GetCount()
+}
+```
+
 #### Collection
 
 Collection is the process of pulling results from distributed data back to the `Coordinator` for local processing. This is not generally encouraged - rather, it is best if `Worker`s write their results directly to an output destination. But, it is occasionally useful, such as in the writing of tests:
@@ -330,7 +353,7 @@ frame, err := frame.To(
 // manipulated on the Coordinator node.
 result, err := node.Run(context.Background())
 if node.IsCoordinator() {
-	err = result.ForEachRow(func(row sif.Row) error {
+	err = result.Collected.ForEachRow(func(row sif.Row) error {
 		// Do something with results
 	})
 }

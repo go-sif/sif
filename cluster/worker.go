@@ -167,7 +167,7 @@ func (w *worker) Stop() error {
 }
 
 // Run is a no-op for workers, blocking until worker is shut down
-func (w *worker) Run(ctx context.Context) (map[string]sif.CollectedPartition, error) {
+func (w *worker) Run(ctx context.Context) (*Result, error) {
 	// Run should block until execution is complete
 	w.jobFinishedWg.Lock()
 	log.Printf("[%s] Finished worker Run()", w.ID())

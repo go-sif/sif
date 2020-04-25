@@ -13,9 +13,10 @@ import (
 )
 
 type partitionServer struct {
-	planExecutor itypes.PlanExecutor
-	cache        map[string]itypes.TransferrablePartition
-	cacheLock    sync.Mutex
+	planExecutor          itypes.PlanExecutor
+	cache                 map[string]itypes.TransferrablePartition
+	cacheLock             sync.Mutex
+	serializedAccumulator []byte
 }
 
 // createPartitionServer creates a new partitionServer
@@ -31,7 +32,7 @@ func (s *partitionServer) AssignPartition(ctx context.Context, req *pb.MAssignPa
 
 // ShufflePartition receives a request from another partitionServer, asking for a
 // partition which belongs on the requester but exists on this server. The response
-// contains a single partition if one is available to shuffle, along with a bool
+// contains metadata for a single partition if one is available to shuffle, along with a bool
 // indicating whether or not another one is available.
 func (s *partitionServer) ShufflePartition(ctx context.Context, req *pb.MShufflePartitionRequest) (*pb.MShufflePartitionResponse, error) {
 	if !s.planExecutor.IsShuffleReady() {
@@ -53,6 +54,26 @@ func (s *partitionServer) ShufflePartition(ctx context.Context, req *pb.MShuffle
 	s.cache[part.ID()] = tpart
 	s.cacheLock.Unlock()
 	return &pb.MShufflePartitionResponse{Ready: true, HasNext: pi.HasNextPartition(), Part: tpart.ToMetaMessage()}, nil
+}
+
+// ShuffleAccumulator shuffles an Accumulator
+func (s *partitionServer) ShuffleAccumulator(ctx context.Context, req *pb.MShuffleAccumulatorRequest) (*pb.MShuffleAccumulatorResponse, error) {
+	if !s.planExecutor.IsAccumulatorReady() {
+		return &pb.MShuffleAccumulatorResponse{Ready: false}, nil
+	}
+	acc := s.planExecutor.GetAccumulator()
+	if acc == nil {
+		return nil, fmt.Errorf("Accumulator marked as ready, but is not available")
+	}
+	serializedAccumulator, err := acc.ToBytes()
+	s.serializedAccumulator = serializedAccumulator
+	if err != nil {
+		return nil, fmt.Errorf("Unable to serialize Accumulator for transfer to coordinator")
+	}
+	return &pb.MShuffleAccumulatorResponse{
+		Ready:          true,
+		TotalSizeBytes: int32(len(s.serializedAccumulator)),
+	}, nil
 }
 
 // TransferPartitionData streams Partition data from the cache to the requester
@@ -153,6 +174,30 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 				DataType: iutil.KeyDataType,
 			})
 		}
+	}
+	return nil
+}
+
+// TransferPartitionData streams Accumulator data from the planExecutor to the requester
+func (s *partitionServer) TransferAccumulatorData(req *pb.MTransferAccumulatorDataRequest, stream pb.PartitionsService_TransferAccumulatorDataServer) error {
+	// 16-64kb is the ideal stream chunk size according to https://jbrandhorst.com/post/grpc-binary-blob-stream/
+	maxChunkBytes := 63 * 1024 // leave room for 1kb of other things
+	// transfer accumulator data
+	if s.serializedAccumulator == nil {
+		return fmt.Errorf("Unable to transfer accumulator data because accumulator is not ready for transfer")
+	}
+	for i := 0; i < len(s.serializedAccumulator); i += maxChunkBytes {
+		end := i + maxChunkBytes
+		if end > len(s.serializedAccumulator) {
+			end = len(s.serializedAccumulator)
+		}
+		chunk := s.serializedAccumulator[i:end]
+		if len(chunk) == 0 {
+			break
+		}
+		stream.Send(&pb.MAccumulatorChunk{
+			Data: chunk,
+		})
 	}
 	return nil
 }

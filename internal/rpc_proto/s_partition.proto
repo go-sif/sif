@@ -8,7 +8,9 @@ option go_package = "rpc";
 service PartitionsService {
     rpc AssignPartition (MAssignPartitionRequest) returns (MAssignPartitionResponse) {}
     rpc ShufflePartition (MShufflePartitionRequest) returns (MShufflePartitionResponse) {}
+    rpc ShuffleAccumulator (MShuffleAccumulatorRequest) returns (MShuffleAccumulatorResponse) {}
     rpc TransferPartitionData (MTransferPartitionDataRequest) returns (stream MPartitionChunk) {}
+    rpc TransferAccumulatorData (MTransferAccumulatorDataRequest) returns (stream MAccumulatorChunk) {}
 }
 
 message MAssignPartitionRequest {
@@ -48,6 +50,21 @@ message MPartitionChunk {
     string varDataColName = 5;
     int32 totalSizeBytes = 6;
     int32 append = 7;
+}
+
+message MShuffleAccumulatorRequest {
+}
+
+message MShuffleAccumulatorResponse {
+    bool ready = 1;
+    int32 totalSizeBytes = 2;
+}
+
+message MTransferAccumulatorDataRequest {
+}
+
+message MAccumulatorChunk {
+    bytes data = 1;
 }
 
 // Intended for disk serialization, not transmission

@@ -12,6 +12,8 @@ const (
 	RepackTaskType TaskType = "repack"
 	// ShuffleTaskType indicates that this task triggers a Shuffle
 	ShuffleTaskType TaskType = "shuffle"
+	// AccumulateTaskType indicates that this task triggers an Accumulation
+	AccumulateTaskType TaskType = "accumulate"
 	// FlatMapTaskType indicates that this task triggers a FlatMap
 	FlatMapTaskType TaskType = "flatmap"
 	// MapTaskType indicates that this task triggers a Map

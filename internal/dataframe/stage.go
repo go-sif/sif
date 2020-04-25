@@ -16,6 +16,7 @@ type stageImpl struct {
 	frames              []*dataFrameImpl
 	keyFn               sif.KeyingOperation
 	reduceFn            sif.ReductionOperation
+	accumulator         sif.Accumulator
 	targetPartitionSize int
 }
 
@@ -28,6 +29,7 @@ func createStage(nextID int) *stageImpl {
 		frames:              []*dataFrameImpl{},
 		keyFn:               nil,
 		reduceFn:            nil,
+		accumulator:         nil,
 		targetPartitionSize: -1,
 	}
 	nextID++
@@ -92,6 +94,11 @@ func (s *stageImpl) WorkerExecute(part sif.OperablePartition) ([]sif.OperablePar
 	return prev, nil
 }
 
+// EndsInAccumulate returns true iff this Stage ends with an accumulation task
+func (s *stageImpl) EndsInAccumulate() bool {
+	return len(s.frames) > 0 && s.frames[len(s.frames)-1].taskType == sif.AccumulateTaskType
+}
+
 // EndsInShuffle returns true iff this Stage ends with a reduction task
 func (s *stageImpl) EndsInShuffle() bool {
 	return len(s.frames) > 0 && s.frames[len(s.frames)-1].taskType == sif.ShuffleTaskType
@@ -132,6 +139,16 @@ func (s *stageImpl) ReductionOperation() sif.ReductionOperation {
 // Configure the reduction operation for the end of this stage
 func (s *stageImpl) SetReductionOperation(reduceFn sif.ReductionOperation) {
 	s.reduceFn = reduceFn
+}
+
+// Accumulator retrieves the Accumulator for this Stage (if it exists)
+func (s *stageImpl) Accumulator() sif.Accumulator {
+	return s.accumulator
+}
+
+// Configure the accumulator for the end of this stage
+func (s *stageImpl) SetAccumulator(acc sif.Accumulator) {
+	s.accumulator = acc
 }
 
 // TargetPartitionSize retrieves the TargetPartitionSize for this Stage (if it exists)

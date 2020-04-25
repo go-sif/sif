@@ -65,8 +65,8 @@ func TestReduce(t *testing.T) {
 	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{}, 2)
 	require.Nil(t, err)
 	require.NotNil(t, res)
-	require.Equal(t, 1, len(res))
-	for _, part := range res {
+	require.Equal(t, 1, len(res.Collected))
+	for _, part := range res.Collected {
 		require.Equal(t, 1, part.GetNumRows())
 		row := part.GetRow(0)
 		count, err := row.GetInt32("count")

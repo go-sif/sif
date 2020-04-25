@@ -30,6 +30,8 @@ type planExecutorImpl struct {
 	shuffleIteratorsLock sync.Mutex
 	collectCache         map[string]sif.Partition // staging area used for collection when there has been no shuffle
 	collectCacheLock     sync.Mutex
+	accumulateReady      bool
+	accumulator          sif.Accumulator // staging area for accumulator
 	statsTracker         *itypes.RunStatistics
 }
 
@@ -132,6 +134,7 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 		pe.shuffleTrees = make(map[uint64]*pTreeRoot)
 		pe.shuffleIterators = make(map[uint64]sif.PartitionIterator)
 		pe.shuffleReady = false
+		pe.accumulateReady = false
 		pe.shuffleTreesLock.Unlock()
 	}
 	return parts
@@ -140,6 +143,11 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 // IsShuffleReady returns true iff a shuffle has been prepared in this planExecutor's shuffle trees
 func (pe *planExecutorImpl) IsShuffleReady() bool {
 	return pe.shuffleReady
+}
+
+// IsAccumulatorReady returns true iff an Accumulator has been prepared in this planExecutor
+func (pe *planExecutorImpl) IsAccumulatorReady() bool {
+	return pe.accumulateReady
 }
 
 // AssignPartitionLoader assigns a serialized PartitionLoader to this executor
@@ -187,6 +195,14 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 				if err := onRowError(err); err != nil {
 					return err
 				}
+			} else if req.PrepAccumulate {
+				if pe.accumulator == nil {
+					pe.accumulator = pe.GetCurrentStage().Accumulator()
+				}
+				err = pe.PrepareAccumulate(newPart)
+				if err := onRowError(err); err != nil {
+					return err
+				}
 			} else if req.PrepCollect {
 				tNewPart := newPart.(itypes.TransferrablePartition)
 				if pe.collectCache[tNewPart.ID()] != nil {
@@ -202,8 +218,18 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 	}
 	if req.RunShuffle || req.PrepCollect {
 		pe.shuffleReady = true
+	} else if req.PrepAccumulate {
+		pe.accumulateReady = true
 	}
 	return nil
+}
+
+// PrepareAccumulate accumulates records into an Accumulator
+func (pe *planExecutorImpl) PrepareAccumulate(part sif.OperablePartition) error {
+	_, err := part.MapRows(func(row sif.Row) error {
+		return pe.accumulator.Accumulate(row)
+	})
+	return err
 }
 
 // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
@@ -273,6 +299,11 @@ func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (sif.Part
 		pe.shuffleIterators[bucket] = createPTreeIterator(pe.shuffleTrees[bucket], true)
 	}
 	return pe.shuffleIterators[bucket], nil
+}
+
+// GetAccumulator returns this plan executor's Accumulator, if any
+func (pe *planExecutorImpl) GetAccumulator() sif.Accumulator {
+	return pe.accumulator
 }
 
 // AcceptShuffledPartition receives a Partition that belongs on this worker and merges it into the local shuffle tree

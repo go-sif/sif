@@ -54,8 +54,8 @@ func TestRepartition(t *testing.T) {
 	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{}, 1)
 	require.Nil(t, err)
 	require.NotNil(t, res)
-	require.Equal(t, 2, len(res))
-	for _, part := range res {
+	require.Equal(t, 2, len(res.Collected))
+	for _, part := range res.Collected {
 		require.Equal(t, 10, part.GetMaxRows())
 		require.Equal(t, 10, part.GetNumRows())
 		var lastVal string

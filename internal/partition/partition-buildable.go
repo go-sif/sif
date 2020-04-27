@@ -103,3 +103,22 @@ func (p *partitionImpl) InsertKeyedRowData(row []byte, meta []byte, varData map[
 	p.keys[pos] = key
 	return nil
 }
+
+// TruncateRowData zeroes out rows from the current last row towards the beginning of the Partition
+func (p *partitionImpl) TruncateRowData(numRows int) {
+	start := p.GetNumRows() - numRows
+	end := p.GetNumRows()
+	rowWidth := p.widestSchema.Size()
+	// zero out row data
+	for i := start * rowWidth; i < end*rowWidth; i++ {
+		p.rows[i] = 0
+	}
+	for i := start; i < end; i++ {
+		p.varRowData[i] = nil
+		p.serializedVarRowData[i] = nil
+		p.rowMeta[i] = 0
+		if p.isKeyed {
+			p.keys[i] = 0
+		}
+	}
+}

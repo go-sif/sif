@@ -46,7 +46,7 @@ func SafeFilterOperation(filterOp sif.FilterOperation) (safeFilterOp sif.FilterO
 
 // SafeFlatMapOperation wraps a FlatMapOperation such that panics are recovered and nice error messages are constructed
 func SafeFlatMapOperation(flatMapOp sif.FlatMapOperation) (safeFlatMapOp sif.FlatMapOperation) {
-	return func(row sif.Row, newRow sif.RowFactory) (result []sif.Row, err error) {
+	return func(row sif.Row, newRow sif.RowFactory) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				if anErr, ok := r.(error); ok {
@@ -58,7 +58,7 @@ func SafeFlatMapOperation(flatMapOp sif.FlatMapOperation) (safeFlatMapOp sif.Fla
 				err = fmt.Errorf("FlatMap Error: %w\nRow: %s", err, row.ToString())
 			}
 		}()
-		result, err = flatMapOp(row, newRow)
+		err = flatMapOp(row, newRow)
 		return
 	}
 }

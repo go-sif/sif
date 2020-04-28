@@ -366,12 +366,12 @@ func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	vcol, ok := offset.Type().(sif.VarColumnType)
+	if !ok {
+		return nil, fmt.Errorf("Column %s is not a VarColumnType", colName)
+	}
 	// deserialize serialized data if present
 	if ser, ok := r.serializedVarData[colName]; ok {
-		vcol, ok := offset.Type().(sif.VarColumnType)
-		if !ok {
-			return nil, fmt.Errorf("Column %s is not a VarColumnType", colName)
-		}
 		deser, err := vcol.Deserialize(ser)
 		if err != nil {
 			return nil, err

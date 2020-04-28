@@ -92,10 +92,12 @@ func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 // ToMetaMessage serializes metadata about this Partition to a protobuf message
 func (p *partitionImpl) ToMetaMessage() *pb.MPartitionMeta {
 	return &pb.MPartitionMeta{
-		Id:      p.id,
-		NumRows: uint32(p.numRows),
-		MaxRows: uint32(p.maxRows),
-		IsKeyed: p.isKeyed,
+		Id:        p.id,
+		NumRows:   uint32(p.numRows),
+		MaxRows:   uint32(p.maxRows),
+		IsKeyed:   p.isKeyed,
+		RowBytes:  uint32(len(p.rows)),
+		MetaBytes: uint32(len(p.rowMeta)),
 	}
 }
 
@@ -140,8 +142,6 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 	// confirm we received the correct number of rows
 	if p.numRows != rowOffset/incomingSchema.Size() {
 		return fmt.Errorf("Streamed %d rows for Partition %s. Expected %d", rowOffset/incomingSchema.Size(), p.id, p.numRows)
-	} else if incomingSchema.NumFixedLengthColumns() > 0 && p.numRows != metaOffset/incomingSchema.NumColumns() {
-		return fmt.Errorf("Streamed %d rows' metadata for Partition %s. Expected %d", metaOffset/incomingSchema.NumColumns(), p.id, p.numRows)
 	} else if p.isKeyed && p.numRows != keyOffset {
 		return fmt.Errorf("Streamed %d keys for Partition %s. Expected %d", keyOffset, p.id, p.numRows)
 	}
@@ -149,16 +149,16 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 }
 
 // FromMetaMessage deserializes a Partition from a protobuf message
-func FromMetaMessage(m *pb.MPartitionMeta, widestSchema sif.Schema, currentSchema sif.Schema) itypes.TransferrablePartition {
+func FromMetaMessage(m *pb.MPartitionMeta, currentSchema sif.Schema) itypes.TransferrablePartition {
 	part := &partitionImpl{
 		m.Id,
 		int(m.MaxRows),
 		int(m.NumRows),
-		make([]byte, int(m.MaxRows)*widestSchema.Size()),
-		make([]map[string]interface{}, int(m.MaxRows)*widestSchema.Size()),
-		make([]map[string][]byte, int(m.MaxRows)*widestSchema.Size()),
-		make([]byte, int(m.MaxRows)*widestSchema.NumColumns()),
-		widestSchema,
+		make([]byte, m.GetRowBytes()),
+		make([]map[string]interface{}, int(m.MaxRows)),
+		make([]map[string][]byte, int(m.MaxRows)),
+		make([]byte, m.GetMetaBytes()),
+		currentSchema,
 		currentSchema,
 		nil,
 		m.IsKeyed,

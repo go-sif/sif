@@ -184,7 +184,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
 				var collectedLock sync.Mutex
 				for i := range workers {
-					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.FinalSchema(), stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
+					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err
@@ -321,7 +321,7 @@ func asyncRunAccumulate(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc
 	}
 }
 
-func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, currentSchema sif.Schema, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Collect from worker
@@ -335,7 +335,7 @@ func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 			return
 		} else if res.Part != nil {
 			if collectionLimit.TryAcquire(1) {
-				part := partition.FromMetaMessage(res.Part, incomingSchema, currentSchema)
+				part := partition.FromMetaMessage(res.Part, incomingSchema)
 				transferReq := &pb.MTransferPartitionDataRequest{Id: res.Part.Id}
 				stream, err := partitionClient.TransferPartitionData(ctx, transferReq)
 				if err != nil {

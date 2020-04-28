@@ -50,33 +50,44 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 // FlatMapRows runs a FlatMapOperation on each row in this Partition, creating new Partitions
 func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePartition, error) {
 	var multierr *multierror.Error
+	parts := make([]sif.OperablePartition, 0, 1)
+	parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
+	// some temp Row structs we can re-use
+	row := &rowImpl{}
+	factoryRow := &rowImpl{}
+	rowsProduced := 0
 	// factory for producing new rows compatible with this Partition
 	factory := func() sif.Row {
-		return &rowImpl{
-			meta:              make([]byte, p.widestSchema.NumColumns()),
-			data:              make([]byte, p.widestSchema.Size()),
-			varData:           make(map[string]interface{}),
-			serializedVarData: make(map[string][]byte),
-			schema:            p.currentSchema,
+		appendTarget := parts[len(parts)-1]
+		// allocate a new partition if this one is full
+		if appendTarget.GetNumRows() >= appendTarget.GetMaxRows() {
+			parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
+			appendTarget = parts[len(parts)-1]
 		}
+		// we have room, so allocate a new row
+		res, err := appendTarget.(sif.BuildablePartition).AppendEmptyRowData(factoryRow)
+		// this should never happen, since we checked if the partition had room
+		if err != nil {
+			panic(err)
+		}
+		rowsProduced++
+		return res
 	}
-	parts := make([]sif.OperablePartition, 1)
-	parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
-	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
-		newRows, err := fn(p.getRow(row, i), factory)
+		rowsProduced = 0
+		err := fn(p.getRow(row, i), factory)
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
-		} else {
-			for _, row := range newRows {
-				appendTarget := parts[len(parts)-1]
-				if appendTarget.GetNumRows() >= appendTarget.GetMaxRows() {
-					parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
-					appendTarget = parts[len(parts)-1]
-				}
-				irow := row.(itypes.AccessibleRow)
-				appendTarget.(sif.BuildablePartition).AppendRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData())
+			// wind back all rows added by factory function
+			// start by checking if we can just throw away the tail "new partition"
+			appendTarget := parts[len(parts)-1]
+			if rowsProduced > appendTarget.GetNumRows() {
+				rowsProduced -= appendTarget.GetNumRows()
+				parts = parts[0 : len(parts)-2]
+				appendTarget = parts[len(parts)-1]
 			}
+			// now zero out rows in the tail "new partition"
+			appendTarget.(sif.BuildablePartition).TruncateRowData(rowsProduced)
 		}
 	}
 	return parts, multierr.ErrorOrNil()

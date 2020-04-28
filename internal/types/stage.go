@@ -9,8 +9,8 @@ type Stage interface {
 	ID() int                                                                   // ID returns the ID for this stage
 	IncomingSchema() sif.Schema                                                // IncomingSchema is the Schema for data entering this Stage
 	OutgoingSchema() sif.Schema                                                // OutgoingSchema is the Schema for data leaving this Stage
-	FinalSchema() sif.Schema                                                   // FinalSchema returns the schema from the final task of the stage, or the nil if there are no tasks
 	WidestInitialSchema() sif.Schema                                           // InitialSchemaSize returns the number of bytes
+	WidestFinalSchema() sif.Schema                                             // WidestFinalSchema returns the true, underlying schema from the final task of the stage, or the nil if there are no tasks
 	WorkerExecute(part sif.OperablePartition) ([]sif.OperablePartition, error) // Or turned into multiple Partitions)
 	EndsInAccumulate() bool                                                    // EndsInAccumulate returns true iff this Stage ends with an accumulation task
 	EndsInShuffle() bool                                                       // EndsInShuffle returns true iff this Stage ends with a reduction task

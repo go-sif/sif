@@ -184,7 +184,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
 				var collectedLock sync.Mutex
 				for i := range workers {
-					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.FinalSchema(), stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
+					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), stage.WidestFinalSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err

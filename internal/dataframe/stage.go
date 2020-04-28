@@ -51,23 +51,29 @@ func (s *stageImpl) OutgoingSchema() sif.Schema {
 	return s.outgoingSchema
 }
 
-// FinalSchema returns the schema from the final task of the stage, or the nil if there are no tasks
-func (s *stageImpl) FinalSchema() sif.Schema {
-	if len(s.frames) > 0 {
-		return s.frames[len(s.frames)-1].schema
-	}
-	return nil
-}
-
-// InitialSchemaSize returns the number of bytes
+// WidestInitialSchema returns the number of bytes
 func (s *stageImpl) WidestInitialSchema() sif.Schema {
 	var widest sif.Schema
 	for _, f := range s.frames {
 		if f.taskType == sif.RepackTaskType {
 			return widest
 		}
-		if widest == nil || f.schema.Size() > widest.Size() {
+		if widest == nil || f.schema.NumFixedLengthColumns() > widest.NumFixedLengthColumns() {
 			widest = f.schema
+		}
+	}
+	return widest
+}
+
+// WidestFinalSchema returns the number of bytes
+func (s *stageImpl) WidestFinalSchema() sif.Schema {
+	var widest sif.Schema
+	for i := len(s.frames) - 1; i >= 0; i-- {
+		if widest != nil && s.frames[i].taskType == sif.RepackTaskType {
+			return widest
+		}
+		if widest == nil || s.frames[i].schema.NumFixedLengthColumns() > widest.NumFixedLengthColumns() {
+			widest = s.frames[i].schema
 		}
 	}
 	return widest

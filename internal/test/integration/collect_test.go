@@ -51,7 +51,7 @@ func TestCollect(t *testing.T) {
 		}),
 		ops.RemoveColumn("col1"),
 		// ops.Repack(),
-		util.Collect(2), // 2 partitions because there are 10 rows and 5 per partition
+		util.Collect(1), // 2 partitions because there are 10 rows and 5 per partition
 	)
 	require.Nil(t, err)
 

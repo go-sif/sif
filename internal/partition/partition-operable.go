@@ -50,7 +50,7 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 // FlatMapRows runs a FlatMapOperation on each row in this Partition, creating new Partitions
 func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePartition, error) {
 	var multierr *multierror.Error
-	parts := make([]sif.OperablePartition, 1)
+	parts := make([]sif.OperablePartition, 0, 1)
 	parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
 	// some temp Row structs we can re-use
 	row := &rowImpl{}

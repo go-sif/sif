@@ -38,12 +38,16 @@ func (s *reduceTask) GetTargetPartitionSize() int {
 
 // Reduce combines rows across workers, using a key
 func Reduce(kfn sif.KeyingOperation, fn sif.ReductionOperation) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
-		nextTask := reduceTask{
-			kfn:                 iutil.SafeKeyingOperation(kfn),
-			fn:                  iutil.SafeReductionOperation(fn),
-			targetPartitionSize: -1,
-		}
-		return &nextTask, sif.ShuffleTaskType, d.GetSchema().Clone(), nil
+	return func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+		return &sif.DataFrameOperationResult{
+			Task: &reduceTask{
+				kfn:                 iutil.SafeKeyingOperation(kfn),
+				fn:                  iutil.SafeReductionOperation(fn),
+				targetPartitionSize: -1,
+			},
+			TaskType:      sif.ShuffleTaskType,
+			PublicSchema:  d.GetPublicSchema().Clone(),
+			PrivateSchema: d.GetPrivateSchema().Clone(),
+		}, nil
 	}
 }

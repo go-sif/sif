@@ -1,6 +1,8 @@
 package transform
 
-import "github.com/go-sif/sif"
+import (
+	"github.com/go-sif/sif"
+)
 
 // renameColumnTask is a task that does nothing
 type renameColumnTask struct{}
@@ -12,12 +14,20 @@ func (s *renameColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.Oper
 
 // RenameColumn renames an existing column
 func RenameColumn(oldName string, newName string) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
-		newSchema, err := d.GetSchema().Clone().RenameColumn(oldName, newName)
+	return func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+		newPublicSchema, err := d.GetPublicSchema().Clone().RenameColumn(oldName, newName)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, err
 		}
-		nextTask := &renameColumnTask{}
-		return nextTask, sif.NoOpTaskType, newSchema, nil
+		newPrivateSchema, err := d.GetPrivateSchema().Clone().RenameColumn(oldName, newName)
+		if err != nil {
+			return nil, err
+		}
+		return &sif.DataFrameOperationResult{
+			Task:          &renameColumnTask{},
+			TaskType:      sif.NoOpTaskType,
+			PublicSchema:  newPublicSchema,
+			PrivateSchema: newPrivateSchema,
+		}, nil
 	}
 }

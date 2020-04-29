@@ -1,6 +1,8 @@
 package dataframe
 
-import "github.com/go-sif/sif"
+import (
+	"github.com/go-sif/sif"
+)
 
 // A shuffleTask is a task that represents a key-based shuffled, with potential aggregation
 type shuffleTask interface {

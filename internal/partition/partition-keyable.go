@@ -7,8 +7,8 @@ import (
 )
 
 // createKeyablePartition creates a new Partition containing an empty byte array and a schema
-func createKeyablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.KeyablePartition {
-	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+func createKeyablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) sif.KeyablePartition {
+	return createPartitionImpl(maxRows, privateSchema, publicSchema)
 }
 
 // KeyRows generates hash keys for a row from a key column. Attempts to manipulate partition in-place, falling back to creating a fresh partition if there are row errors
@@ -29,7 +29,7 @@ func (p *partitionImpl) KeyRows(kfn sif.KeyingOperation) (sif.OperablePartition,
 			if inPlace {
 				inPlace = false
 				// immediately switch into creating a new Partition if we haven't already
-				result := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
+				result := createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
 				result.isKeyed = true
 				result.keys = make([]uint64, p.maxRows)
 				// append all rows we've successfully processed so far (up to this one)

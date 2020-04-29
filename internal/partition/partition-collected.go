@@ -3,8 +3,8 @@ package partition
 import "github.com/go-sif/sif"
 
 // createCollectedPartitionPartition creates a new Partition containing an empty byte array and a schema
-func createCollectedPartitionPartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.CollectedPartition {
-	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+func createCollectedPartitionPartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) sif.CollectedPartition {
+	return createPartitionImpl(maxRows, privateSchema, publicSchema)
 }
 
 // ForEachRow runs a MapOperation on each row in this Partition, erroring immediately if an error occurs

@@ -29,7 +29,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 	for next := df; next != nil; next = next.parent {
 		frames = append([]*dataFrameImpl{next}, frames...)
 	}
-	// split into stages at reductions and repacks, discovering incoming and outgoing schemas for the stage
+	// split into stages at reductions, accumulations and collections, discovering incoming and outgoing schemas for the stage
 	nextID := 0
 	stages := []*stageImpl{createStage(nextID)}
 	nextID++
@@ -37,10 +37,12 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 		currentStage := stages[len(stages)-1]
 		currentStage.frames = append(currentStage.frames, f)
 		if len(stages) > 1 {
-			currentStage.incomingSchema = stages[len(stages)-2].outgoingSchema
+			currentStage.incomingPublicSchema = stages[len(stages)-2].outgoingPublicSchema
+			currentStage.incomingPrivateSchema = stages[len(stages)-2].outgoingPrivateSchema
 		}
 		// the outgoing schema is always the last schema
-		currentStage.outgoingSchema = f.schema
+		currentStage.outgoingPublicSchema = f.publicSchema
+		currentStage.outgoingPrivateSchema = f.privateSchema
 		// if this is a reduce, this is the end of the Stage
 		if f.taskType == sif.ShuffleTaskType {
 			sTask, ok := f.task.(shuffleTask)
@@ -90,6 +92,8 @@ func (df *dataFrameImpl) workerExecuteTask(previous sif.OperablePartition) ([]si
 	if err != nil {
 		return nil, err
 	}
-	previous.UpdateCurrentSchema(df.schema) // update current schema
+	// update current schemas
+	previous.UpdatePublicSchema(df.publicSchema)
+	previous.UpdatePrivateSchema(df.privateSchema)
 	return res, nil
 }

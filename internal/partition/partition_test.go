@@ -242,7 +242,7 @@ func TestSerialization(t *testing.T) {
 	// serialize and deserialize
 	buff, err := part.ToBytes()
 	require.Nil(t, err)
-	rpart, err := FromBytes(buff, part.widestSchema, part.currentSchema)
+	rpart, err := FromBytes(buff, part.privateSchema, part.publicSchema)
 	require.Nil(t, err)
 	// verify values again
 	require.Equal(t, 8, rpart.GetNumRows())

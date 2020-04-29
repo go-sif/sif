@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
+	"github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
 	uuid "github.com/gofrs/uuid"
@@ -107,7 +108,7 @@ func (w *worker) Start(frame sif.DataFrame) error {
 		return err
 	}
 	defer os.RemoveAll(tmpDir)
-	statsTracker := &itypes.RunStatistics{}
+	statsTracker := &stats.RunStatistics{}
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
 		TempFilePath:       tmpDir,
 		InMemoryPartitions: w.opts.NumInMemoryPartitions,

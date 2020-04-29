@@ -9,6 +9,7 @@ import (
 	"github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
+	"github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
 	uuid "github.com/gofrs/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -32,11 +33,11 @@ type planExecutorImpl struct {
 	collectCacheLock     sync.Mutex
 	accumulateReady      bool
 	accumulator          sif.Accumulator // staging area for accumulator
-	statsTracker         *itypes.RunStatistics
+	statsTracker         *stats.RunStatistics
 }
 
 // CreatePlanExecutor is a factory for planExecutors
-func CreatePlanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig, statsTracker *itypes.RunStatistics) itypes.PlanExecutor {
+func CreatePlanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics) itypes.PlanExecutor {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)

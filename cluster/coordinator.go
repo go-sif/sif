@@ -13,6 +13,7 @@ import (
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
+	"github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
 	"golang.org/x/sync/semaphore"
@@ -115,7 +116,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("DataFrame must be executable")
 	}
 	log.Printf("Running job...")
-	statsTracker := &itypes.RunStatistics{}
+	statsTracker := &stats.RunStatistics{}
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
 		TempFilePath:       "",
 		InMemoryPartitions: 0,

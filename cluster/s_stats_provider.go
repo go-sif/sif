@@ -4,15 +4,15 @@ import (
 	"context"
 
 	pb "github.com/go-sif/sif/internal/rpc"
-	itypes "github.com/go-sif/sif/internal/types"
+	"github.com/go-sif/sif/internal/stats"
 )
 
 type statsSourceServer struct {
-	statsTracker *itypes.RunStatistics
+	statsTracker *stats.RunStatistics
 }
 
 // createStatsSource creates a new stats Source server
-func createStatsSource(statsTracker *itypes.RunStatistics) *statsSourceServer {
+func createStatsSource(statsTracker *stats.RunStatistics) *statsSourceServer {
 	return &statsSourceServer{statsTracker: statsTracker}
 }
 

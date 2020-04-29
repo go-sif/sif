@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	pb "github.com/go-sif/sif/internal/rpc"
+	"github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
 	logging "github.com/go-sif/sif/logging"
@@ -14,11 +15,11 @@ import (
 type executionServer struct {
 	planExecutor itypes.PlanExecutor
 	logClient    pb.LogServiceClient
-	statsTracker *itypes.RunStatistics
+	statsTracker *stats.RunStatistics
 }
 
 // createExecutionServer creates a new execution server
-func createExecutionServer(logClient pb.LogServiceClient, planExecutor itypes.PlanExecutor, statsTracker *itypes.RunStatistics) *executionServer {
+func createExecutionServer(logClient pb.LogServiceClient, planExecutor itypes.PlanExecutor, statsTracker *stats.RunStatistics) *executionServer {
 	return &executionServer{logClient: logClient, planExecutor: planExecutor, statsTracker: statsTracker}
 }
 

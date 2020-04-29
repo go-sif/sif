@@ -27,7 +27,7 @@ func (df *dataFrameImpl) GetParent() sif.DataFrame {
 func (df *dataFrameImpl) Optimize() itypes.Plan {
 	// create a slice of frames, in order of execution, by following parent links
 	frames := []*dataFrameImpl{}
-	for next := df; next != nil; next = next.parent {
+	for next := df.Clone(); next != nil; next = next.parent {
 		frames = append([]*dataFrameImpl{next}, frames...)
 	}
 	// split into stages by taskType

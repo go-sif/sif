@@ -35,6 +35,21 @@ func CreateDataFrame(source sif.DataSource, parser sif.DataSourceParser, schema 
 	}
 }
 
+// Clone clones this dataframe. Must call df.apply() again on the result.
+func (df *dataFrameImpl) Clone() *dataFrameImpl {
+	var parent *dataFrameImpl
+	if df.parent != nil {
+		parent = df.parent.Clone()
+	}
+	return &dataFrameImpl{
+		parent:   parent,
+		apply:    df.apply,
+		taskType: df.taskType,
+		source:   df.source,
+		parser:   df.parser,
+	}
+}
+
 // GetPublicSchema returns the public Schema of a DataFrame
 func (df *dataFrameImpl) GetPublicSchema() sif.Schema {
 	return df.publicSchema

@@ -124,6 +124,11 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			break // no tasks can come after a collect
 		}
 	}
+	// hack for checking if we never called endStage() on the last stage, which can
+	// happen if it's just a set of map()s which don't end in a collect, accumulate or shuffle
+	if len(stages) > 0 && stages[len(stages)-1].OutgoingPrivateSchema() == nil {
+		endStage()
+	}
 	return &planImpl{stages, df.parser, df.source}
 }
 

@@ -13,17 +13,19 @@ func (s *removeColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.Oper
 }
 
 // RemoveColumn removes existing columns
-func RemoveColumn(oldNames ...string) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
-		newSchema := d.GetPublicSchema().Clone()
-		for _, oldName := range oldNames {
-			newSchema, _ = newSchema.RemoveColumn(oldName)
-		}
-		return &sif.DataFrameOperationResult{
-			Task:          &removeColumnTask{},
-			TaskType:      sif.NoOpTaskType,
-			PublicSchema:  newSchema,
-			PrivateSchema: d.GetPrivateSchema().Clone(), // removing a column doesn't affect the private schema
-		}, nil
+func RemoveColumn(oldNames ...string) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.RemoveColumnTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			newSchema := d.GetPublicSchema().Clone()
+			for _, oldName := range oldNames {
+				newSchema, _ = newSchema.RemoveColumn(oldName)
+			}
+			return &sif.DataFrameOperationResult{
+				Task:          &removeColumnTask{},
+				PublicSchema:  newSchema,
+				PrivateSchema: d.GetPrivateSchema().Clone(), // removing a column doesn't affect the private schema
+			}, nil
+		},
 	}
 }

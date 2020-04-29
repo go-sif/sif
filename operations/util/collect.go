@@ -26,16 +26,18 @@ func (s *collectTask) GetCollectionLimit() int64 {
 // Collect declares that data should be shufled to the Coordinator
 // upon completion of the previous stage. This also signals
 // the end of a Dataframe's tasks.
-func Collect(collectionLimit int64) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
-		if d.GetDataSource().IsStreaming() {
-			return nil, fmt.Errorf("Cannot collect() from a streaming DataSource")
-		}
-		return &sif.DataFrameOperationResult{
-			Task:          &collectTask{collectionLimit},
-			TaskType:      sif.CollectTaskType,
-			PublicSchema:  d.GetPublicSchema().Clone(),
-			PrivateSchema: d.GetPrivateSchema().Clone(),
-		}, nil
+func Collect(collectionLimit int64) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.CollectTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			if d.GetDataSource().IsStreaming() {
+				return nil, fmt.Errorf("Cannot collect() from a streaming DataSource")
+			}
+			return &sif.DataFrameOperationResult{
+				Task:          &collectTask{collectionLimit},
+				PublicSchema:  d.GetPublicSchema().Clone(),
+				PrivateSchema: d.GetPrivateSchema().Clone(),
+			}, nil
+		},
 	}
 }

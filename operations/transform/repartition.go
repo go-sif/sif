@@ -33,16 +33,18 @@ func (s *repartitionTask) GetTargetPartitionSize() int {
 
 // Repartition is identical to Group, with the added ability to change the
 // number of rows per partition during the shuffle
-func Repartition(targetPartitionSize int, kfn sif.KeyingOperation) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
-		return &sif.DataFrameOperationResult{
-			Task: &repartitionTask{
-				kfn:                 iutil.SafeKeyingOperation(kfn),
-				targetPartitionSize: targetPartitionSize,
-			},
-			TaskType:      sif.ShuffleTaskType,
-			PublicSchema:  d.GetPublicSchema().Clone(),
-			PrivateSchema: d.GetPrivateSchema().Clone(),
-		}, nil
+func Repartition(targetPartitionSize int, kfn sif.KeyingOperation) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.ShuffleTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			return &sif.DataFrameOperationResult{
+				Task: &repartitionTask{
+					kfn:                 iutil.SafeKeyingOperation(kfn),
+					targetPartitionSize: targetPartitionSize,
+				},
+				PublicSchema:  d.GetPublicSchema().Clone(),
+				PrivateSchema: d.GetPrivateSchema().Clone(),
+			}, nil
+		},
 	}
 }

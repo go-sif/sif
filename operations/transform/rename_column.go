@@ -13,21 +13,23 @@ func (s *renameColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.Oper
 }
 
 // RenameColumn renames an existing column
-func RenameColumn(oldName string, newName string) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
-		newPublicSchema, err := d.GetPublicSchema().Clone().RenameColumn(oldName, newName)
-		if err != nil {
-			return nil, err
-		}
-		newPrivateSchema, err := d.GetPrivateSchema().Clone().RenameColumn(oldName, newName)
-		if err != nil {
-			return nil, err
-		}
-		return &sif.DataFrameOperationResult{
-			Task:          &renameColumnTask{},
-			TaskType:      sif.NoOpTaskType,
-			PublicSchema:  newPublicSchema,
-			PrivateSchema: newPrivateSchema,
-		}, nil
+func RenameColumn(oldName string, newName string) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.RenameColumnTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			newPublicSchema, err := d.GetPublicSchema().Clone().RenameColumn(oldName, newName)
+			if err != nil {
+				return nil, err
+			}
+			newPrivateSchema, err := d.GetPrivateSchema().Clone().RenameColumn(oldName, newName)
+			if err != nil {
+				return nil, err
+			}
+			return &sif.DataFrameOperationResult{
+				Task:          &renameColumnTask{},
+				PublicSchema:  newPublicSchema,
+				PrivateSchema: newPrivateSchema,
+			}, nil
+		},
 	}
 }

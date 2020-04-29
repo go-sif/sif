@@ -2,6 +2,7 @@ package dataframe
 
 import (
 	"log"
+	"sort"
 
 	"github.com/go-sif/sif"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -29,10 +30,63 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 	for next := df; next != nil; next = next.parent {
 		frames = append([]*dataFrameImpl{next}, frames...)
 	}
-	// split into stages at reductions, accumulations and collections, discovering incoming and outgoing schemas for the stage
+	// split into stages by taskType
 	nextID := 0
-	stages := []*stageImpl{createStage(nextID)}
-	nextID++
+	stages := []*stageImpl{}
+	endStage := func() {
+		currentStage := stages[len(stages)-1]
+		var previousStage *stageImpl
+		if len(stages) > 1 {
+			previousStage = stages[len(stages)-2]
+		}
+		// repack should never be the first frame in a stage. Throw error if that is the case
+		if len(currentStage.frames) > 0 && currentStage.frames[0].taskType == sif.RepackTaskType {
+			log.Panicf("Repack cannot be the first Task in a DataFrame")
+		}
+		// sort CreateColumns to top of stage
+		sort.SliceStable(currentStage.frames, func(i, j int) bool {
+			if currentStage.frames[i].taskType == sif.ExtractTaskType {
+				return true
+			} else if currentStage.frames[j].taskType == sif.ExtractTaskType {
+				return false
+			}
+			if currentStage.frames[i].taskType == sif.WithColumnTaskType && currentStage.frames[j].taskType != sif.WithColumnTaskType {
+				return true
+			} else if currentStage.frames[i].taskType != sif.WithColumnTaskType && currentStage.frames[j].taskType == sif.WithColumnTaskType {
+				return false
+			}
+			return false
+		})
+		// Fix links and call apply() to update frame schemas etc.
+		for i, f := range currentStage.frames {
+			// fix links since we sorted
+			if i == 0 && previousStage != nil {
+				f.parent = previousStage.frames[len(previousStage.frames)-1]
+			} else if i == 0 {
+				f.parent = nil
+			} else {
+				f.parent = currentStage.frames[i-1]
+			}
+			dfor, err := f.apply(f.parent)
+			if err != nil {
+				panic(err)
+			}
+			f.task = dfor.Task
+			f.privateSchema = dfor.PrivateSchema
+			f.publicSchema = dfor.PublicSchema
+		}
+		// set outgoing schemas for stage
+		if len(currentStage.frames) > 0 {
+			currentStage.outgoingPrivateSchema = currentStage.frames[len(currentStage.frames)-1].privateSchema
+			currentStage.outgoingPublicSchema = currentStage.frames[len(currentStage.frames)-1].publicSchema
+		}
+	}
+	newStage := func() {
+		// TODO panic if no removes precede the repack, as it's pointless
+		stages = append(stages, createStage(nextID))
+		nextID++
+	}
+	newStage()
 	for i, f := range frames {
 		currentStage := stages[len(stages)-1]
 		currentStage.frames = append(currentStage.frames, f)
@@ -40,11 +94,9 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			currentStage.incomingPublicSchema = stages[len(stages)-2].outgoingPublicSchema
 			currentStage.incomingPrivateSchema = stages[len(stages)-2].outgoingPrivateSchema
 		}
-		// the outgoing schema is always the last schema
-		currentStage.outgoingPublicSchema = f.publicSchema
-		currentStage.outgoingPrivateSchema = f.privateSchema
 		// if this is a reduce, this is the end of the Stage
 		if f.taskType == sif.ShuffleTaskType {
+			endStage()
 			sTask, ok := f.task.(shuffleTask)
 			if !ok {
 				log.Panicf("taskType is ShuffleTaskType but Task is not a shuffleTask. Task is misdefined.")
@@ -52,14 +104,9 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			currentStage.SetKeyingOperation(sTask.GetKeyingOperation())
 			currentStage.SetReductionOperation(sTask.GetReductionOperation())
 			currentStage.SetTargetPartitionSize(sTask.GetTargetPartitionSize())
-			stages = append(stages, createStage(nextID))
-			nextID++
-		} else if f.taskType == sif.RepackTaskType {
-			// repack should never be the first frame. Throw error if that is the case
-			if len(currentStage.frames) == 0 {
-				log.Panicf("Repack cannot be the first Task in a DataFrame")
-			}
+			newStage()
 		} else if f.taskType == sif.AccumulateTaskType {
+			endStage()
 			aTask, ok := f.task.(accumulationTask)
 			if !ok {
 				log.Panicf("taskType is AccumulateTaskType but Task is not an accumulationTask. Task is misdefined.")
@@ -70,6 +117,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			}
 			break // no tasks can come after an accumulation
 		} else if f.taskType == sif.CollectTaskType {
+			endStage()
 			if i+1 < len(frames) {
 				log.Panicf("No tasks can follow a Collect()")
 			}

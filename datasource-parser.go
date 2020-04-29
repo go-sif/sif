@@ -11,7 +11,7 @@ type DataSourceParser interface {
 		r io.Reader,
 		source DataSource,
 		schema Schema,
-		widestInitialSchema Schema,
+		widestInitialPrivateSchema Schema,
 		onIteratorEnd func(),
 	) (PartitionIterator, error) // lazily converts bytes from a Reader into Partitions
 }

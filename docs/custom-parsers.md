@@ -11,11 +11,11 @@ type DataSourceParser interface {
 	PartitionSize() int
 	// lazily converts bytes from a Reader into Partitions
 	Parse(
-		r io.Reader,
-		source sif.DataSource,
-		schema sif.Schema,
-		widestInitialSchema sif.Schema,
-		onIteratorEnd func(),
+		r                          io.Reader,
+		source                     sif.DataSource,
+		schema                     sif.Schema,
+		widestInitialPrivateSchema sif.Schema,
+		onIteratorEnd              func(),
 	) (sif.PartitionIterator, error)
 }
 ```

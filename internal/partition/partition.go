@@ -49,8 +49,8 @@ func createPartitionImpl(maxRows int, privateSchema sif.Schema, publicSchema sif
 }
 
 // CreatePartition creates a new Partition containing an empty byte array and a schema
-func CreatePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.Partition {
-	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+func CreatePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) sif.Partition {
+	return createPartitionImpl(maxRows, privateSchema, publicSchema)
 }
 
 // ID retrieves the ID of this Partition

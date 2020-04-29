@@ -21,7 +21,7 @@ type collectionTask interface {
 // A accumulationTask is a task that represents a user-defined aggregation
 type accumulationTask interface {
 	sif.Task
-	GetAccumulatorFactory() sif.AccumulatorFactory
+	GetAccumulator() sif.Accumulator
 }
 
 // noOpTask is a task that does nothing

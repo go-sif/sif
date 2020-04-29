@@ -111,7 +111,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			if !ok {
 				log.Panicf("taskType is AccumulateTaskType but Task is not an accumulationTask. Task is misdefined.")
 			}
-			currentStage.SetAccumulator(aTask.GetAccumulatorFactory()())
+			currentStage.SetAccumulator(aTask.GetAccumulator())
 			if i+1 < len(frames) {
 				log.Panicf("No tasks can follow an Accumulate()")
 			}

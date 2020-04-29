@@ -32,7 +32,6 @@ type planExecutorImpl struct {
 	collectCache         map[string]sif.Partition // staging area used for collection when there has been no shuffle
 	collectCacheLock     sync.Mutex
 	accumulateReady      bool
-	accumulator          sif.Accumulator // staging area for accumulator
 	statsTracker         *stats.RunStatistics
 }
 
@@ -171,10 +170,6 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 	currentStageID := pe.GetCurrentStage().ID()
 	parts := pe.GetPartitionSource()
 
-	if req.PrepAccumulate && pe.accumulator == nil {
-		pe.accumulator = pe.GetCurrentStage().Accumulator()
-	}
-
 	for parts.HasNextPartition() {
 		part, err := parts.NextPartition()
 		if _, ok := err.(errors.NoMorePartitionsError); ok {
@@ -200,11 +195,6 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 				if err := onRowError(err); err != nil {
 					return err
 				}
-			} else if req.PrepAccumulate {
-				err = pe.PrepareAccumulate(newPart)
-				if err := onRowError(err); err != nil {
-					return err
-				}
 			} else if req.PrepCollect {
 				tNewPart := newPart.(itypes.TransferrablePartition)
 				if pe.collectCache[tNewPart.ID()] != nil {
@@ -224,14 +214,6 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 		pe.accumulateReady = true
 	}
 	return nil
-}
-
-// PrepareAccumulate accumulates records into an Accumulator
-func (pe *planExecutorImpl) PrepareAccumulate(part sif.OperablePartition) error {
-	_, err := part.MapRows(func(row sif.Row) error {
-		return pe.accumulator.Accumulate(row)
-	})
-	return err
 }
 
 // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
@@ -305,7 +287,7 @@ func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (sif.Part
 
 // GetAccumulator returns this plan executor's Accumulator, if any
 func (pe *planExecutorImpl) GetAccumulator() sif.Accumulator {
-	return pe.accumulator
+	return pe.GetCurrentStage().Accumulator()
 }
 
 // AcceptShuffledPartition receives a Partition that belongs on this worker and merges it into the local shuffle tree

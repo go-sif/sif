@@ -18,9 +18,15 @@ func (s *mapTask) RunWorker(previous sif.OperablePartition) ([]sif.OperableParti
 }
 
 // Map transforms a Row in-place
-func Map(fn sif.MapOperation) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
-		nextTask := mapTask{fn: iutil.SafeMapOperation(fn)}
-		return &nextTask, sif.MapTaskType, d.GetSchema().Clone(), nil
+func Map(fn sif.MapOperation) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.MapTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			return &sif.DataFrameOperationResult{
+				Task:          &mapTask{fn: iutil.SafeMapOperation(fn)},
+				PublicSchema:  d.GetPublicSchema().Clone(),
+				PrivateSchema: d.GetPrivateSchema().Clone(),
+			}, nil
+		},
 	}
 }

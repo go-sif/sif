@@ -12,8 +12,8 @@ func CreateDataFrame(source sif.DataSource, parser sif.DataSourceParser, schema 
 }
 
 // CreateBuildablePartition creates a new Partition containing empty data and a Schema
-func CreateBuildablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.BuildablePartition {
-	return partition.CreateBuildablePartition(maxRows, widestSchema, currentSchema)
+func CreateBuildablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) sif.BuildablePartition {
+	return partition.CreateBuildablePartition(maxRows, privateSchema, publicSchema)
 }
 
 // CreateTempRow builds an empty row struct which cannot be used until passed to a function which populates it with data

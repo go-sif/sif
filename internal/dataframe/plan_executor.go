@@ -119,7 +119,7 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 	var parts sif.PartitionIterator
 	// we only load partitions if we're on the first stage, and if they're available to load
 	if pe.onFirstStage() && pe.hasPartitionLoaders() {
-		parts = createPartitionLoaderIterator(pe.partitionLoaders, pe.plan.Parser(), pe.plan.GetStage(0).WidestInitialSchema())
+		parts = createPartitionLoaderIterator(pe.partitionLoaders, pe.plan.Parser(), pe.plan.GetStage(0).WidestInitialPrivateSchema())
 		// in the non-streaming context, the partition loader won't offer more partitions
 		// after we're done iterating through it, so we can safely get rid of it.
 		if !pe.conf.Streaming {
@@ -252,7 +252,7 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		pe.shuffleTreesLock.Lock()
 		if _, ok := pe.shuffleTrees[buckets[bucket]]; !ok {
 			nextStage := pe.peekNextStage()
-			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialSchema(), nextStage.IncomingSchema())
+			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.IncomingPrivateSchema(), nextStage.IncomingPublicSchema())
 		}
 		pe.shuffleTreesLock.Unlock()
 		err = pe.shuffleTrees[buckets[bucket]].mergeRow(tempRow, row, currentStage.KeyingOperation(), currentStage.ReductionOperation())
@@ -313,11 +313,10 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 	pe.shuffleTreesLock.Lock()
 	defer pe.shuffleTreesLock.Unlock()
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
-		// pe.plan.stages[pe.nextStage-1].widestSchema
-		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), pe.GetCurrentStage().WidestFinalSchema(), pe.GetCurrentStage().OutgoingSchema())
+		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), pe.GetCurrentStage().OutgoingPrivateSchema(), pe.GetCurrentStage().OutgoingPublicSchema())
 	}
-	part := partition.FromMetaMessage(mpart, pe.shuffleTrees[pe.assignedBucket].nextStageIncomingSchema)
-	err := part.ReceiveStreamedData(dataStream, pe.GetCurrentStage().OutgoingSchema())
+	part := partition.FromMetaMessage(mpart, pe.shuffleTrees[pe.assignedBucket].nextStagePublicSchema)
+	err := part.ReceiveStreamedData(dataStream, pe.GetCurrentStage().OutgoingPrivateSchema())
 	if err != nil {
 		return err
 	}

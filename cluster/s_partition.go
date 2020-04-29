@@ -89,7 +89,7 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 	// 16-64kb is the ideal stream chunk size according to https://jbrandhorst.com/post/grpc-binary-blob-stream/
 	maxChunkBytes := 63 * 1024 // leave room for 1kb of other things
 	// transfer row data
-	partitionBytes := part.GetWidestSchema().Size() * part.GetNumRows()
+	partitionBytes := part.GetPrivateSchema().Size() * part.GetNumRows()
 	for i := 0; i < partitionBytes; i += maxChunkBytes {
 		rowData := part.GetRowDataRange(i, i+maxChunkBytes)
 		if len(rowData) == 0 {
@@ -101,7 +101,7 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 		})
 	}
 	// transfer meta data
-	partitionMetaBytes := part.GetWidestSchema().NumFixedLengthColumns() * part.GetNumRows()
+	partitionMetaBytes := part.GetPrivateSchema().NumFixedLengthColumns() * part.GetNumRows()
 	for i := 0; i < partitionMetaBytes; i += maxChunkBytes {
 		metaData := part.GetRowMetaRange(i, i+maxChunkBytes)
 		if len(metaData) == 0 {
@@ -121,7 +121,7 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 				continue
 			}
 			// no need to serialize values for columns we've dropped
-			if col, err := part.GetCurrentSchema().GetOffset(k); err == nil {
+			if col, err := part.GetPrivateSchema().GetOffset(k); err == nil {
 				if vcol, ok := col.Type().(sif.VarColumnType); ok {
 					sdata, err := vcol.Serialize(v)
 					if err != nil {

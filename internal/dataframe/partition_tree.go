@@ -14,25 +14,25 @@ import (
 
 // pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions
 type pTreeNode struct {
-	k                       uint64
-	left                    *pTreeNode
-	right                   *pTreeNode
-	center                  *pTreeNode
-	part                    itypes.ReduceablePartition
-	nextStageWidestSchema   sif.Schema
-	nextStageIncomingSchema sif.Schema
-	diskPath                string
-	prev                    *pTreeNode // btree-like link between leaves
-	next                    *pTreeNode // btree-like link between leaves
-	parent                  *pTreeNode
-	lruCache                *lru.Cache // TODO replace with a queue that is less likely to evict frequently-used entries
+	k                      uint64
+	left                   *pTreeNode
+	right                  *pTreeNode
+	center                 *pTreeNode
+	part                   itypes.ReduceablePartition
+	nextStagePrivateSchema sif.Schema
+	nextStagePublicSchema  sif.Schema
+	diskPath               string
+	prev                   *pTreeNode // btree-like link between leaves
+	next                   *pTreeNode // btree-like link between leaves
+	parent                 *pTreeNode
+	lruCache               *lru.Cache // TODO replace with a queue that is less likely to evict frequently-used entries
 }
 
 // pTreeRoot is an alias for pTreeNode representing the root node of a pTree
 type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
-func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageWidestSchema sif.Schema, nextStageIncomingSchema sif.Schema) *pTreeNode {
+func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStagePrivateSchema sif.Schema, nextStagePublicSchema sif.Schema) *pTreeNode {
 	cache, err := lru.NewWithEvict(conf.InMemoryPartitions, func(key interface{}, value interface{}) {
 		partID, ok := key.(string)
 		if !ok {
@@ -47,15 +47,15 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageWide
 	if err != nil {
 		log.Fatalf("Unable to initialize lru cache for partitions: %e", err)
 	}
-	part := partition.CreateReduceablePartition(maxRows, nextStageWidestSchema, nextStageIncomingSchema)
+	part := partition.CreateReduceablePartition(maxRows, nextStagePrivateSchema, nextStagePublicSchema)
 	part.KeyRows(nil)
 	cache.Add(part.ID(), part)
 	return &pTreeNode{
-		k:                       0,
-		part:                    part,
-		lruCache:                cache,
-		nextStageWidestSchema:   nextStageWidestSchema,
-		nextStageIncomingSchema: nextStageIncomingSchema,
+		k:                      0,
+		part:                   part,
+		lruCache:               cache,
+		nextStagePrivateSchema: nextStagePrivateSchema,
+		nextStagePublicSchema:  nextStagePublicSchema,
 	}
 }
 
@@ -140,7 +140,7 @@ func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOpera
 			partNode.part.GetRowData(idx),
 			partNode.part.GetVarRowData(idx),
 			partNode.part.GetSerializedVarRowData(idx),
-			partNode.part.GetCurrentSchema(),
+			partNode.part.GetPublicSchema(),
 		)
 		return reducefn(tempRow, row)
 	}
@@ -209,7 +209,7 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		// our parent has a fresh right node to insert into
 		t.parent.right = &pTreeNode{
 			k:        0,
-			part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
+			part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
 			next:     t.next,
 			prev:     t.parent.center,
 			parent:   t,
@@ -234,7 +234,7 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
 	t.left = &pTreeNode{
 		k:        0,
-		part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
+		part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
 		prev:     t.prev,
 		next:     t.center,
 		parent:   t,
@@ -242,7 +242,7 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	}
 	t.right = &pTreeNode{
 		k:        0,
-		part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetWidestSchema(), t.part.GetCurrentSchema()),
+		part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
 		prev:     t.center,
 		next:     t.next,
 		parent:   t,
@@ -269,7 +269,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 		if err != nil {
 			return nil, err
 		}
-		part, err := partition.FromBytes(buff, t.nextStageWidestSchema, t.nextStageIncomingSchema)
+		part, err := partition.FromBytes(buff, t.nextStagePrivateSchema, t.nextStagePublicSchema)
 		if err != nil {
 			return nil, err
 		}

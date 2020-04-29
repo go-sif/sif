@@ -29,7 +29,8 @@ type KeyablePartition interface {
 type OperablePartition interface {
 	Partition
 	KeyablePartition
-	UpdateCurrentSchema(currentSchema Schema)                     // Sets the current schema of a Partition
+	UpdatePublicSchema(currentSchema Schema)                      // Sets the current public schema of a Partition
+	UpdatePrivateSchema(currentSchema Schema)                     // Sets the current private schema of a Partition
 	MapRows(fn MapOperation) (OperablePartition, error)           // MapRows runs a MapOperation on each row in this Partition, manipulating them in-place. Will fall back to creating a fresh partition if PartitionRowErrors occur.
 	FlatMapRows(fn FlatMapOperation) ([]OperablePartition, error) // FlatMapRows runs a FlatMapOperation on each row in this Partition, creating new Partitions
 	FilterRows(fn FilterOperation) (OperablePartition, error)     // FilterRows filters the Rows in the current Partition, creating a new one

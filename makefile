@@ -29,8 +29,10 @@ fmt:
 	@go fmt ./...
 
 clean:
+	@echo "Cleaning..."	
 	@rm -rf ./bin
-	@rm -rf ./internal/rpc/*.pb.go
+	@rm -rf internal/test/integration/sif-worker-808*
+
 
 lint:
 	@echo "Running go vet"
@@ -61,35 +63,35 @@ edsm_big_data:
 
 test: build testenv
 	@echo "Running tests..."
-	@go test -short -count=1 ./...
+	@go test -short -p 1 -count=1 ./...
 
 testall: build testenv
 	@echo "Running tests..."
-	@go test -timeout 30m -count=1 ./...
+	@go test -timeout 30m -p 1 -count=1 ./...
 
 testv: build testenv
 	@echo "Running tests..."
-	@go test -short -v ./...
+	@go test -short -p 1 -v ./...
 
 testvall: build testenv
 	@echo "Running tests..."
-	@go test -timeout 30m -v -count=1 ./...
+	@go test -timeout 30m -v -p 1 -count=1 ./...
 
 cover: build testenv
 	@echo "Running tests with coverage..."
-	@go-acc -o cover.out ./...
+	@go-acc -o cover.out ./... -- -p 1 -count=1
 	@go tool cover -html=cover.out -o cover.html
 
 edsm: build testenv
 	@echo "Running tests..."
-	@go test -timeout 30m -count=1 -run TestEDSMHeatmap ./...
+	@go test -timeout 30m -p 1 -count=1 -run TestEDSMHeatmap ./...
 
 generate:
 	@echo "Generating protobuf code..."
 	@go generate ./...
 	@echo "Finished generating protobuf code."
 
-build: generate lint
+build: clean generate lint
 	@echo "Building sif..."
 	@go build ./...
 	@go mod tidy

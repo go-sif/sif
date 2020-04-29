@@ -4,8 +4,12 @@ package sif
 type TaskType string
 
 const (
-	// NoOpTaskType indicates that this task does not manipulate data
-	NoOpTaskType TaskType = "no_op"
+	// WithColumnTaskType indicates that this task adds a column
+	WithColumnTaskType TaskType = "add_column"
+	// RemoveColumnTaskType indicates that this task removes a column
+	RemoveColumnTaskType TaskType = "remove_column"
+	// RenameColumnTaskType indicates that this task renames a column
+	RenameColumnTaskType TaskType = "rename_column"
 	// ExtractTaskType indicates that this task sources data from a DataSource
 	ExtractTaskType TaskType = "extract"
 	// RepackTaskType indicates that this task triggers a Repack

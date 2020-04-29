@@ -17,11 +17,17 @@ func (s *accumulateTask) GetAccumulatorFactory() sif.AccumulatorFactory {
 }
 
 // Accumulate combines rows across workers, using a user-provided data structure
-func Accumulate(facc sif.AccumulatorFactory) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
-		nextTask := accumulateTask{
-			facc: facc,
-		}
-		return &nextTask, sif.AccumulateTaskType, d.GetSchema().Clone(), nil
+func Accumulate(facc sif.AccumulatorFactory) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.AccumulateTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			return &sif.DataFrameOperationResult{
+				Task: &accumulateTask{
+					facc: facc,
+				},
+				PublicSchema:  d.GetPublicSchema().Clone(),
+				PrivateSchema: d.GetPrivateSchema().Clone(),
+			}, nil
+		},
 	}
 }

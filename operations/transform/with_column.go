@@ -15,13 +15,23 @@ func (s *addColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.Operabl
 // AddColumn declares that a new (empty) column with a
 // specific type and name should be available to the
 // next Task of the DataFrame pipeline
-func AddColumn(colName string, colType sif.ColumnType) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
-		newSchema, err := d.GetSchema().Clone().CreateColumn(colName, colType)
-		if err != nil {
-			return nil, "", nil, err
-		}
-		nextTask := &addColumnTask{}
-		return nextTask, sif.NoOpTaskType, newSchema, nil
+func AddColumn(colName string, colType sif.ColumnType) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.WithColumnTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			newPublicSchema, err := d.GetPublicSchema().Clone().CreateColumn(colName, colType)
+			if err != nil {
+				return nil, err
+			}
+			newPrivateSchema, err := d.GetPublicSchema().Clone().CreateColumn(colName, colType)
+			if err != nil {
+				return nil, err
+			}
+			return &sif.DataFrameOperationResult{
+				Task:          &addColumnTask{},
+				PublicSchema:  newPublicSchema,
+				PrivateSchema: newPrivateSchema,
+			}, nil
+		},
 	}
 }

@@ -8,14 +8,14 @@ import (
 )
 
 // CreateBuildablePartition creates a new Partition containing an empty byte array and a schema
-func CreateBuildablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.BuildablePartition {
-	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+func CreateBuildablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) sif.BuildablePartition {
+	return createPartitionImpl(maxRows, privateSchema, publicSchema)
 }
 
 // CanInsertRowData checks if a Row can be inserted into this Partition
 func (p *partitionImpl) CanInsertRowData(row []byte) error {
 	// TODO accept and check variable length map for unknown keys
-	if len(row) > p.widestSchema.Size() {
+	if len(row) > p.privateSchema.Size() {
 		return errors.IncompatibleRowError{}
 	} else if p.numRows >= p.maxRows {
 		return errors.PartitionFullError{}
@@ -38,8 +38,8 @@ func (p *partitionImpl) AppendRowData(row []byte, meta []byte, varData map[strin
 	if err := p.CanInsertRowData(row); err != nil {
 		return err
 	}
-	copy(p.rows[p.numRows*p.widestSchema.Size():(p.numRows+1)*p.widestSchema.Size()], row)
-	copy(p.rowMeta[p.numRows*p.widestSchema.NumColumns():(p.numRows+1)*p.widestSchema.NumColumns()], meta)
+	copy(p.rows[p.numRows*p.privateSchema.Size():(p.numRows+1)*p.privateSchema.Size()], row)
+	copy(p.rowMeta[p.numRows*p.privateSchema.NumColumns():(p.numRows+1)*p.privateSchema.NumColumns()], meta)
 	p.varRowData[p.numRows] = varData
 	p.serializedVarRowData[p.numRows] = serializedVarRowData
 	p.numRows++
@@ -66,8 +66,8 @@ func (p *partitionImpl) InsertRowData(row []byte, meta []byte, varRowData map[st
 	if err := p.CanInsertRowData(row); err != nil {
 		return err
 	}
-	rowWidth := p.widestSchema.Size()
-	numCols := p.widestSchema.NumColumns()
+	rowWidth := p.privateSchema.Size()
+	numCols := p.privateSchema.NumColumns()
 	// shift row data
 	copy(p.rows[(pos+1)*rowWidth:], p.rows[pos*rowWidth:p.numRows*rowWidth])
 	// insert row data
@@ -108,7 +108,7 @@ func (p *partitionImpl) InsertKeyedRowData(row []byte, meta []byte, varData map[
 func (p *partitionImpl) TruncateRowData(numRows int) {
 	start := p.GetNumRows() - numRows
 	end := p.GetNumRows()
-	rowWidth := p.widestSchema.Size()
+	rowWidth := p.privateSchema.Size()
 	// zero out row data
 	for i := start * rowWidth; i < end*rowWidth; i++ {
 		p.rows[i] = 0

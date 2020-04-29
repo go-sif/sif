@@ -7,13 +7,18 @@ import (
 )
 
 // createOperablePartition creates a new Partition containing an empty byte array and a schema
-func createOperablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.OperablePartition {
-	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+func createOperablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) sif.OperablePartition {
+	return createPartitionImpl(maxRows, privateSchema, publicSchema)
 }
 
-// UpdateCurrentSchema updates the Schema of this Partition
-func (p *partitionImpl) UpdateCurrentSchema(currentSchema sif.Schema) {
-	p.currentSchema = currentSchema
+// UpdatePublicSchema updates the public Schema of this Partition
+func (p *partitionImpl) UpdatePublicSchema(publicSchema sif.Schema) {
+	p.publicSchema = publicSchema
+}
+
+// UpdatePrivateSchema updates the private Schema of this Partition
+func (p *partitionImpl) UpdatePrivateSchema(privateSchema sif.Schema) {
+	p.privateSchema = privateSchema
 }
 
 // MapRows runs a MapOperation on each row in this Partition, manipulating them in-place. Will fall back to creating a fresh partition if PartitionRowErrors occur.
@@ -31,7 +36,7 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 			if inPlace {
 				inPlace = false
 				// immediately switch into creating a new Partition if we haven't already
-				result := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
+				result := createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
 				// append all rows we've successfully processed so far (up to this one)
 				for j := 0; j < i; j++ {
 					err := result.AppendRowData(p.GetRowData(j), p.GetRowMeta(j), p.GetVarRowData(j), p.GetSerializedVarRowData(j))
@@ -51,7 +56,8 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePartition, error) {
 	var multierr *multierror.Error
 	parts := make([]sif.OperablePartition, 0, 1)
-	parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
+	// our new partition can use just the publicSchema to save space, since we're copying data anyway (similar to a repack)
+	parts = append(parts, createPartitionImpl(p.maxRows, p.publicSchema, p.publicSchema))
 	// some temp Row structs we can re-use
 	row := &rowImpl{}
 	factoryRow := &rowImpl{}
@@ -61,7 +67,7 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 		appendTarget := parts[len(parts)-1]
 		// allocate a new partition if this one is full
 		if appendTarget.GetNumRows() >= appendTarget.GetMaxRows() {
-			parts = append(parts, createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema))
+			parts = append(parts, createPartitionImpl(p.maxRows, p.publicSchema, p.publicSchema))
 			appendTarget = parts[len(parts)-1]
 		}
 		// we have room, so allocate a new row
@@ -96,7 +102,7 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 // FilterRows filters the Rows in the current Partition, creating a new one
 func (p *partitionImpl) FilterRows(fn sif.FilterOperation) (sif.OperablePartition, error) {
 	var multierr *multierror.Error
-	result := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
+	result := createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
 	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
 		shouldKeep, err := fn(p.getRow(row, i))

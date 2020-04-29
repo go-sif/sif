@@ -18,9 +18,15 @@ func (s *flatMapTask) RunWorker(previous sif.OperablePartition) ([]sif.OperableP
 }
 
 // FlatMap transforms a Row, potentially producing new rows
-func FlatMap(fn sif.FlatMapOperation) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
-		nextTask := flatMapTask{fn: iutil.SafeFlatMapOperation(fn)}
-		return &nextTask, sif.FlatMapTaskType, d.GetSchema().Clone(), nil
+func FlatMap(fn sif.FlatMapOperation) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.FlatMapTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			return &sif.DataFrameOperationResult{
+				Task:          &flatMapTask{fn: iutil.SafeFlatMapOperation(fn)},
+				PublicSchema:  d.GetPublicSchema().Clone(),
+				PrivateSchema: d.GetPrivateSchema().Clone(),
+			}, nil
+		},
 	}
 }

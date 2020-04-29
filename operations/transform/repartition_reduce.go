@@ -7,13 +7,19 @@ import (
 
 // RepartitionReduce is identical to Reduce, with the added ability to change the
 // number of rows per partition during the reduction
-func RepartitionReduce(targetPartitionSize int, kfn sif.KeyingOperation, fn sif.ReductionOperation) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
-		nextTask := reduceTask{
-			kfn:                 iutil.SafeKeyingOperation(kfn),
-			fn:                  iutil.SafeReductionOperation(fn),
-			targetPartitionSize: targetPartitionSize,
-		}
-		return &nextTask, sif.ShuffleTaskType, d.GetSchema().Clone(), nil
+func RepartitionReduce(targetPartitionSize int, kfn sif.KeyingOperation, fn sif.ReductionOperation) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.ShuffleTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			return &sif.DataFrameOperationResult{
+				Task: &reduceTask{
+					kfn:                 iutil.SafeKeyingOperation(kfn),
+					fn:                  iutil.SafeReductionOperation(fn),
+					targetPartitionSize: targetPartitionSize,
+				},
+				PublicSchema:  d.GetPublicSchema().Clone(),
+				PrivateSchema: d.GetPrivateSchema().Clone(),
+			}, nil
+		},
 	}
 }

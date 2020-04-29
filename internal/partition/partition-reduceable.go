@@ -13,13 +13,13 @@ import (
 )
 
 // CreateReduceablePartition creates a new Partition containing an empty byte array and a schema
-func CreateReduceablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) itypes.ReduceablePartition {
-	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+func CreateReduceablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) itypes.ReduceablePartition {
+	return createPartitionImpl(maxRows, privateSchema, publicSchema)
 }
 
 // CreateKeyedReduceablePartition creates a new Partition containing an empty byte array and a schema
-func CreateKeyedReduceablePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) itypes.ReduceablePartition {
-	part := createPartitionImpl(maxRows, widestSchema, currentSchema)
+func CreateKeyedReduceablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) itypes.ReduceablePartition {
+	part := createPartitionImpl(maxRows, privateSchema, publicSchema)
 	part.isKeyed = true
 	part.keys = make([]uint64, maxRows)
 	return part
@@ -87,17 +87,13 @@ func (p *partitionImpl) FindFirstRowKey(keyBuf []byte, key uint64, keyfn sif.Key
 		return firstKey, err
 	}
 	// iterate over each row with a matching key to find the first one with identical key bytes
+	tempRow := &rowImpl{}
 	for i := firstKey; i < p.GetNumRows(); i++ {
 		if k, err := p.GetKey(i); err != nil || k != key {
 			return -1, err
 		}
-		rowKey, err := keyfn(&rowImpl{
-			meta:              p.GetRowMeta(i),
-			data:              p.GetRowData(i),
-			varData:           p.GetVarRowData(i),
-			serializedVarData: p.GetSerializedVarRowData(i),
-			schema:            p.GetCurrentSchema(),
-		})
+
+		rowKey, err := keyfn(p.getRow(tempRow, i))
 		if err != nil {
 			return -1, err
 		} else if reflect.DeepEqual(keyBuf, rowKey) {
@@ -121,19 +117,14 @@ func (p *partitionImpl) FindLastRowKey(keyBuf []byte, key uint64, keyfn sif.Keyi
 	}
 	lastKey := firstKey
 	// iterate over each row with a matching key to find the last one with identical key bytes
+	tempRow := &rowImpl{}
 	for i := firstKey + 1; i < p.GetNumRows(); i++ {
 		if k, err := p.GetKey(i); err != nil {
 			return -1, err
 		} else if k != key {
 			break // current key isn't the same, break out
 		}
-		rowKey, err := keyfn(&rowImpl{
-			meta:              p.GetRowMeta(i),
-			data:              p.GetRowData(i),
-			varData:           p.GetVarRowData(i),
-			serializedVarData: p.GetSerializedVarRowData(i),
-			schema:            p.GetCurrentSchema(),
-		})
+		rowKey, err := keyfn(p.getRow(tempRow, i))
 		if err != nil {
 			return -1, err
 		} else if reflect.DeepEqual(keyBuf, rowKey) {
@@ -167,8 +158,8 @@ func (p *partitionImpl) Split(pos int) (itypes.ReduceablePartition, itypes.Reduc
 	if pos >= p.numRows {
 		return nil, nil, fmt.Errorf("Split position is outside of Partition bounds")
 	}
-	left := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
-	right := createPartitionImpl(p.maxRows, p.widestSchema, p.currentSchema)
+	left := createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
+	right := createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
 	if p.isKeyed {
 		left.isKeyed = true
 		left.keys = make([]uint64, p.maxRows)
@@ -252,7 +243,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 				continue
 			}
 			// no need to serialize values for columns we've dropped
-			if col, err := p.currentSchema.GetOffset(k); err == nil {
+			if col, err := p.publicSchema.GetOffset(k); err == nil {
 				if vcol, ok := col.Type().(sif.VarColumnType); ok {
 					sdata, err := vcol.Serialize(v)
 					if err != nil {
@@ -288,7 +279,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 }
 
 // FromBytes converts disk-serialized bytes into a Partition
-func FromBytes(data []byte, widestSchema sif.Schema, currentSchema sif.Schema) (itypes.ReduceablePartition, error) {
+func FromBytes(data []byte, privateSchema sif.Schema, publicSchema sif.Schema) (itypes.ReduceablePartition, error) {
 	m := &pb.DPartition{}
 	err := proto.Unmarshal(data, m)
 	if err != nil {
@@ -299,11 +290,11 @@ func FromBytes(data []byte, widestSchema sif.Schema, currentSchema sif.Schema) (
 		maxRows:              int(m.MaxRows),
 		numRows:              int(m.NumRows),
 		rows:                 m.RowData,
-		varRowData:           make([]map[string]interface{}, int(m.MaxRows)*widestSchema.Size()),
-		serializedVarRowData: make([]map[string][]byte, int(m.MaxRows)*widestSchema.Size()),
+		varRowData:           make([]map[string]interface{}, int(m.MaxRows)*privateSchema.Size()),
+		serializedVarRowData: make([]map[string][]byte, int(m.MaxRows)*privateSchema.Size()),
 		rowMeta:              m.RowMeta,
-		widestSchema:         widestSchema,
-		currentSchema:        currentSchema,
+		privateSchema:        privateSchema,
+		publicSchema:         publicSchema,
 		keys:                 nil,
 		isKeyed:              m.IsKeyed,
 	}

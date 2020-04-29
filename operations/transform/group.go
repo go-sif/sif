@@ -6,12 +6,18 @@ import (
 )
 
 // Group shuffles rows across workers, using a key - useful for grouping buckets of data together on single workers
-func Group(kfn sif.KeyingOperation) sif.DataFrameOperation {
-	return func(d sif.DataFrame) (sif.Task, sif.TaskType, sif.Schema, error) {
-		nextTask := repartitionTask{
-			kfn:                 iutil.SafeKeyingOperation(kfn),
-			targetPartitionSize: -1,
-		}
-		return &nextTask, sif.ShuffleTaskType, d.GetSchema().Clone(), nil
+func Group(kfn sif.KeyingOperation) *sif.DataFrameOperation {
+	return &sif.DataFrameOperation{
+		TaskType: sif.ShuffleTaskType,
+		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
+			return &sif.DataFrameOperationResult{
+				Task: &repartitionTask{
+					kfn:                 iutil.SafeKeyingOperation(kfn),
+					targetPartitionSize: -1,
+				},
+				PublicSchema:  d.GetPublicSchema().Clone(),
+				PrivateSchema: d.GetPrivateSchema().Clone(),
+			}, nil
+		},
 	}
 }

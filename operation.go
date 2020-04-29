@@ -7,7 +7,17 @@ type RowFactory func() Row
 type AccumulatorFactory func() Accumulator
 
 // DataFrameOperation - A generic DataFrame transform, returning a Task that performs the "work", a string representation of the Task, and a (potentially) altered Schema.
-type DataFrameOperation func(df DataFrame) (Task, TaskType, Schema, error)
+type DataFrameOperation struct {
+	TaskType TaskType // the task type
+	Do       func(df DataFrame) (*DataFrameOperationResult, error)
+}
+
+// DataFrameOperationResult is the result of a DataFrameOperation
+type DataFrameOperationResult struct {
+	Task          Task   // the task
+	PublicSchema  Schema // the new public schema
+	PrivateSchema Schema // the new private schema
+}
 
 // MapOperation - A generic function for manipulating Rows in-place
 type MapOperation func(row Row) error

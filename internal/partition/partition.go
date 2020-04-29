@@ -21,14 +21,14 @@ type partitionImpl struct {
 	varRowData           []map[string]interface{}
 	serializedVarRowData []map[string][]byte // for receiving serialized data from a shuffle (temporary)
 	rowMeta              []byte
-	widestSchema         sif.Schema
-	currentSchema        sif.Schema
+	publicSchema         sif.Schema
+	privateSchema        sif.Schema
 	keys                 []uint64
 	isKeyed              bool
 }
 
 // createPartitionImpl creates a new Partition containing an empty byte array and a schema
-func createPartitionImpl(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) *partitionImpl {
+func createPartitionImpl(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) *partitionImpl {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID for Partition: %v", err)
@@ -37,20 +37,20 @@ func createPartitionImpl(maxRows int, widestSchema sif.Schema, currentSchema sif
 		id:                   id.String(),
 		maxRows:              maxRows,
 		numRows:              0,
-		rows:                 make([]byte, maxRows*widestSchema.Size(), maxRows*widestSchema.Size()),
+		rows:                 make([]byte, maxRows*privateSchema.Size(), maxRows*privateSchema.Size()),
 		varRowData:           make([]map[string]interface{}, maxRows),
 		serializedVarRowData: make([]map[string][]byte, maxRows),
-		rowMeta:              make([]byte, maxRows*widestSchema.NumColumns()),
-		widestSchema:         widestSchema,
-		currentSchema:        currentSchema,
+		rowMeta:              make([]byte, maxRows*privateSchema.NumColumns()),
+		privateSchema:        privateSchema,
+		publicSchema:         publicSchema,
 		keys:                 make([]uint64, 0),
 		isKeyed:              false,
 	}
 }
 
 // CreatePartition creates a new Partition containing an empty byte array and a schema
-func CreatePartition(maxRows int, widestSchema sif.Schema, currentSchema sif.Schema) sif.Partition {
-	return createPartitionImpl(maxRows, widestSchema, currentSchema)
+func CreatePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) sif.Partition {
+	return createPartitionImpl(maxRows, privateSchema, publicSchema)
 }
 
 // ID retrieves the ID of this Partition
@@ -74,7 +74,7 @@ func (p *partitionImpl) getRow(row *rowImpl, rowNum int) sif.Row {
 	row.data = p.GetRowData(rowNum)
 	row.varData = p.GetVarRowData(rowNum)
 	row.serializedVarData = p.GetSerializedVarRowData(rowNum)
-	row.schema = p.currentSchema
+	row.schema = p.publicSchema
 	return row
 }
 
@@ -85,7 +85,7 @@ func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 		data:              p.GetRowData(rowNum),
 		varData:           p.GetVarRowData(rowNum),
 		serializedVarData: p.GetSerializedVarRowData(rowNum),
-		schema:            p.currentSchema,
+		schema:            p.publicSchema,
 	}
 }
 

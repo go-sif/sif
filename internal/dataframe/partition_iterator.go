@@ -56,23 +56,23 @@ func (psi *partitionSliceIterator) NextPartition() (sif.Partition, error) {
 
 // PartitionLoaderIterator produces Partitions from PartitionLoaders
 type partitionLoaderIterator struct {
-	partitionLoaders    []sif.PartitionLoader
-	partitionGroup      sif.PartitionIterator
-	parser              sif.DataSourceParser
-	widestInitialSchema sif.Schema
-	next                int
-	lock                sync.Mutex
-	endListeners        []func()
+	partitionLoaders           []sif.PartitionLoader
+	partitionGroup             sif.PartitionIterator
+	parser                     sif.DataSourceParser
+	widestInitialPrivateSchema sif.Schema
+	next                       int
+	lock                       sync.Mutex
+	endListeners               []func()
 }
 
 func createPartitionLoaderIterator(partitionLoaders []sif.PartitionLoader, parser sif.DataSourceParser, widestInitialSchema sif.Schema) sif.PartitionIterator {
 	return &partitionLoaderIterator{
-		partitionLoaders:    partitionLoaders,
-		partitionGroup:      nil,
-		parser:              parser,
-		widestInitialSchema: widestInitialSchema,
-		next:                0,
-		endListeners:        []func(){},
+		partitionLoaders:           partitionLoaders,
+		partitionGroup:             nil,
+		parser:                     parser,
+		widestInitialPrivateSchema: widestInitialSchema,
+		next:                       0,
+		endListeners:               []func(){},
 	}
 }
 
@@ -104,7 +104,7 @@ func (pli *partitionLoaderIterator) NextPartition() (sif.Partition, error) {
 		}
 		l := pli.partitionLoaders[pli.next]
 		pli.next++
-		partGroup, err := l.Load(pli.parser, pli.widestInitialSchema) // load data into a partition wide enough to accommodate upcoming column adds
+		partGroup, err := l.Load(pli.parser, pli.widestInitialPrivateSchema) // load data into a partition wide enough to accommodate upcoming column adds
 		if err != nil {
 			return nil, err
 		}

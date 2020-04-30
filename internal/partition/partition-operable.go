@@ -36,7 +36,7 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 			if inPlace {
 				inPlace = false
 				// immediately switch into creating a new Partition if we haven't already
-				result := createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
+				result = createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
 				// append all rows we've successfully processed so far (up to this one)
 				for j := 0; j < i; j++ {
 					err := result.AppendRowData(p.GetRowData(j), p.GetRowMeta(j), p.GetVarRowData(j), p.GetSerializedVarRowData(j))

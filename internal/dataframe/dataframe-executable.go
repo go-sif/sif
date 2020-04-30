@@ -85,15 +85,16 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 		// TODO panic if no removes precede the repack, as it's pointless
 		stages = append(stages, createStage(nextID))
 		nextID++
+		currentStage := stages[len(stages)-1]
+		if len(stages) > 1 {
+			currentStage.incomingPublicSchema = stages[len(stages)-2].outgoingPublicSchema
+			currentStage.incomingPrivateSchema = stages[len(stages)-2].outgoingPrivateSchema
+		}
 	}
 	newStage()
 	for i, f := range frames {
 		currentStage := stages[len(stages)-1]
 		currentStage.frames = append(currentStage.frames, f)
-		if len(stages) > 1 {
-			currentStage.incomingPublicSchema = stages[len(stages)-2].outgoingPublicSchema
-			currentStage.incomingPrivateSchema = stages[len(stages)-2].outgoingPrivateSchema
-		}
 		// if this is a reduce, this is the end of the Stage
 		if f.taskType == sif.ShuffleTaskType {
 			endStage()
@@ -104,10 +105,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			currentStage.SetKeyingOperation(sTask.GetKeyingOperation())
 			currentStage.SetReductionOperation(sTask.GetReductionOperation())
 			currentStage.SetTargetPartitionSize(sTask.GetTargetPartitionSize())
-			// if there are still frames left, make a new stage
-			if i+1 < len(frames) {
-				newStage()
-			}
+			newStage()
 		} else if f.taskType == sif.AccumulateTaskType {
 			endStage()
 			aTask, ok := f.task.(accumulationTask)

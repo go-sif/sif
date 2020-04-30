@@ -104,7 +104,10 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			currentStage.SetKeyingOperation(sTask.GetKeyingOperation())
 			currentStage.SetReductionOperation(sTask.GetReductionOperation())
 			currentStage.SetTargetPartitionSize(sTask.GetTargetPartitionSize())
-			newStage()
+			// if there are still frames left, make a new stage
+			if i+1 < len(frames) {
+				newStage()
+			}
 		} else if f.taskType == sif.AccumulateTaskType {
 			endStage()
 			aTask, ok := f.task.(accumulationTask)

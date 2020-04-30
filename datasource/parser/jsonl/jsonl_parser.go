@@ -12,6 +12,7 @@ type ParserConf struct {
 	PartitionSize int  // The maximum number of rows per Partition. Defaults to 128.
 	HeaderLines   int  // The number of lines to ignore from the beginning of each file. Defaults to 0.
 	Comment       rune // Lines beginning with the comment character are ignored. Cannot be equal to the Delimiter. Defaults to no comment character.
+	MaxBufferSize int  // Maximum size in bytes of the buffer used to read lines from the file
 }
 
 // Parser produces partitions from JSONL data
@@ -23,6 +24,9 @@ type Parser struct {
 func CreateParser(conf *ParserConf) *Parser {
 	if conf.PartitionSize == 0 {
 		conf.PartitionSize = 128
+	}
+	if conf.MaxBufferSize == 0 {
+		conf.MaxBufferSize = bufio.MaxScanTokenSize
 	}
 	return &Parser{conf: conf}
 }
@@ -36,7 +40,7 @@ func (p *Parser) PartitionSize() int {
 func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, widestInitialPrivateSchema sif.Schema, onIteratorEnd func()) (sif.PartitionIterator, error) {
 	// start parsing by creating a scanner
 	scanner := bufio.NewScanner(r)
-
+	scanner.Buffer(make([]byte, 0, 4096), p.conf.MaxBufferSize)
 	// ignore header lines, if configured to do so
 	for i := 0; i < p.conf.HeaderLines; i++ {
 		scanner.Scan()

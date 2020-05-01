@@ -1,6 +1,7 @@
 package dataframe
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 
@@ -22,6 +23,7 @@ type pTreeNode struct {
 	nextStagePrivateSchema sif.Schema
 	nextStagePublicSchema  sif.Schema
 	diskPath               string
+	diskSizeBytes          int
 	prev                   *pTreeNode // btree-like link between leaves
 	next                   *pTreeNode // btree-like link between leaves
 	parent                 *pTreeNode
@@ -269,6 +271,17 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 		if err != nil {
 			return nil, err
 		}
+		if t.nextStagePrivateSchema == nil {
+			panic(fmt.Errorf("Next stage private schema was nil"))
+		}
+		if t.nextStagePublicSchema == nil {
+			panic(fmt.Errorf("Next stage public schema was nil"))
+		}
+		if len(buff) != t.diskSizeBytes {
+			panic(fmt.Errorf("Disk-swapped partition %s was not the expected size: %d", t.diskPath, t.diskSizeBytes))
+		}
+		t.diskPath = ""
+		t.diskSizeBytes = 0
 		part, err := partition.FromBytes(buff, t.nextStagePrivateSchema, t.nextStagePublicSchema)
 		if err != nil {
 			return nil, err
@@ -291,8 +304,10 @@ func onPartitionEvict(tempDir string, partID string, t *pTreeNode) {
 		if err != nil {
 			log.Fatalf("Unable to create temporary file for partition %s", err)
 		}
-		if _, err := tmpfile.Write(buff); err != nil {
+		if bytesWritten, err := tmpfile.Write(buff); err != nil {
 			log.Fatalf("Unable to write partition to disk %s", err)
+		} else {
+			t.diskSizeBytes = bytesWritten
 		}
 		if err := tmpfile.Close(); err != nil {
 			log.Fatalf("Unable to write partition to disk %s", err)

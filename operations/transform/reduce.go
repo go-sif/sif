@@ -1,7 +1,9 @@
 package transform
 
 import (
+	"github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
+	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
 )
 
@@ -51,5 +53,21 @@ func Reduce(kfn sif.KeyingOperation, fn sif.ReductionOperation) *sif.DataFrameOp
 				PrivateSchema: d.GetPrivateSchema().Clone(),
 			}, nil
 		},
+	}
+}
+
+// KeyColumns creates a KeyingOperation which uses multiple column values to produce a compound key.
+func KeyColumns(colNames ...string) sif.KeyingOperation {
+	return func(row sif.Row) ([]byte, error) {
+		irow := row.(itypes.AccessibleRow) // access row internals
+		hasher := xxhash.New()
+		for _, cname := range colNames {
+			data, err := irow.GetColData(cname)
+			if err != nil {
+				return nil, err
+			}
+			hasher.Write(data)
+		}
+		return hasher.Sum(nil), nil
 	}
 }

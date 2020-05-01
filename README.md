@@ -303,6 +303,8 @@ frame, err := frame.To(
 // ...
 ```
 
+**Tip:** `ops.KeyColumns(colNames ...string)` can be used with `ops.Reduce` to quickly produce a key (or compound key) from a set of column values.
+
 #### Accumulation
 
 Sif `Accumulator`s are an alternative mechanism for reduction, which offers full customization of reduciton technique, in exchange for accumulation ending a `sif` pipeline. In exchange for losing the ability to further transform and reduce data, `Accumulator`s offer the potential for significant performance benefits.

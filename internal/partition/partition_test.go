@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
+	"github.com/go-sif/sif/operations/transform"
 	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
@@ -304,5 +305,54 @@ func TestRepack(t *testing.T) {
 		newVal3, err := newRow.GetVarString("col3")
 		require.Nil(t, err)
 		require.Equal(t, val3, newVal3)
+	}
+}
+
+func TestKeyColumns(t *testing.T) {
+	// create partition
+	schema := createPartitionTestSchema()
+	schema.CreateColumn("col2", &sif.Float64ColumnType{})
+	schema.CreateColumn("col3", &sif.VarStringColumnType{})
+	part1 := createPartitionImpl(8, schema, schema)
+	part2 := createPartitionImpl(8, schema, schema)
+	// append rows
+	tempRow := CreateTempRow()
+	for i := 0; i < 4; i++ {
+		row, err := part1.AppendEmptyRowData(tempRow)
+		require.Nil(t, err)
+		row.SetInt8("col1", int8(i))
+		row.SetFloat64("col2", float64(i+1))
+		row.SetVarString("col3", "Hello World")
+		row, err = part2.AppendEmptyRowData(tempRow)
+		require.Nil(t, err)
+		row.SetInt8("col1", int8(i))
+		row.SetFloat64("col2", float64(i+1))
+		row.SetVarString("col3", "Hello World")
+	}
+
+	for i := 0; i < 4; i++ {
+		key1, err := transform.KeyColumns("col1", "col2", "col3")(part1.GetRow(i))
+		require.Nil(t, err)
+		key2, err := transform.KeyColumns("col1", "col2", "col3")(part2.GetRow(i))
+		require.Nil(t, err)
+		require.Equal(t, key1, key2)
+	}
+
+	// Keys for different values shouldn't be equal
+	for i := 0; i < 4; i++ {
+		key1, err := transform.KeyColumns("col1", "col2", "col3")(part1.GetRow(i))
+		require.Nil(t, err)
+		key2, err := transform.KeyColumns("col1", "col2", "col3")(part2.GetRow(3 - i))
+		require.Nil(t, err)
+		require.NotEqual(t, key1, key2)
+	}
+
+	// Order matters
+	for i := 0; i < 4; i++ {
+		key1, err := transform.KeyColumns("col2", "col1", "col3")(part1.GetRow(i))
+		require.Nil(t, err)
+		key2, err := transform.KeyColumns("col1", "col2", "col3")(part2.GetRow(i))
+		require.Nil(t, err)
+		require.NotEqual(t, key1, key2)
 	}
 }

@@ -32,7 +32,7 @@ type coordinator struct {
 func createCoordinator(opts *NodeOptions) (*coordinator, error) {
 	// default certain options if not supplied
 	ensureDefaultNodeOptionsValues(opts)
-	res := &coordinator{opts: opts, clusterServer: createClusterServer()}
+	res := &coordinator{opts: opts, clusterServer: createClusterServer(opts)}
 	res.bootstrappingLock.Lock() // lock node as bootstrapping immediately
 	return res, nil
 }
@@ -94,7 +94,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	waitCtx, cancel := context.WithTimeout(ctx, c.opts.WorkerJoinTimeout)
 	defer cancel()
 	log.Printf("Waiting for %d workers to connect...", c.opts.NumWorkers)
-	if err := c.clusterServer.waitForWorkers(waitCtx, c.opts.NumWorkers); err != nil {
+	if err := c.clusterServer.waitForWorkers(waitCtx); err != nil {
 		return nil, err
 	}
 	workers := c.clusterServer.Workers()
@@ -135,7 +135,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		wg.Add(1)
 		numPartitions++
 		part := partitionMap.Next()
-		// log.Printf("Assigning partition loader \"%s\" to worker %d\n", part.ToString(), i)
+		log.Printf("Assigning partition loader \"%s\" to worker %d\n", part.ToString(), i)
 		go asyncAssignPartition(ctx, part, workers[i], workerConns[i], &wg, asyncErrors)
 	}
 	if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {

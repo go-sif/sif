@@ -13,19 +13,26 @@ import (
 )
 
 type clusterServer struct {
-	workers    sync.Map
-	numWorkers int
+	workers        sync.Map
+	numWorkersLock sync.Mutex
+	numWorkers     int
+	opts           *NodeOptions
 }
 
 // createClusterServer creates a new cluster server
-func createClusterServer() *clusterServer {
-	return &clusterServer{workers: sync.Map{}}
+func createClusterServer(opts *NodeOptions) *clusterServer {
+	return &clusterServer{workers: sync.Map{}, opts: opts}
 }
 
 // RegisterWorker registers new workers with the cluster
 func (s *clusterServer) RegisterWorker(ctx context.Context, req *pb.MRegisterRequest) (*pb.MRegisterResponse, error) {
+	s.numWorkersLock.Lock()
+	defer s.numWorkersLock.Unlock()
 	if _, exists := s.workers.Load(req.Id); exists {
 		return nil, fmt.Errorf("Worker %s is already registered", req.Id)
+	}
+	if s.numWorkers == s.opts.NumWorkers {
+		return nil, fmt.Errorf("Maximum number of workers reacher")
 	}
 	peer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -55,6 +62,8 @@ func (s *clusterServer) RegisterWorker(ctx context.Context, req *pb.MRegisterReq
 
 // NumberOfWorkers returns the current worker count
 func (s *clusterServer) NumberOfWorkers() int {
+	s.numWorkersLock.Lock()
+	defer s.numWorkersLock.Unlock()
 	return s.numWorkers
 }
 
@@ -69,9 +78,9 @@ func (s *clusterServer) Workers() []*pb.MWorkerDescriptor {
 	return result
 }
 
-func (s *clusterServer) waitForWorkers(ctx context.Context, numWorkers int) error {
+func (s *clusterServer) waitForWorkers(ctx context.Context) error {
 	for {
-		if s.NumberOfWorkers() == numWorkers {
+		if s.NumberOfWorkers() == s.opts.NumWorkers {
 			break
 		}
 		select {

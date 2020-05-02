@@ -12,6 +12,7 @@ import (
 	"github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/partition"
 	itypes "github.com/go-sif/sif/internal/types"
+	"github.com/go-sif/sif/internal/util"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pierrec/lz4"
 )
@@ -319,7 +320,7 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 	if t.partID == nil {
-		return nil, fmt.Errorf("Partition tree node does not have an associated partition")
+		return nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
 	}
 	part, ok := t.lruCache.Get(*t.partID)
 	if !ok {

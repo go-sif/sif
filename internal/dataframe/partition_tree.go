@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"sync"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
@@ -22,6 +23,7 @@ type pTreeNode struct {
 	part                   itypes.ReduceablePartition
 	nextStagePrivateSchema sif.Schema
 	nextStagePublicSchema  sif.Schema
+	diskWriteLock          sync.Mutex
 	diskPath               string
 	diskSizeBytes          int
 	prev                   *pTreeNode // btree-like link between leaves
@@ -278,10 +280,12 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 }
 
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
+	t.diskWriteLock.Lock()
+	defer t.diskWriteLock.Unlock()
 	if t.part == nil {
 		buff, err := ioutil.ReadFile(t.diskPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", t.diskPath, err)
 		}
 		if t.nextStagePrivateSchema == nil {
 			panic(fmt.Errorf("Next stage private schema was nil"))
@@ -306,6 +310,8 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 }
 
 func onPartitionEvict(tempDir string, partID string, t *pTreeNode) {
+	t.diskWriteLock.Lock()
+	defer t.diskWriteLock.Unlock()
 	if t.part != nil {
 		buff, err := t.part.ToBytes()
 		if err != nil {

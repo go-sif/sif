@@ -160,18 +160,22 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 	}
 	t.k = avgKey
 	t.left = &pTreeNode{
-		k:        0,
-		part:     lp,
-		prev:     t.prev,
-		parent:   t,
-		lruCache: t.lruCache,
+		k:                      0,
+		part:                   lp,
+		prev:                   t.prev,
+		parent:                 t,
+		lruCache:               t.lruCache,
+		nextStagePrivateSchema: t.nextStagePrivateSchema,
+		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	t.right = &pTreeNode{
-		k:        0,
-		part:     rp,
-		next:     t.next,
-		parent:   t,
-		lruCache: t.lruCache,
+		k:                      0,
+		part:                   rp,
+		next:                   t.next,
+		parent:                 t,
+		lruCache:               t.lruCache,
+		nextStagePrivateSchema: t.nextStagePrivateSchema,
+		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	t.left.next = t.right
 	t.right.prev = t.left
@@ -210,12 +214,14 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		t.parent.center = t
 		// our parent has a fresh right node to insert into
 		t.parent.right = &pTreeNode{
-			k:        0,
-			part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
-			next:     t.next,
-			prev:     t.parent.center,
-			parent:   t,
-			lruCache: t.lruCache,
+			k:                      0,
+			part:                   partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
+			next:                   t.next,
+			prev:                   t.parent.center,
+			parent:                 t,
+			lruCache:               t.lruCache,
+			nextStagePrivateSchema: t.nextStagePrivateSchema,
+			nextStagePublicSchema:  t.nextStagePublicSchema,
 		}
 		t.parent.center.next = t.parent.right
 		// add new partition to front of "visited" queue
@@ -228,27 +234,33 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	t.k = avgKey
 	// we need to start a new center chain at this node to store data
 	t.center = &pTreeNode{
-		k:        0,
-		part:     t.part,
-		parent:   t,
-		lruCache: t.lruCache,
+		k:                      0,
+		part:                   t.part,
+		parent:                 t,
+		lruCache:               t.lruCache,
+		nextStagePrivateSchema: t.nextStagePrivateSchema,
+		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
 	t.left = &pTreeNode{
-		k:        0,
-		part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
-		prev:     t.prev,
-		next:     t.center,
-		parent:   t,
-		lruCache: t.lruCache,
+		k:                      0,
+		part:                   partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
+		prev:                   t.prev,
+		next:                   t.center,
+		parent:                 t,
+		lruCache:               t.lruCache,
+		nextStagePrivateSchema: t.nextStagePrivateSchema,
+		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	t.right = &pTreeNode{
-		k:        0,
-		part:     partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
-		prev:     t.center,
-		next:     t.next,
-		parent:   t,
-		lruCache: t.lruCache,
+		k:                      0,
+		part:                   partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
+		prev:                   t.center,
+		next:                   t.next,
+		parent:                 t,
+		lruCache:               t.lruCache,
+		nextStagePrivateSchema: t.nextStagePrivateSchema,
+		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	// add new partitions to front of "visited" queue
 	t.lruCache.Add(t.left.part.ID(), t.left)

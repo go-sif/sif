@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path"
 
 	xxhash "github.com/cespare/xxhash/v2"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-sif/sif/internal/partition"
 	itypes "github.com/go-sif/sif/internal/types"
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/pierrec/lz4"
 )
 
 // pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
@@ -322,9 +324,24 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 	part, ok := t.lruCache.Get(*t.partID)
 	if !ok {
 		tempFilePath := path.Join(t.tempDir, *t.partID)
-		buff, err := ioutil.ReadFile(tempFilePath)
+		f, err := os.Open(tempFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", tempFilePath, err)
+		}
+		defer func() {
+			err := f.Close()
+			if err != nil {
+				log.Printf("Unable to close file %s", tempFilePath)
+			}
+			err = os.Remove(tempFilePath)
+			if err != nil {
+				log.Printf("Unable to remove file %s", tempFilePath)
+			}
+		}()
+		r := lz4.NewReader(f)
+		buff, err := ioutil.ReadAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
 		}
 		if t.nextStagePrivateSchema == nil {
 			panic(fmt.Errorf("Next stage private schema was nil"))
@@ -348,11 +365,26 @@ func onPartitionEvict(tempDir string, partID string, part itypes.ReduceableParti
 	if err != nil {
 		log.Fatalf("Unable to convert partition to buffer %s", err)
 	}
+
 	tempFilePath := path.Join(tempDir, part.ID())
-	err = ioutil.WriteFile(tempFilePath, buff, 0644)
+	f, err := os.Create(tempFilePath)
 	if err != nil {
 		log.Fatalf("Unable to create temporary file for partition %s", err)
 	}
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			log.Printf("Unable to close file %s", tempFilePath)
+		}
+		err = f.Sync()
+		if err != nil {
+			log.Printf("Unable to sync file %s", tempFilePath)
+		}
+	}()
+	w := lz4.NewWriter(f)
+	w.Write(buff)
+	w.Flush()
+	defer w.Close()
 }
 
 func (t *pTreeNode) findPartition(hashedKey uint64) *pTreeNode {

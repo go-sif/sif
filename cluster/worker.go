@@ -103,10 +103,12 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	if !ok {
 		return fmt.Errorf("DataFrame must be executable")
 	}
-	tmpDir, err := ioutil.TempDir(w.opts.TempDir, fmt.Sprintf("sif-worker-%d", w.opts.Port))
+	tmpDirPath := fmt.Sprintf("sif-worker-%d", w.opts.Port)
+	tmpDir, err := ioutil.TempDir(w.opts.TempDir, tmpDirPath)
 	if err != nil {
 		return err
 	}
+	log.Printf("Using temporary directory: %s", tmpDirPath)
 	defer os.RemoveAll(tmpDir)
 	statsTracker := &stats.RunStatistics{}
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{

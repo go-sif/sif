@@ -373,13 +373,13 @@ func onPartitionEvict(tempDir string, partID string, part itypes.ReduceableParti
 		log.Fatalf("Unable to create temporary file for partition %s", err)
 	}
 	defer func() {
-		err := f.Close()
-		if err != nil {
-			log.Printf("Unable to close file %s", tempFilePath)
-		}
 		err = f.Sync()
 		if err != nil {
 			log.Printf("Unable to sync file %s", tempFilePath)
+		}
+		err := f.Close()
+		if err != nil {
+			log.Printf("Unable to close file %s", tempFilePath)
 		}
 	}()
 	w := lz4.NewWriter(f)

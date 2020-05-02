@@ -56,7 +56,9 @@ func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeO
 		}
 		wopts := cluster.CloneNodeOptions(opts)
 		wopts.Port = port
-		wopts.TempDir = cwd
+		if len(wopts.TempDir) == 0 {
+			wopts.TempDir = cwd
+		}
 		worker, err := cluster.CreateNodeInRole(cluster.Worker, wopts)
 		if err != nil {
 			return nil, err

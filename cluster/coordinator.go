@@ -151,6 +151,8 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		default:
 			// run stage on each worker, blocking until stage is complete across the cluster
 			stage := planExecutor.GetNextStage()
+			log.Println("------------------------------------------------------------")
+			log.Printf("Starting stage %d...", stage.ID())
 			runShuffle := stage.EndsInShuffle()
 			prepCollect := stage.EndsInCollect()
 			prepAccumulate := stage.EndsInAccumulate()
@@ -163,6 +165,8 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 			if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 				return nil, err
 			}
+			log.Printf("Finished stage %d", stage.ID())
+			log.Println("------------------------------------------------------------")
 			if prepAccumulate { // If we need to run an accumulate
 				asyncErrors = iutil.CreateAsyncErrorChannel()
 				// run collect
@@ -277,6 +281,7 @@ func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor,
 		errors <- fmt.Errorf("Something went wrong while running stage %d on worker %s: %v", s.ID(), w.Id, err)
 		return
 	}
+	log.Printf("Worker %s finished running stage %d", w.Id, s.ID())
 	// TODO do something with response
 }
 

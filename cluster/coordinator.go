@@ -151,7 +151,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		default:
 			// run stage on each worker, blocking until stage is complete across the cluster
 			stage := planExecutor.GetNextStage()
-			log.Println("------------------------------------------------------------")
+			log.Println("------------------------------")
 			log.Printf("Starting stage %d...", stage.ID())
 			runShuffle := stage.EndsInShuffle()
 			prepCollect := stage.EndsInCollect()
@@ -163,13 +163,17 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 			}
 			// wait for all the workers to finish the stage
 			if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
+				log.Printf("Something went wrong while running stage %d: %e", stage.ID(), err)
 				return nil, err
 			}
-			log.Printf("Finished stage %d", stage.ID())
-			log.Println("------------------------------------------------------------")
+			defer func() {
+				log.Printf("Finished stage %d", stage.ID())
+				log.Println("------------------------------")
+			}()
 			if prepAccumulate { // If we need to run an accumulate
 				asyncErrors = iutil.CreateAsyncErrorChannel()
-				// run collect
+				// run accumulate
+				log.Printf("Starting accumulation for stage %d...", stage.ID())
 				wg.Add(len(workers))
 				accumulated := stage.Accumulator()
 				var accumulatedLock sync.Mutex
@@ -177,13 +181,14 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 					go asyncRunAccumulate(ctx, workers[i], workerConns[i], accumulated, &accumulatedLock, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
+					log.Printf("Something went wrong while running accumulation for stage %d: %e", stage.ID(), err)
 					return nil, err
 				}
-				// TODO how to return accumulator?
 				return &Result{Accumulated: accumulated}, nil
 			} else if prepCollect { // If we need to run a collect, then trigger that
 				asyncErrors = iutil.CreateAsyncErrorChannel()
 				// run collect
+				log.Printf("Starting collect for stage %d...", stage.ID())
 				wg.Add(len(workers))
 				collected := make(map[string]sif.CollectedPartition)
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
@@ -192,6 +197,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingPrivateSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
+					log.Printf("Something went wrong while running collect for stage %d: %e", stage.ID(), err)
 					return nil, err
 				}
 				return &Result{Collected: collected}, nil

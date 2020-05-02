@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"log"
 
 	pb "github.com/go-sif/sif/internal/rpc"
 	"github.com/go-sif/sif/internal/stats"
@@ -35,6 +36,12 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 	if stage.ID() != int(req.StageId) {
 		return nil, fmt.Errorf("Next stage on worker (%d) does not match expected (%d)", stage.ID(), req.StageId)
 	}
+	log.Println("------------------------------")
+	log.Printf("Running stage %d...", req.StageId)
+	defer func() {
+		log.Printf("Finished running stage %d", req.StageId)
+		log.Println("------------------------------")
+	}()
 	s.statsTracker.StartStage()
 	s.statsTracker.StartTransform()
 	err := s.planExecutor.FlatMapPartitions(stage.WorkerExecute, req, onRowErrorWithContext)
@@ -42,6 +49,7 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 		if _, ok := err.(*multierror.Error); !s.planExecutor.GetConf().IgnoreRowErrors || !ok {
 			// either this isn't a multierr or we're supposed to fail immediately
 			s.statsTracker.EndTransform(stage.ID())
+			log.Printf("Failed to map in stage %d: %e", req.StageId, err)
 			return nil, err
 		}
 	}
@@ -51,6 +59,7 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 		err = s.runShuffle(ctx, req)
 		if err != nil {
 			s.statsTracker.EndShuffle(stage.ID())
+			log.Printf("Failed to shuffle in stage %d: %e", req.StageId, err)
 			return nil, err
 		}
 		s.statsTracker.EndShuffle(stage.ID())

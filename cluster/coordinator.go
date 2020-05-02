@@ -163,7 +163,6 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 			}
 			// wait for all the workers to finish the stage
 			if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
-				log.Printf("Something went wrong while running stage %d: %e", stage.ID(), err)
 				return nil, err
 			}
 			defer func() {
@@ -181,7 +180,6 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 					go asyncRunAccumulate(ctx, workers[i], workerConns[i], accumulated, &accumulatedLock, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
-					log.Printf("Something went wrong while running accumulation for stage %d: %e", stage.ID(), err)
 					return nil, err
 				}
 				return &Result{Accumulated: accumulated}, nil
@@ -197,7 +195,6 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingPrivateSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
-					log.Printf("Something went wrong while running collect for stage %d: %e", stage.ID(), err)
 					return nil, err
 				}
 				return &Result{Collected: collected}, nil
@@ -242,7 +239,7 @@ func asyncStopWorker(w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.Wa
 	lifecycleClient := pb.NewLifecycleServiceClient(conn)
 	_, err := lifecycleClient.Stop(context.Background(), w)
 	if err != nil {
-		errors <- fmt.Errorf("Unable to stop worker %v\n%s", w.Id, err.Error())
+		errors <- fmt.Errorf("Unable to stop worker %v\n%e", w.Id, err)
 	}
 }
 
@@ -260,8 +257,8 @@ func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.M
 	req := &pb.MAssignPartitionRequest{Loader: buff}
 	_, err = partitionClient.AssignPartition(ctx, req)
 	if err != nil {
-		errors <- fmt.Errorf("Something went wrong while assigning partition %s to worker: %v\n%s", part.ToString(), w.Id, err.Error())
-		log.Printf("Something went wrong while assigning partition %s to worker: %v\n%s\n", part.ToString(), w.Id, err.Error())
+		errors <- err
+		log.Printf("Something went wrong while assigning partition %s to worker: %v\n%e\n", part.ToString(), w.Id, err)
 		return
 	}
 	// TODO do something with response
@@ -284,7 +281,8 @@ func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor,
 	}
 	_, err := executionClient.RunStage(ctx, req)
 	if err != nil {
-		errors <- fmt.Errorf("Something went wrong while running stage %d on worker %s: %v", s.ID(), w.Id, err)
+		log.Printf("Something went wrong while running stage %d on worker %s: %e", s.ID(), w.Id, err)
+		errors <- err
 		return
 	}
 	log.Printf("Worker %s finished running stage %d", w.Id, s.ID())
@@ -300,7 +298,8 @@ func asyncRunAccumulate(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc
 		req := &pb.MShuffleAccumulatorRequest{}
 		res, err := partitionClient.ShuffleAccumulator(ctx, req)
 		if err != nil {
-			errors <- fmt.Errorf("Something went wrong while running shuffling accumulator from worker %s: %v", w.Id, err)
+			log.Printf("Something went wrong while running shuffling accumulator from worker %s: %e", w.Id, err)
+			errors <- err
 			return
 		} else if res.GetReady() {
 			transferReq := &pb.MTransferAccumulatorDataRequest{}
@@ -343,7 +342,8 @@ func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 		req := &pb.MShufflePartitionRequest{Bucket: assignedBucket}
 		res, err := partitionClient.ShufflePartition(ctx, req)
 		if err != nil {
-			errors <- fmt.Errorf("Something went wrong while running shuffling partition from worker %s: %v", w.Id, err)
+			log.Printf("Something went wrong while running shuffling partition from worker %s: %e", w.Id, err)
+			errors <- err
 			return
 		} else if res.Part != nil {
 			if collectionLimit.TryAcquire(1) {

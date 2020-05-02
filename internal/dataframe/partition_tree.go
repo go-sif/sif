@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"sync"
+	"path"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
@@ -14,22 +14,21 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-// pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions
+// pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
 type pTreeNode struct {
 	k                      uint64
 	left                   *pTreeNode
 	right                  *pTreeNode
 	center                 *pTreeNode
-	part                   itypes.ReduceablePartition
+	partID                 *string
+	maxRows                int
 	nextStagePrivateSchema sif.Schema
 	nextStagePublicSchema  sif.Schema
-	diskWriteLock          sync.Mutex
-	diskPath               string
-	diskSizeBytes          int
 	prev                   *pTreeNode // btree-like link between leaves
 	next                   *pTreeNode // btree-like link between leaves
 	parent                 *pTreeNode
 	lruCache               *lru.Cache // TODO replace with a queue that is less likely to evict frequently-used entries
+	tempDir                string
 }
 
 // pTreeRoot is an alias for pTreeNode representing the root node of a pTree
@@ -37,12 +36,18 @@ type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
 func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStagePrivateSchema sif.Schema, nextStagePublicSchema sif.Schema) *pTreeNode {
+	// TODO the minimum number of in-memory partitions must be greater than the number of partitions
+	// which are used concurrently, such as in a split(). Otherwise a partition
+	// which is being used may be evicted to disk and further writes to it would not be saved.
+	if conf.InMemoryPartitions < 5 {
+		log.Fatalf("Partition Trees must be capable of holding at least 5 Partitions in memory concurrently.")
+	}
 	cache, err := lru.NewWithEvict(conf.InMemoryPartitions, func(key interface{}, value interface{}) {
 		partID, ok := key.(string)
 		if !ok {
 			log.Fatalf("Unable to sync partition %s to disk due to key casting issue", key)
 		}
-		part, ok := value.(*pTreeNode)
+		part, ok := value.(itypes.ReduceablePartition)
 		if !ok {
 			log.Fatalf("Unable to sync partition %s to disk due to value casting issue", value)
 		}
@@ -53,13 +58,16 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStagePriv
 	}
 	part := partition.CreateReduceablePartition(maxRows, nextStagePrivateSchema, nextStagePublicSchema)
 	part.KeyRows(nil)
-	cache.Add(part.ID(), part)
+	partID := part.ID()
+	cache.Add(partID, part)
 	return &pTreeNode{
 		k:                      0,
-		part:                   part,
+		partID:                 &partID,
 		lruCache:               cache,
+		maxRows:                part.GetMaxRows(),
 		nextStagePrivateSchema: nextStagePrivateSchema,
 		nextStagePublicSchema:  nextStagePublicSchema,
+		tempDir:                conf.TempFilePath,
 	}
 }
 
@@ -89,16 +97,20 @@ func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOpera
 	hasher.Write(keyBuf)
 	hashedKey := hasher.Sum64()
 
-	// locate partition for the given hashed key
+	// locate and load partition for the given hashed key
 	partNode := t.findPartition(hashedKey)
 	// make sure partition is loaded
 	_, err = partNode.loadPartition()
 	if err != nil {
 		return err
 	}
+	part, err := partNode.loadPartition()
+	if err != nil {
+		return err
+	}
 	// Once we have the correct partition, find the last row with matching key in it
 	// idx, err := partNode.part.FindLastRowKey(keyBuf, hashedKey, keyfn)
-	idx, err := partNode.part.FindLastKey(hashedKey)
+	idx, err := part.FindLastKey(hashedKey)
 	if idx < 0 {
 		// something went wrong while locating the insert/merge position
 		return err
@@ -107,10 +119,10 @@ func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOpera
 		irow := row.(itypes.AccessibleRow) // access row internals
 		var insertErr error
 		// append if the target index is at the end of the partition, otherwise insert and shift data
-		if (idx+1) >= partNode.part.GetNumRows() && err == nil {
-			insertErr = partNode.part.(itypes.InternalBuildablePartition).AppendKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey)
+		if (idx+1) >= part.GetNumRows() && err == nil {
+			insertErr = part.(itypes.InternalBuildablePartition).AppendKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey)
 		} else {
-			insertErr = partNode.part.(itypes.InternalBuildablePartition).InsertKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey, idx)
+			insertErr = part.(itypes.InternalBuildablePartition).InsertKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey, idx)
 		}
 		// if the partition was full, try split and retry
 		if _, ok = insertErr.(errors.PartitionFullError); ok {
@@ -140,11 +152,11 @@ func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOpera
 		// If the actual key already exists in the partition, merge into row
 		partition.PopulateTempRow(
 			tempRow,
-			partNode.part.GetRowMeta(idx),
-			partNode.part.GetRowData(idx),
-			partNode.part.GetVarRowData(idx),
-			partNode.part.GetSerializedVarRowData(idx),
-			partNode.part.GetPublicSchema(),
+			part.GetRowMeta(idx),
+			part.GetRowData(idx),
+			part.GetVarRowData(idx),
+			part.GetSerializedVarRowData(idx),
+			part.GetPublicSchema(),
 		)
 		return reducefn(tempRow, row)
 	}
@@ -155,38 +167,48 @@ func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOpera
 // two nodes (left & right). Fails if all the rows in the current pTreeNode
 // have an identical key, in which case a split achieves nothing.
 func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, error) {
-	avgKey, lp, rp, err := t.part.BalancedSplit()
+	part, err := t.loadPartition()
+	if err != nil {
+		return 0, nil, err
+	}
+	avgKey, lp, rp, err := part.BalancedSplit()
 	if err != nil {
 		// this is where we end up if all the keys are the same
 		return avgKey, nil, err
 	}
 	t.k = avgKey
+	lpID := lp.ID()
 	t.left = &pTreeNode{
 		k:                      0,
-		part:                   lp,
+		partID:                 &lpID,
 		prev:                   t.prev,
 		parent:                 t,
 		lruCache:               t.lruCache,
+		tempDir:                t.tempDir,
+		maxRows:                t.maxRows,
 		nextStagePrivateSchema: t.nextStagePrivateSchema,
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
+	rpID := rp.ID()
 	t.right = &pTreeNode{
 		k:                      0,
-		part:                   rp,
+		partID:                 &rpID,
 		next:                   t.next,
 		parent:                 t,
 		lruCache:               t.lruCache,
+		tempDir:                t.tempDir,
+		maxRows:                t.maxRows,
 		nextStagePrivateSchema: t.nextStagePrivateSchema,
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	t.left.next = t.right
 	t.right.prev = t.left
-	t.part = nil // non-leaf nodes don't have partitions
-	t.prev = nil // non-leaf nodes don't have horizontal links
-	t.next = nil // non-leaf nodes don't have horizontal links
+	t.partID = nil // non-leaf nodes don't have partitions
+	t.prev = nil   // non-leaf nodes don't have horizontal links
+	t.next = nil   // non-leaf nodes don't have horizontal links
 	// add left and right to front of "visited" queue
-	t.lruCache.Add(t.left.part.ID(), t.left)
-	t.lruCache.Add(t.right.part.ID(), t.right)
+	t.lruCache.Add(*t.left.partID, lp)
+	t.lruCache.Add(*t.right.partID, rp)
 	// tell the caller where to go next
 	if hashedKey < t.k {
 		return avgKey, t.left, nil
@@ -215,19 +237,23 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		// we are now the new center tail of our parent
 		t.parent.center = t
 		// our parent has a fresh right node to insert into
+		rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
+		rpID := rp.ID()
 		t.parent.right = &pTreeNode{
 			k:                      0,
-			part:                   partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
+			partID:                 &rpID,
 			next:                   t.next,
 			prev:                   t.parent.center,
 			parent:                 t,
 			lruCache:               t.lruCache,
+			tempDir:                t.tempDir,
+			maxRows:                t.maxRows,
 			nextStagePrivateSchema: t.nextStagePrivateSchema,
 			nextStagePublicSchema:  t.nextStagePublicSchema,
 		}
 		t.parent.center.next = t.parent.right
 		// add new partition to front of "visited" queue
-		t.lruCache.Add(t.parent.right.part.ID(), t.right)
+		t.lruCache.Add(rpID, rp)
 		// we know we got into this situation by adding a row with key == avgKey. These
 		// rows now belong in t.parent.right, so return that as the "next" node to recurse on
 		return t.parent.right, nil
@@ -237,55 +263,68 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	// we need to start a new center chain at this node to store data
 	t.center = &pTreeNode{
 		k:                      0,
-		part:                   t.part,
+		partID:                 t.partID,
 		parent:                 t,
 		lruCache:               t.lruCache,
+		tempDir:                t.tempDir,
+		maxRows:                t.maxRows,
 		nextStagePrivateSchema: t.nextStagePrivateSchema,
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
+	lp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
+	lpID := lp.ID()
 	t.left = &pTreeNode{
 		k:                      0,
-		part:                   partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
+		partID:                 &lpID,
 		prev:                   t.prev,
 		next:                   t.center,
 		parent:                 t,
 		lruCache:               t.lruCache,
+		tempDir:                t.tempDir,
+		maxRows:                t.maxRows,
 		nextStagePrivateSchema: t.nextStagePrivateSchema,
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
+	rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
+	rpID := rp.ID()
 	t.right = &pTreeNode{
 		k:                      0,
-		part:                   partition.CreateKeyedReduceablePartition(t.part.GetMaxRows(), t.part.GetPrivateSchema(), t.part.GetPublicSchema()),
+		partID:                 &rpID,
 		prev:                   t.center,
 		next:                   t.next,
 		parent:                 t,
 		lruCache:               t.lruCache,
+		tempDir:                t.tempDir,
+		maxRows:                t.maxRows,
 		nextStagePrivateSchema: t.nextStagePrivateSchema,
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	// add new partitions to front of "visited" queue
-	t.lruCache.Add(t.left.part.ID(), t.left)
-	t.lruCache.Add(t.right.part.ID(), t.left)
+	t.lruCache.Add(lpID, lp)
+	t.lruCache.Add(rpID, rp)
 	// update links for center chain
 	t.center.next = t.right
 	t.center.prev = t.left
 	// update links for t
-	t.part = nil // non-leaf nodes don't have partitions
-	t.prev = nil // non-leaf nodes don't have horizontal links
-	t.next = nil // non-leaf nodes don't have horizontal links
+	t.partID = nil // non-leaf nodes don't have partitions
+	t.prev = nil   // non-leaf nodes don't have horizontal links
+	t.next = nil   // non-leaf nodes don't have horizontal links
 	// we know we got into this situation by adding a row with key == avgKey. These
 	// rows now belong in t.right, so return that as the "next" node to recurse on
 	return t.right, nil
 }
 
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
-	t.diskWriteLock.Lock()
-	defer t.diskWriteLock.Unlock()
-	if t.part == nil {
-		buff, err := ioutil.ReadFile(t.diskPath)
+	if t.partID == nil {
+		return nil, fmt.Errorf("Partition tree node does not have an associated partition")
+	}
+	part, ok := t.lruCache.Get(*t.partID)
+	if !ok {
+		tempFilePath := path.Join(t.tempDir, *t.partID)
+		buff, err := ioutil.ReadFile(tempFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", t.diskPath, err)
+			return nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", tempFilePath, err)
 		}
 		if t.nextStagePrivateSchema == nil {
 			panic(fmt.Errorf("Next stage private schema was nil"))
@@ -293,46 +332,26 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 		if t.nextStagePublicSchema == nil {
 			panic(fmt.Errorf("Next stage public schema was nil"))
 		}
-		if len(buff) != t.diskSizeBytes {
-			panic(fmt.Errorf("Disk-swapped partition %s was not the expected size: %d", t.diskPath, t.diskSizeBytes))
-		}
-		t.diskPath = ""
-		t.diskSizeBytes = 0
 		part, err := partition.FromBytes(buff, t.nextStagePrivateSchema, t.nextStagePublicSchema)
 		if err != nil {
 			return nil, err
 		}
-		t.part = part
+		// move this node to the front of the "visited" queue
+		t.lruCache.Add(*t.partID, part)
+		return part, nil
 	}
-	// move this node to the front of the "visited" queue
-	t.lruCache.Add(t.part.ID(), t)
-	return t.part, nil
+	return part.(itypes.ReduceablePartition), nil
 }
 
-func onPartitionEvict(tempDir string, partID string, t *pTreeNode) {
-	t.diskWriteLock.Lock()
-	defer t.diskWriteLock.Unlock()
-	if t.part != nil {
-		buff, err := t.part.ToBytes()
-		if err != nil {
-			log.Fatalf("Unable to convert partition to buffer %s", err)
-		}
-		tmpfile, err := ioutil.TempFile(tempDir, t.part.ID())
-		defer tmpfile.Close()
-		if err != nil {
-			log.Fatalf("Unable to create temporary file for partition %s", err)
-		}
-		if bytesWritten, err := tmpfile.Write(buff); err != nil {
-			log.Fatalf("Unable to write partition to disk %s", err)
-		} else {
-			t.diskSizeBytes = bytesWritten
-		}
-		if err := tmpfile.Close(); err != nil {
-			log.Fatalf("Unable to write partition to disk %s", err)
-		}
-		// everything worked, so clean up node
-		t.diskPath = tmpfile.Name()
-		t.part = nil
+func onPartitionEvict(tempDir string, partID string, part itypes.ReduceablePartition) {
+	buff, err := part.ToBytes()
+	if err != nil {
+		log.Fatalf("Unable to convert partition to buffer %s", err)
+	}
+	tempFilePath := path.Join(tempDir, part.ID())
+	err = ioutil.WriteFile(tempFilePath, buff, 0644)
+	if err != nil {
+		log.Fatalf("Unable to create temporary file for partition %s", err)
 	}
 }
 

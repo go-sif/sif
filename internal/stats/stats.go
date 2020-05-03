@@ -3,7 +3,7 @@ package stats
 import (
 	"time"
 
-	pb "github.com/go-sif/sif/internal/rpc"
+	"github.com/go-sif/sif/stats"
 )
 
 const statisticRollingWindows = 5
@@ -140,8 +140,8 @@ func (rs *RunStatistics) GetStageShuffleRuntimes() []int64 {
 }
 
 // ToMessage converts this struct into a protobuf message
-func (rs *RunStatistics) ToMessage() *pb.MStatisticsResponse {
-	return &pb.MStatisticsResponse{
+func (rs *RunStatistics) ToMessage() *stats.MStatisticsResponse {
+	return &stats.MStatisticsResponse{
 		Started:                     rs.started,
 		Finished:                    rs.finished,
 		StartTime:                   rs.startTime.UnixNano(),

@@ -9,5 +9,3 @@ package rpc
 //go:generate protoc --proto_path=../rpc_proto --go_out=plugins=grpc:./ s_log.proto
 
 //go:generate protoc --proto_path=../rpc_proto --go_out=plugins=grpc:./ s_lifecycle.proto
-
-//go:generate protoc --proto_path=../rpc_proto --go_out=plugins=grpc:./ s_stats.proto

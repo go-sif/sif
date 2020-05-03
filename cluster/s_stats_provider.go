@@ -3,19 +3,19 @@ package cluster
 import (
 	"context"
 
-	pb "github.com/go-sif/sif/internal/rpc"
-	"github.com/go-sif/sif/internal/stats"
+	istats "github.com/go-sif/sif/internal/stats"
+	"github.com/go-sif/sif/stats"
 )
 
 type statsSourceServer struct {
-	statsTracker *stats.RunStatistics
+	statsTracker *istats.RunStatistics
 }
 
 // createStatsSource creates a new stats Source server
-func createStatsSource(statsTracker *stats.RunStatistics) *statsSourceServer {
+func createStatsSource(statsTracker *istats.RunStatistics) *statsSourceServer {
 	return &statsSourceServer{statsTracker: statsTracker}
 }
 
-func (s *statsSourceServer) ProvideStatistics(context.Context, *pb.MStatisticsRequest) (*pb.MStatisticsResponse, error) {
+func (s *statsSourceServer) ProvideStatistics(context.Context, *stats.MStatisticsRequest) (*stats.MStatisticsResponse, error) {
 	return s.statsTracker.ToMessage(), nil
 }

@@ -12,9 +12,10 @@ import (
 
 	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
-	"github.com/go-sif/sif/internal/stats"
+	istats "github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
+	"github.com/go-sif/sif/stats"
 	uuid "github.com/gofrs/uuid"
 	"google.golang.org/grpc"
 )
@@ -110,7 +111,7 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	}
 	log.Printf("Using temporary directory: %s", tmpDirPath)
 	defer os.RemoveAll(tmpDir)
-	statsTracker := &stats.RunStatistics{}
+	statsTracker := &istats.RunStatistics{}
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
 		TempFilePath:       tmpDir,
 		InMemoryPartitions: w.opts.NumInMemoryPartitions,
@@ -123,7 +124,7 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	pb.RegisterLifecycleServiceServer(w.server, createLifecycleServer(w))
 	pb.RegisterExecutionServiceServer(w.server, createExecutionServer(w.logClient, planExecutor, statsTracker))
 	pb.RegisterPartitionsServiceServer(w.server, createPartitionServer(planExecutor))
-	pb.RegisterStatsSourceServiceServer(w.server, createStatsSource(statsTracker))
+	stats.RegisterStatsSourceServiceServer(w.server, createStatsSource(statsTracker))
 	// register with master after we are serving
 	ctx, cancel := context.WithTimeout(context.Background(), w.opts.RPCTimeout)
 	defer cancel()

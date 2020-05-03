@@ -100,10 +100,17 @@ func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOpera
 	hasher.Write(keyBuf)
 	hashedKey := hasher.Sum64()
 
+	return t.doMergeRow(tempRow, row, hashedKey, reducefn)
+}
+
+// doMergeRow merges a single Row into the matching Row within this pTree, using a hashed key
+// and a ReductionOperation, inserting if necessary. if the ReductionOperation is nil,
+// then the row is simply inserted
+func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, reducefn sif.ReductionOperation) error {
 	// locate and load partition for the given hashed key
 	partNode := t.findPartition(hashedKey)
 	// make sure partition is loaded
-	_, err = partNode.loadPartition()
+	_, err := partNode.loadPartition()
 	if err != nil {
 		return err
 	}
@@ -143,7 +150,7 @@ func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOpera
 				return err
 			}
 			// recurse using this correct subtree to save time
-			return nextNode.mergeRow(tempRow, row, keyfn, reducefn)
+			return nextNode.doMergeRow(tempRow, row, hashedKey, reducefn)
 		} else if !ok && insertErr != nil {
 			return insertErr
 		}
@@ -166,7 +173,7 @@ func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOpera
 	return nil
 }
 
-// uses PartitionREduceable.BalancedSplit to split a single pTreeNode into
+// uses PartitionReduceable.BalancedSplit to split a single pTreeNode into
 // two nodes (left & right). Fails if all the rows in the current pTreeNode
 // have an identical key, in which case a split achieves nothing.
 func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, error) {
@@ -204,6 +211,12 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 	}
 	t.left.next = t.right
 	t.right.prev = t.left
+	if t.right.next != nil {
+		t.right.next.prev = t.right
+	}
+	if t.left.prev != nil {
+		t.left.prev.next = t.left
+	}
 	t.partID = "" // non-leaf nodes don't have partitions
 	t.prev = nil  // non-leaf nodes don't have horizontal links
 	t.next = nil  // non-leaf nodes don't have horizontal links
@@ -252,6 +265,9 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 			nextStagePublicSchema:  t.nextStagePublicSchema,
 		}
 		t.parent.center.next = t.parent.right
+		if t.parent.right.next != nil {
+			t.parent.right.next.prev = t.parent.right
+		}
 		// add new partition to front of "visited" queue
 		t.lruCache.Add(rp.ID(), rp)
 		// we know we got into this situation by adding a row with key == avgKey. These
@@ -285,6 +301,9 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		nextStagePrivateSchema: t.nextStagePrivateSchema,
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
+	if t.left.prev != nil {
+		t.left.prev.next = t.left
+	}
 	rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
 	t.right = &pTreeNode{
 		k:                      0,
@@ -297,6 +316,9 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		maxRows:                t.maxRows,
 		nextStagePrivateSchema: t.nextStagePrivateSchema,
 		nextStagePublicSchema:  t.nextStagePublicSchema,
+	}
+	if t.right.next != nil {
+		t.right.next.prev = t.right
 	}
 	// add new partitions to front of "visited" queue
 	t.lruCache.Add(lp.ID(), lp)

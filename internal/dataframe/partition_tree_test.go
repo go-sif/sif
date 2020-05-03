@@ -2,6 +2,7 @@ package dataframe
 
 import (
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"testing"
 
@@ -244,4 +245,94 @@ func TestDiskSwap(t *testing.T) {
 		err := root.mergeRow(tempRow, row, transform.KeyColumns("key"), reduceFn)
 		require.Nil(t, err)
 	}
+}
+
+func TestPartitionIterationDuringReduction(t *testing.T) {
+	schema := schema.CreateSchema()
+	schema.CreateColumn("key", &sif.Uint32ColumnType{})
+	schema.CreateColumn("val", &sif.Uint32ColumnType{})
+
+	reduceFn := func(lrow sif.Row, rrow sif.Row) error {
+		// validate that both rows have the same values
+		lval, err := lrow.GetUint32("val")
+		require.Nil(t, err)
+		rval, err := rrow.GetUint32("val")
+		require.Nil(t, err)
+		require.Equal(t, lval, rval)
+		return nil
+	}
+
+	tempDir, err := ioutil.TempDir("./", "sif-worker-8080")
+	require.Nil(t, err)
+	defer os.RemoveAll(tempDir)
+	conf := &itypes.PlanExecutorConfig{TempFilePath: tempDir, InMemoryPartitions: 5}
+	// each partition can store 2 rows
+	root := createPTreeNode(conf, 2, schema, schema)
+	tempRow := partition.CreateTempRow()
+	rowCount := 25
+	// store a bunch of random rows, so some partitions get swapped to disk
+	for i := 0; i < rowCount; i++ {
+		row := partition.CreateRow([]byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
+		require.Nil(t, row.SetUint32("key", uint32(i)))
+		require.Nil(t, row.SetUint32("val", rand.Uint32()))
+		err := root.mergeRow(tempRow, row, transform.KeyColumns("key"), reduceFn)
+		require.Nil(t, err)
+	}
+	// make sure all rows are present, and sorted by hashed key
+	lastKey := uint64(0)
+	numTreeRows := 0
+	firstNode := root.firstNode()
+	for start := firstNode; start != nil; start = start.next {
+		require.NotNil(t, start.partID)
+		part, err := start.loadPartition()
+		require.Nil(t, err)
+		numTreeRows += part.GetNumRows()
+		for i := 0; i < part.GetNumRows(); i++ {
+			k, err := part.GetKey(i)
+			require.Nil(t, err)
+			require.True(t, k >= lastKey)
+			lastKey = k
+		}
+	}
+	require.Equal(t, rowCount, numTreeRows)
+}
+
+func TestPartitionIterationDuringRepartition(t *testing.T) {
+	schema := schema.CreateSchema()
+	schema.CreateColumn("key", &sif.Uint32ColumnType{})
+	schema.CreateColumn("val", &sif.Uint32ColumnType{})
+
+	tempDir, err := ioutil.TempDir("./", "sif-worker-8080")
+	require.Nil(t, err)
+	defer os.RemoveAll(tempDir)
+	conf := &itypes.PlanExecutorConfig{TempFilePath: tempDir, InMemoryPartitions: 5}
+	// each partition can store 2 rows
+	root := createPTreeNode(conf, 2, schema, schema)
+	tempRow := partition.CreateTempRow()
+	rowCount := 25
+	// store a bunch of random rows, so some partitions get swapped to disk
+	for i := 0; i < rowCount; i++ {
+		row := partition.CreateRow([]byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
+		require.Nil(t, row.SetUint32("key", uint32(i/5))) // make sure we have duplicate keys
+		require.Nil(t, row.SetUint32("val", rand.Uint32()))
+		err := root.mergeRow(tempRow, row, transform.KeyColumns("key"), nil)
+		require.Nil(t, err)
+	}
+	// make sure all rows are present, and sorted by hashed key
+	lastKey := uint64(0)
+	numTreeRows := 0
+	firstNode := root.firstNode()
+	for start := firstNode; start != nil; start = start.next {
+		require.NotNil(t, start.partID)
+		part, err := start.loadPartition()
+		require.Nil(t, err)
+		numTreeRows += part.GetNumRows()
+		for i := 0; i < part.GetNumRows(); i++ {
+			k, err := part.GetKey(i)
+			require.Nil(t, err)
+			require.True(t, k >= lastKey)
+			lastKey = k
+		}
+	}
+	require.Equal(t, rowCount, numTreeRows)
 }

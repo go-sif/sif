@@ -209,6 +209,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 		pe.statsTracker.EndPartition(currentStageID, part.GetNumRows())
 	}
 	if req.RunShuffle || req.PrepCollect {
+		// We're only ready to shuffle if none of our trees are currently swapping to disk
 		pe.shuffleReady = true
 	} else if req.PrepAccumulate {
 		pe.accumulateReady = true

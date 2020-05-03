@@ -23,7 +23,7 @@ type pTreeNode struct {
 	left                   *pTreeNode
 	right                  *pTreeNode
 	center                 *pTreeNode
-	partID                 *string
+	partID                 string
 	maxRows                int
 	nextStagePrivateSchema sif.Schema
 	nextStagePublicSchema  sif.Schema
@@ -65,7 +65,7 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStagePriv
 	cache.Add(partID, part)
 	return &pTreeNode{
 		k:                      0,
-		partID:                 &partID,
+		partID:                 partID,
 		lruCache:               cache,
 		maxRows:                part.GetMaxRows(),
 		nextStagePrivateSchema: nextStagePrivateSchema,
@@ -180,10 +180,9 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 		return avgKey, nil, err
 	}
 	t.k = avgKey
-	lpID := lp.ID()
 	t.left = &pTreeNode{
 		k:                      0,
-		partID:                 &lpID,
+		partID:                 lp.ID(),
 		prev:                   t.prev,
 		parent:                 t,
 		lruCache:               t.lruCache,
@@ -192,10 +191,9 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 		nextStagePrivateSchema: t.nextStagePrivateSchema,
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
-	rpID := rp.ID()
 	t.right = &pTreeNode{
 		k:                      0,
-		partID:                 &rpID,
+		partID:                 rp.ID(),
 		next:                   t.next,
 		parent:                 t,
 		lruCache:               t.lruCache,
@@ -206,12 +204,12 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 	}
 	t.left.next = t.right
 	t.right.prev = t.left
-	t.partID = nil // non-leaf nodes don't have partitions
-	t.prev = nil   // non-leaf nodes don't have horizontal links
-	t.next = nil   // non-leaf nodes don't have horizontal links
+	t.partID = "" // non-leaf nodes don't have partitions
+	t.prev = nil  // non-leaf nodes don't have horizontal links
+	t.next = nil  // non-leaf nodes don't have horizontal links
 	// add left and right to front of "visited" queue
-	t.lruCache.Add(*t.left.partID, lp)
-	t.lruCache.Add(*t.right.partID, rp)
+	t.lruCache.Add(t.left.partID, lp)
+	t.lruCache.Add(t.right.partID, rp)
 	// tell the caller where to go next
 	if hashedKey < t.k {
 		return avgKey, t.left, nil
@@ -241,10 +239,9 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		t.parent.center = t
 		// our parent has a fresh right node to insert into
 		rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
-		rpID := rp.ID()
 		t.parent.right = &pTreeNode{
 			k:                      0,
-			partID:                 &rpID,
+			partID:                 rp.ID(),
 			next:                   t.next,
 			prev:                   t.parent.center,
 			parent:                 t,
@@ -256,7 +253,7 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		}
 		t.parent.center.next = t.parent.right
 		// add new partition to front of "visited" queue
-		t.lruCache.Add(rpID, rp)
+		t.lruCache.Add(rp.ID(), rp)
 		// we know we got into this situation by adding a row with key == avgKey. These
 		// rows now belong in t.parent.right, so return that as the "next" node to recurse on
 		return t.parent.right, nil
@@ -276,10 +273,9 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	}
 	// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
 	lp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
-	lpID := lp.ID()
 	t.left = &pTreeNode{
 		k:                      0,
-		partID:                 &lpID,
+		partID:                 lp.ID(),
 		prev:                   t.prev,
 		next:                   t.center,
 		parent:                 t,
@@ -290,10 +286,9 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
-	rpID := rp.ID()
 	t.right = &pTreeNode{
 		k:                      0,
-		partID:                 &rpID,
+		partID:                 rp.ID(),
 		prev:                   t.center,
 		next:                   t.next,
 		parent:                 t,
@@ -304,27 +299,27 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		nextStagePublicSchema:  t.nextStagePublicSchema,
 	}
 	// add new partitions to front of "visited" queue
-	t.lruCache.Add(lpID, lp)
-	t.lruCache.Add(rpID, rp)
+	t.lruCache.Add(lp.ID(), lp)
+	t.lruCache.Add(rp.ID(), rp)
 	// update links for center chain
 	t.center.next = t.right
 	t.center.prev = t.left
 	// update links for t
-	t.partID = nil // non-leaf nodes don't have partitions
-	t.prev = nil   // non-leaf nodes don't have horizontal links
-	t.next = nil   // non-leaf nodes don't have horizontal links
+	t.partID = "" // non-leaf nodes don't have partitions
+	t.prev = nil  // non-leaf nodes don't have horizontal links
+	t.next = nil  // non-leaf nodes don't have horizontal links
 	// we know we got into this situation by adding a row with key == avgKey. These
 	// rows now belong in t.right, so return that as the "next" node to recurse on
 	return t.right, nil
 }
 
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
-	if t.partID == nil {
+	if len(t.partID) == 0 {
 		return nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
 	}
-	part, ok := t.lruCache.Get(*t.partID)
+	part, ok := t.lruCache.Get(t.partID)
 	if !ok {
-		tempFilePath := path.Join(t.tempDir, *t.partID)
+		tempFilePath := path.Join(t.tempDir, t.partID)
 		f, err := os.Open(tempFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", tempFilePath, err)
@@ -355,7 +350,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 			return nil, err
 		}
 		// move this node to the front of the "visited" queue
-		t.lruCache.Add(*t.partID, part)
+		t.lruCache.Add(t.partID, part)
 		return part, nil
 	}
 	return part.(itypes.ReduceablePartition), nil

@@ -47,7 +47,7 @@ func TestCreatePartitionTree(t *testing.T) {
 	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema, schema)
 
-	require.NotNil(t, root.partID)
+	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
 	require.Nil(t, root.left)
 	require.Nil(t, root.right)
@@ -68,7 +68,7 @@ func TestMergeRow(t *testing.T) {
 	row := partition.CreateRow([]byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
 	err := root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
-	require.NotNil(t, root.partID)
+	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
 	require.Nil(t, root.left)
 	require.Nil(t, root.right)
@@ -83,7 +83,7 @@ func TestMergeRow(t *testing.T) {
 	row = partition.CreateRow([]byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
 	err = root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
-	require.NotNil(t, root.partID)
+	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
 	require.Nil(t, root.left)
 	require.Nil(t, root.right)
@@ -98,7 +98,7 @@ func TestMergeRow(t *testing.T) {
 	row = partition.CreateRow([]byte{0, 0}, []byte{1, 2}, make(map[string]interface{}), make(map[string][]byte), schema)
 	err = root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
-	require.NotNil(t, root.partID)
+	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
 	require.Nil(t, root.left)
 	require.Nil(t, root.right)
@@ -143,7 +143,7 @@ func TestMergeRowWithSplit(t *testing.T) {
 		err := root.mergeRow(tempRow, row, pTreeTestKeyer, pTreeTestReducer)
 		require.Nil(t, err)
 	}
-	require.Nil(t, root.partID)
+	require.Equal(t, len(root.partID), 0)
 	require.NotNil(t, root.left)
 	require.NotNil(t, root.right)
 	require.Nil(t, root.prev)
@@ -169,7 +169,7 @@ func TestMergeRowWithRotate(t *testing.T) {
 		err := root.mergeRow(tempRow, row, pTreeTestKeyer, nil)
 		require.Nil(t, err)
 	}
-	require.Nil(t, root.partID)
+	require.Equal(t, len(root.partID), 0)
 	require.NotNil(t, root.center)
 	require.NotNil(t, root.left)
 	require.NotNil(t, root.right)

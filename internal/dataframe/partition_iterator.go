@@ -220,24 +220,8 @@ func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, error) {
 	}
 	toDestroy := tpi.next
 	tpi.next = tpi.next.next // advance iterator
-	// garbage collection
 	if tpi.destructive {
-		toDestroy.lruCache.Remove(*toDestroy.partID)
-		toDestroy.partID = nil // delete reference to partition
-		// walk up the tree and wipe out empty nodes
-		for n := toDestroy; n != nil && n.left == nil && n.right == nil && n.center == nil; {
-			toDestroy := n
-			n = n.parent
-			if n == nil {
-				break
-			}
-			if n.left == toDestroy {
-				n.left = nil
-			} else {
-				n.right = nil
-			}
-		}
-		toDestroy = nil // delete node
+		toDestroy.lruCache.Remove(toDestroy.partID)
 	}
 	return part, nil
 }

@@ -24,7 +24,7 @@ func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeO
 
 	// configure and start coordinator
 	opts.Host = "127.0.0.1"
-	opts.Port = 9080
+	opts.Port = 8080
 	opts.CoordinatorPort = opts.Port
 	opts.CoordinatorHost = "127.0.0.1"
 	opts.NumWorkers = numWorkers
@@ -47,7 +47,7 @@ func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeO
 	defer coordinator.GracefulStop()
 	time.Sleep(50 * time.Millisecond)
 
-	baseWorkerPort := 9081
+	baseWorkerPort := 8081
 	// start workers
 	for port := baseWorkerPort; port < baseWorkerPort+numWorkers; port++ {
 		cwd, err := os.Getwd()

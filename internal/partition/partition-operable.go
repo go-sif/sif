@@ -58,30 +58,38 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePartition, error) {
 	var multierr *multierror.Error
 	parts := make([]sif.OperablePartition, 0, 1)
-	// our new partition can use just the publicSchema to save space, since we're copying data anyway (similar to a repack)
 	parts = append(parts, createPartitionImpl(p.maxRows, p.publicSchema, p.publicSchema))
 	// some temp Row structs we can re-use
 	row := &rowImpl{}
 	factoryRow := &rowImpl{}
 	rowsProduced := 0
 	// factory for producing new Partitions in advance of when they are needed
-	var tempPart sif.OperablePartition
-	var tempPartLock sync.Mutex
-	partFactory := func() {
-		tempPartLock.Lock()
-		defer tempPartLock.Unlock()
-		tempPart = createPartitionImpl(p.maxRows, p.publicSchema, p.publicSchema)
+	tempParts := make([]sif.OperablePartition, 0, 8)
+	var tempPartsLock sync.Mutex
+	partFactory := func(num int) {
+		tempPartsLock.Lock()
+		defer tempPartsLock.Unlock()
+		for i := 0; i < num; i++ {
+			// our new partition can use just the publicSchema to save space, since we're copying data anyway (similar to a repack)
+			tempParts = append(tempParts, createPartitionImpl(p.maxRows, p.publicSchema, p.publicSchema))
+		}
 	}
-	go partFactory()
+	go partFactory(1)
 	// factory for producing new rows compatible with this Partition
 	rowFactory := func() sif.Row {
 		appendTarget := parts[len(parts)-1]
 		// allocate a new partition if this one is full
 		if appendTarget.GetNumRows() >= appendTarget.GetMaxRows() {
-			tempPartLock.Lock()
+			var makeNewPart bool
+			tempPartsLock.Lock()
+			tempPart := tempParts[0]
+			tempParts = tempParts[1:]
+			makeNewPart = len(tempParts) == 0
+			tempPartsLock.Unlock()
 			parts = append(parts, tempPart)
-			tempPartLock.Unlock()
-			go partFactory() // make a new partition in the background
+			if makeNewPart {
+				go partFactory(1) // make a new partition in the background
+			}
 			appendTarget = parts[len(parts)-1]
 		}
 		// we have room, so allocate a new row
@@ -96,6 +104,14 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 	for i := 0; i < p.GetNumRows(); i++ {
 		rowsProduced = 0
 		err := fn(p.getRow(row, i), rowFactory)
+		// try to guess how many partitions we'll need to make, based on
+		// the first few rows, under the assumption that each row will be
+		// mapped to a similar number of rows
+		tempPartsLock.Lock()
+		if rowsProduced > len(tempParts) && i < 5 {
+			go partFactory(rowsProduced - len(tempParts))
+		}
+		tempPartsLock.Unlock()
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 			// wind back all rows added by factory function

@@ -168,5 +168,10 @@ func (p *partitionImpl) Repack(newSchema sif.Schema) (sif.OperablePartition, err
 			return nil, err
 		}
 	}
+	if p.isKeyed {
+		part.isKeyed = true
+		part.keys = make([]uint64, len(p.keys))
+		copy(part.keys, p.keys)
+	}
 	return part, nil
 }

@@ -129,6 +129,7 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 		irow := row.(itypes.AccessibleRow) // access row internals
 		var insertErr error
 		// append if the target index is at the end of the partition, otherwise insert and shift data
+		// FIXME need to copy data one column at a time...
 		if (idx+1) >= part.GetNumRows() && err == nil {
 			insertErr = part.(itypes.InternalBuildablePartition).AppendKeyedRowData(irow.GetData(), irow.GetMeta(), irow.GetVarData(), irow.GetSerializedVarData(), hashedKey)
 		} else {

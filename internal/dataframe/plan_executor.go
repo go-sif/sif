@@ -219,12 +219,29 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 
 // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
 func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, buckets []uint64) error {
+	if part.GetNumRows() == 0 {
+		// no need to handle empty partitions
+		return nil
+	}
 	var multierr *multierror.Error
 	currentStage := pe.plan.GetStage(pe.nextStage - 1)
 	targetPartitionSize := part.GetMaxRows()
 	if currentStage.TargetPartitionSize() > 0 {
 		targetPartitionSize = currentStage.TargetPartitionSize()
 	}
+
+	// we might need to repack the partition before reducing, if the next stage starts with AddColumns
+	nextStage := pe.peekNextStage()
+	nextStageWidestInitialSchema := nextStage.WidestInitialPrivateSchema()
+	if !part.GetPrivateSchema().Equals(nextStageWidestInitialSchema) {
+		repackedPart, err := part.(sif.OperablePartition).Repack(nextStageWidestInitialSchema)
+		if err != nil {
+			return err
+		}
+		part = repackedPart.(itypes.TransferrablePartition)
+	}
+
+	// merge rows into our tree
 	i := 0
 	tempRow := partition.CreateTempRow()
 	err := part.ForEachRow(func(row sif.Row) error {
@@ -235,7 +252,6 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		bucket := pe.keyToBuckets(key, buckets)
 		pe.shuffleTreesLock.Lock()
 		if _, ok := pe.shuffleTrees[buckets[bucket]]; !ok {
-			nextStage := pe.peekNextStage()
 			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialPrivateSchema(), nextStage.IncomingPublicSchema())
 		}
 		pe.shuffleTreesLock.Unlock()

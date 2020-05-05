@@ -139,12 +139,8 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 			keyOffset += len(chunk.KeyData)
 		}
 	}
-	// confirm we received the correct number of rows
-	if p.numRows != rowOffset/incomingSchema.Size() {
-		return fmt.Errorf("Streamed %d rows for Partition %s. Expected %d", rowOffset/incomingSchema.Size(), p.id, p.numRows)
-	} else if p.isKeyed && p.numRows != keyOffset {
-		return fmt.Errorf("Streamed %d keys for Partition %s. Expected %d", keyOffset, p.id, p.numRows)
-	} else if uint32(len(p.rows)) != partitionMeta.GetRowBytes() {
+	// confirm we received the correct amount of data
+	if uint32(len(p.rows)) != partitionMeta.GetRowBytes() {
 		return fmt.Errorf("Streamed %d bytes for fixed-width data in Partition %s. Expected %d", rowOffset, p.id, partitionMeta.GetRowBytes())
 	} else if uint32(len(p.rowMeta)) != partitionMeta.GetMetaBytes() {
 		return fmt.Errorf("Streamed %d bytes for metadata in Partition %s. Expected %d", metaOffset, p.id, partitionMeta.GetMetaBytes())

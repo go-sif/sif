@@ -4,6 +4,7 @@ package sif
 // within a Row. It allows one to obtain offsets by name,
 // define new columns, remove columns, etc.
 type Schema interface {
+	Equals(otherSchema Schema) bool
 	Clone() Schema
 	Size() int
 	NumColumns() int

@@ -55,6 +55,32 @@ func CreateSchema() sif.Schema {
 	}
 }
 
+// Equals returns true iff this and another Schema are equivalent
+func (s *schema) Equals(otherSchema sif.Schema) bool {
+	if s.Size() != otherSchema.Size() {
+		return false
+	}
+	if s.NumFixedLengthColumns() != otherSchema.NumFixedLengthColumns() {
+		return false
+	}
+	if s.NumVariableLengthColumns() != otherSchema.NumVariableLengthColumns() {
+		return false
+	}
+	return s.ForEachColumn(func(name string, offset sif.Column) error {
+		otherOffset, err := otherSchema.GetOffset(name)
+		if err != nil {
+			return err
+		}
+		if offset.Start() != otherOffset.Start() {
+			return fmt.Errorf("Column %s does not match", name)
+		}
+		if offset.Type() != otherOffset.Type() {
+			return fmt.Errorf("Column %s does not match", name)
+		}
+		return nil
+	}) != nil
+}
+
 // Clone returns a copy of this Schema
 func (s *schema) Clone() sif.Schema {
 	newSchema := make(map[string]sif.Column)

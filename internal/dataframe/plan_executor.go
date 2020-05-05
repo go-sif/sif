@@ -236,7 +236,7 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		pe.shuffleTreesLock.Lock()
 		if _, ok := pe.shuffleTrees[buckets[bucket]]; !ok {
 			nextStage := pe.peekNextStage()
-			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.IncomingPrivateSchema(), nextStage.IncomingPublicSchema())
+			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialPrivateSchema(), nextStage.IncomingPublicSchema())
 		}
 		pe.shuffleTreesLock.Unlock()
 		err = pe.shuffleTrees[buckets[bucket]].mergeRow(tempRow, row, currentStage.KeyingOperation(), currentStage.ReductionOperation())
@@ -296,14 +296,16 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 	// merge partition into appropriate shuffle tree
 	pe.shuffleTreesLock.Lock()
 	defer pe.shuffleTreesLock.Unlock()
+	currentOutgoingPrivateSchema := pe.GetCurrentStage().OutgoingPrivateSchema()
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
-		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), pe.GetCurrentStage().OutgoingPrivateSchema(), pe.GetCurrentStage().OutgoingPublicSchema())
+		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), currentOutgoingPrivateSchema, pe.GetCurrentStage().OutgoingPublicSchema())
 	}
-	part := partition.FromMetaMessage(mpart, pe.GetCurrentStage().OutgoingPrivateSchema())
-	err := part.ReceiveStreamedData(dataStream, pe.GetCurrentStage().OutgoingPrivateSchema(), mpart)
+	part := partition.FromMetaMessage(mpart, currentOutgoingPrivateSchema)
+	err := part.ReceiveStreamedData(dataStream, currentOutgoingPrivateSchema, mpart)
 	if err != nil {
 		return err
 	}
+	// merge data into our tree
 	var multierr *multierror.Error
 	tempRow := partition.CreateTempRow()
 	part.ForEachRow(func(row sif.Row) error {

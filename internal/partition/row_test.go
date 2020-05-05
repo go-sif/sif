@@ -30,6 +30,23 @@ func TestGetUint64(t *testing.T) {
 	}
 }
 
+func TestGetSetUint8(t *testing.T) {
+	schema := schema.CreateSchema()
+	_, err := schema.CreateColumn("col1", &sif.Uint8ColumnType{})
+	require.Nil(t, err)
+	row := rowImpl{
+		schema: schema,
+		data:   make([]byte, 4),
+		meta:   make([]byte, 1),
+	}
+	for i := uint8(0); i < uint8(255); i++ {
+		require.Nil(t, row.SetUint8("col1", i))
+		v, err := row.GetUint8("col1")
+		require.Nil(t, err)
+		require.Equal(t, i, v)
+	}
+}
+
 func TestTime(t *testing.T) {
 	schema := schema.CreateSchema()
 	_, err := schema.CreateColumn("col1", &sif.TimeColumnType{})

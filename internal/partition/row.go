@@ -456,7 +456,7 @@ func (r *rowImpl) SetUint8(colName string, value uint8) (err error) {
 		return
 	}
 	r.SetNotNil(offset)
-	r.data[offset.Start()] = uint8(value)
+	r.data[offset.Start()] = value
 	return
 }
 

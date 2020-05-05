@@ -299,7 +299,7 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
 		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), pe.GetCurrentStage().OutgoingPrivateSchema(), pe.GetCurrentStage().OutgoingPublicSchema())
 	}
-	part := partition.FromMetaMessage(mpart, pe.shuffleTrees[pe.assignedBucket].nextStagePublicSchema)
+	part := partition.FromMetaMessage(mpart, pe.GetCurrentStage().OutgoingPrivateSchema())
 	err := part.ReceiveStreamedData(dataStream, pe.GetCurrentStage().OutgoingPrivateSchema())
 	if err != nil {
 		return err

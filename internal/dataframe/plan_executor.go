@@ -312,12 +312,12 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 	// merge partition into appropriate shuffle tree
 	pe.shuffleTreesLock.Lock()
 	defer pe.shuffleTreesLock.Unlock()
-	currentOutgoingPrivateSchema := pe.GetCurrentStage().OutgoingPrivateSchema()
+	incomingDataSchema := pe.GetCurrentStage().WidestInitialPrivateSchema()
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
-		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), currentOutgoingPrivateSchema, pe.GetCurrentStage().OutgoingPublicSchema())
+		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), incomingDataSchema, pe.GetCurrentStage().IncomingPublicSchema())
 	}
-	part := partition.FromMetaMessage(mpart, currentOutgoingPrivateSchema)
-	err := part.ReceiveStreamedData(dataStream, currentOutgoingPrivateSchema, mpart)
+	part := partition.FromMetaMessage(mpart, incomingDataSchema)
+	err := part.ReceiveStreamedData(dataStream, incomingDataSchema, mpart)
 	if err != nil {
 		return err
 	}

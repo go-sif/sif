@@ -46,6 +46,6 @@ type ReduceablePartition interface {
 type TransferrablePartition interface {
 	CloneablePartition
 	sif.BuildablePartition
-	ToMetaMessage() *pb.MPartitionMeta                                                                            // ToMetaMessage serializes metadata about this Partition to a protobuf message
-	ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema sif.Schema) error // ReceiveStreamedData loads data from a protobuf stream into this Partition
+	ToMetaMessage() *pb.MPartitionMeta                                                                                                              // ToMetaMessage serializes metadata about this Partition to a protobuf message
+	ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema sif.Schema, partitionMeta *pb.MPartitionMeta) error // ReceiveStreamedData loads data from a protobuf stream into this Partition
 }

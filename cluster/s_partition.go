@@ -53,7 +53,11 @@ func (s *partitionServer) ShufflePartition(ctx context.Context, req *pb.MShuffle
 	s.cacheLock.Lock()
 	s.cache[part.ID()] = tpart
 	s.cacheLock.Unlock()
-	return &pb.MShufflePartitionResponse{Ready: true, HasNext: pi.HasNextPartition(), Part: tpart.ToMetaMessage()}, nil
+	return &pb.MShufflePartitionResponse{
+		Ready:   true,
+		HasNext: pi.HasNextPartition(),
+		Part:    tpart.ToMetaMessage(),
+	}, nil
 }
 
 // ShuffleAccumulator shuffles an Accumulator

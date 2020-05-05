@@ -102,7 +102,7 @@ func (p *partitionImpl) ToMetaMessage() *pb.MPartitionMeta {
 }
 
 // ReceiveStreamedData loads data from a protobuf stream into this Partition
-func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema sif.Schema) error {
+func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema sif.Schema, partitionMeta *pb.MPartitionMeta) error {
 	// stream data for Partition
 	rowOffset := 0
 	metaOffset := 0
@@ -144,6 +144,10 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 		return fmt.Errorf("Streamed %d rows for Partition %s. Expected %d", rowOffset/incomingSchema.Size(), p.id, p.numRows)
 	} else if p.isKeyed && p.numRows != keyOffset {
 		return fmt.Errorf("Streamed %d keys for Partition %s. Expected %d", keyOffset, p.id, p.numRows)
+	} else if uint32(len(p.rows)) != partitionMeta.GetRowBytes() {
+		return fmt.Errorf("Streamed %d bytes for fixed-width data in Partition %s. Expected %d", rowOffset, p.id, partitionMeta.GetRowBytes())
+	} else if uint32(len(p.rowMeta)) != partitionMeta.GetMetaBytes() {
+		return fmt.Errorf("Streamed %d bytes for metadata in Partition %s. Expected %d", metaOffset, p.id, partitionMeta.GetMetaBytes())
 	}
 	return nil
 }

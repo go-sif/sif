@@ -578,6 +578,11 @@ func (r *rowImpl) Repack(newSchema sif.Schema) (sif.Row, error) {
 	// transfer values
 	offset := 0
 	err := newSchema.ForEachColumn(func(name string, col sif.Column) error {
+		// if we're widening instead of shrinking, there might be new columns
+		if !r.schema.HasColumn(name) {
+			return nil
+		}
+		// otherwise, copy old values
 		oldCol, err := r.schema.GetOffset(name)
 		if err != nil {
 			return err

@@ -312,7 +312,14 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 	// merge partition into appropriate shuffle tree
 	pe.shuffleTreesLock.Lock()
 	defer pe.shuffleTreesLock.Unlock()
-	incomingDataSchema := pe.GetCurrentStage().WidestInitialPrivateSchema()
+	// if we're the last stage, then the incoming data should match our outgoing schema
+	// but if there is a following stage, the data should match that stage.
+	var incomingDataSchema sif.Schema
+	if pe.HasNextStage() {
+		incomingDataSchema = pe.peekNextStage().WidestInitialPrivateSchema()
+	} else {
+		incomingDataSchema = pe.GetCurrentStage().OutgoingPrivateSchema()
+	}
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
 		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), incomingDataSchema, pe.GetCurrentStage().IncomingPublicSchema())
 	}

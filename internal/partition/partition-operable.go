@@ -58,7 +58,7 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePartition, error) {
 	var multierr *multierror.Error
 	parts := make([]sif.OperablePartition, 0, 1)
-	parts = append(parts, createPartitionImpl(p.maxRows, p.publicSchema, p.publicSchema))
+	parts = append(parts, createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema))
 	// some temp Row structs we can re-use
 	row := &rowImpl{}
 	factoryRow := &rowImpl{}
@@ -70,8 +70,7 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 		tempPartsLock.Lock()
 		defer tempPartsLock.Unlock()
 		for i := 0; i < num; i++ {
-			// our new partition can use just the publicSchema to save space, since we're copying data anyway (similar to a repack)
-			tempParts = append(tempParts, createPartitionImpl(p.maxRows, p.publicSchema, p.publicSchema))
+			tempParts = append(tempParts, createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema))
 		}
 	}
 	go partFactory(1)

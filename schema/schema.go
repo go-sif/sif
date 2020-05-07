@@ -179,19 +179,19 @@ func (s *schema) RenameColumn(oldName string, newName string) (newSchema sif.Sch
 // RemoveColumn removes a column from the Schema
 // This does not adjust the size of the Schema, as data is not moved
 // when a column is deleted.
-func (s *schema) RemoveColumn(colName string) (newSchema sif.Schema, wasRemoved bool) {
-	newSchema = s
-	removed, wasRemoved := s.schema[colName]
-	if wasRemoved {
-		delete(s.schema, colName)
-		// update indices
-		for _, v := range s.schema {
-			if v.Index() > removed.Index() {
-				v.SetIndex(v.Index() - 1)
-			}
+func (s *schema) RemoveColumn(colName string) (sif.Schema, bool) {
+	removed, canRemoved := s.schema[colName]
+	if !canRemoved {
+		panic(fmt.Errorf("Cannot remove column %s because it does not exist", colName))
+	}
+	delete(s.schema, colName)
+	// update indices
+	for _, v := range s.schema {
+		if v.Index() > removed.Index() {
+			v.SetIndex(v.Index() - 1)
 		}
 	}
-	return
+	return s, true
 }
 
 // ColumnNames returns the names in the schema, in index order

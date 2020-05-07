@@ -184,11 +184,11 @@ func (s *schema) RemoveColumn(colName string) (newSchema sif.Schema, wasRemoved 
 	removed, wasRemoved := s.schema[colName]
 	if wasRemoved {
 		delete(s.schema, colName)
-	}
-	// update indices
-	for _, v := range s.schema {
-		if v.Index() > removed.Index() {
-			v.SetIndex(v.Index() - 1)
+		// update indices
+		for _, v := range s.schema {
+			if v.Index() > removed.Index() {
+				v.SetIndex(v.Index() - 1)
+			}
 		}
 	}
 	return

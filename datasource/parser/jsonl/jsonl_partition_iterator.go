@@ -11,14 +11,14 @@ import (
 )
 
 type jsonlFilePartitionIterator struct {
-	parser                     *Parser
-	scanner                    *bufio.Scanner
-	hasNext                    bool
-	source                     sif.DataSource
-	schema                     sif.Schema
-	widestInitialPrivateSchema sif.Schema
-	lock                       sync.Mutex
-	endListeners               []func()
+	parser              *Parser
+	scanner             *bufio.Scanner
+	hasNext             bool
+	source              sif.DataSource
+	schema              sif.Schema
+	widestInitialSchema sif.Schema
+	lock                sync.Mutex
+	endListeners        []func()
 }
 
 // OnEnd registers a listener which fires when this iterator runs out of Partitions
@@ -41,7 +41,7 @@ func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error)
 	defer jsonli.lock.Unlock()
 	colNames := jsonli.schema.ColumnNames()
 	colTypes := jsonli.schema.ColumnTypes()
-	part := datasource.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialPrivateSchema)
+	part := datasource.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialSchema)
 	// parse lines
 	tempRow := datasource.CreateTempRow()
 	for {

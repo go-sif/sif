@@ -20,9 +20,9 @@ func (pl *PartitionLoader) ToString() string {
 }
 
 // Load is capable of loading partitions of data from a file
-func (pl *PartitionLoader) Load(parser sif.DataSourceParser, widestInitialPrivateSchema sif.Schema) (sif.PartitionIterator, error) {
+func (pl *PartitionLoader) Load(parser sif.DataSourceParser, widestInitialSchema sif.Schema) (sif.PartitionIterator, error) {
 	r := bytes.NewReader(pl.source.data[pl.idx])
-	pi, err := parser.Parse(r, pl.source, pl.source.schema, widestInitialPrivateSchema, nil)
+	pi, err := parser.Parse(r, pl.source, pl.source.schema, widestInitialSchema, nil)
 	if err != nil {
 		return nil, err
 	}

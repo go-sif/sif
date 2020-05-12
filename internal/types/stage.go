@@ -9,7 +9,7 @@ type Stage interface {
 	ID() int                                                                   // ID returns the ID for this stage
 	IncomingSchema() sif.Schema                                                // IncomingSchema is the Schema for data entering this Stage
 	OutgoingSchema() sif.Schema                                                // OutgoingSchema returns the schema from the final task of the stage, or the nil if there are no tasks. This represents the true, underlying structure of Partitions exiting this Stage.
-	WidestInitialSchema() sif.Schema                                           // WidestInitialPrivateSchema returns final schema before a repack in a stage. This represents how much space needs to be allocated for a Partition.
+	WidestInitialSchema() sif.Schema                                           // widestInitialSchema returns final schema before a repack in a stage. This represents how much space needs to be allocated for a Partition.
 	WorkerExecute(part sif.OperablePartition) ([]sif.OperablePartition, error) // Or turned into multiple Partitions)
 	EndsInAccumulate() bool                                                    // EndsInAccumulate returns true iff this Stage ends with an accumulation task
 	EndsInShuffle() bool                                                       // EndsInShuffle returns true iff this Stage ends with a reduction task

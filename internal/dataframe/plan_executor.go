@@ -186,8 +186,8 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 		}
 		// Prepare resulting partitions for transfer to next stage
 		for _, newPart := range newParts {
+			tNewPart := newPart.(itypes.TransferrablePartition)
 			if req.RunShuffle {
-				tNewPart := newPart.(itypes.TransferrablePartition)
 				if !tNewPart.GetIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
 				}
@@ -196,12 +196,20 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 					return err
 				}
 			} else if req.PrepCollect {
-				tNewPart := newPart.(itypes.TransferrablePartition)
 				if pe.collectCache[tNewPart.ID()] != nil {
 					return fmt.Errorf("Partition ID collision")
 				}
 				// only collect partitions that have rows
 				if tNewPart.GetNumRows() > 0 {
+					// repack if any columns have been removed
+					if tNewPart.GetSchema().NumRemovedColumns() > 0 {
+						repackedSchema := tNewPart.GetSchema().Repack()
+						repackedPart, err := part.(sif.OperablePartition).Repack(repackedSchema)
+						if err != nil {
+							return err
+						}
+						tNewPart = repackedPart.(itypes.TransferrablePartition)
+					}
 					pe.collectCache[tNewPart.ID()] = tNewPart
 				}
 			}
@@ -230,10 +238,11 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		targetPartitionSize = currentStage.TargetPartitionSize()
 	}
 
-	// we might need to repack the partition before reducing, if the next stage starts with AddColumns
+	// we might need to repack the partition before shuffling,
+	// if this stage removed columns and/or the next stage adds any
 	nextStage := pe.peekNextStage()
 	nextStageWidestInitialSchema := nextStage.WidestInitialSchema()
-	if !part.GetSchema().Equals(nextStageWidestInitialSchema) {
+	if part.GetSchema().NumRemovedColumns() > 0 || !part.GetSchema().Equals(nextStageWidestInitialSchema) {
 		repackedPart, err := part.(sif.OperablePartition).Repack(nextStageWidestInitialSchema)
 		if err != nil {
 			return err

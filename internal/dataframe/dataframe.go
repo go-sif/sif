@@ -48,7 +48,7 @@ func (df *dataFrameImpl) Clone() *dataFrameImpl {
 	}
 }
 
-// GetPublicSchema returns the Schema of a DataFrame
+// GetSchema returns the Schema of a DataFrame
 func (df *dataFrameImpl) GetSchema() sif.Schema {
 	return df.schema
 }

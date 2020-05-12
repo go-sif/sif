@@ -38,7 +38,7 @@ func (p *Parser) PartitionSize() int {
 }
 
 // Parse parses DSV data to produce Partitions
-func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, widestInitialPrivateSchema sif.Schema, onIteratorEnd func()) (sif.PartitionIterator, error) {
+func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, widestInitialSchema sif.Schema, onIteratorEnd func()) (sif.PartitionIterator, error) {
 	// start parsing by creating a reader
 	reader := csv.NewReader(r)
 	reader.Comma = p.conf.Delimiter
@@ -55,13 +55,13 @@ func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, wi
 	}
 
 	iterator := &dsvFilePartitionIterator{
-		parser:                     p,
-		reader:                     reader,
-		hasNext:                    true,
-		source:                     source,
-		schema:                     schema,
-		widestInitialPrivateSchema: widestInitialPrivateSchema,
-		endListeners:               []func(){},
+		parser:              p,
+		reader:              reader,
+		hasNext:             true,
+		source:              source,
+		schema:              schema,
+		widestInitialSchema: widestInitialSchema,
+		endListeners:        []func(){},
 	}
 	if onIteratorEnd != nil {
 		iterator.OnEnd(onIteratorEnd)

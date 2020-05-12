@@ -72,18 +72,21 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 				panic(err)
 			}
 			f.task = dfor.Task
-			f.schema = dfor.DataSchema
+			if i == 0 && previousStage != nil {
+				f.schema = dfor.DataSchema.Repack() // stages always start with repacked schemas, as removed columns are dropped at the end of a stage
+			} else {
+				f.schema = dfor.DataSchema
+			}
 		}
 		// set outgoing schemas for stage
 		if len(currentStage.frames) > 0 {
-			lastSchema := lastFrame.schema
-			// add repack if columns have been removed
-			if lastSchema.NumRemovedColumns() > 0 {
-				// TODO fix outgoing schema here, anticipating that we'll actually repack before the stage ends
-				// TODO implement repack in plan_executor
-				// TODO deprecate Repack() operation
+			lastFrame := currentStage.frames[len(currentStage.frames)-1]
+			if lastFrame.schema.NumRemovedColumns() > 0 {
+				// if a stage ends with removed columns, we will repack automatically
+				currentStage.outgoingSchema = lastFrame.schema.Clone().Repack()
+			} else {
+				currentStage.outgoingSchema = lastFrame.schema
 			}
-			currentStage.outgoingSchema = currentStage.frames[len(currentStage.frames)-1].schema
 		}
 	}
 	newStage := func() {

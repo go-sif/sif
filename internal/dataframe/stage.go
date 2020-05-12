@@ -41,12 +41,12 @@ func (s *stageImpl) ID() int {
 	return s.id
 }
 
-// IncomingSchema is the public Schema for data entering this Stage
+// IncomingSchema is the Schema for data entering this Stage
 func (s *stageImpl) IncomingSchema() sif.Schema {
 	return s.incomingSchema
 }
 
-// OutgoingSchema is the public Schema for data leaving this Stage
+// OutgoingSchema is the Schema for data leaving this Stage
 func (s *stageImpl) OutgoingSchema() sif.Schema {
 	return s.outgoingSchema
 }

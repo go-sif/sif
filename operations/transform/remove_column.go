@@ -12,7 +12,7 @@ func (s *removeColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.Oper
 	return []sif.OperablePartition{previous}, nil
 }
 
-// RemoveColumn removes existing columns
+// RemoveColumn marks existing columns for removal at the end of the current stage
 func RemoveColumn(oldNames ...string) *sif.DataFrameOperation {
 	return &sif.DataFrameOperation{
 		TaskType: sif.RemoveColumnTaskType,

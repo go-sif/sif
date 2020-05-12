@@ -44,6 +44,7 @@ func TestReduce(t *testing.T) {
 			}
 			return nil
 		}),
+		ops.RemoveColumn("col1"),
 		ops.Reduce(func(row sif.Row) ([]byte, error) {
 			return []byte{byte(1)}, nil
 		}, func(lrow sif.Row, rrow sif.Row) error {

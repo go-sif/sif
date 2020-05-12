@@ -21,14 +21,13 @@ type partitionImpl struct {
 	varRowData           []map[string]interface{}
 	serializedVarRowData []map[string][]byte // for receiving serialized data from a shuffle (temporary)
 	rowMeta              []byte
-	publicSchema         sif.Schema
-	privateSchema        sif.Schema
+	schema               sif.Schema
 	keys                 []uint64
 	isKeyed              bool
 }
 
 // createPartitionImpl creates a new Partition containing an empty byte array and a schema
-func createPartitionImpl(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) *partitionImpl {
+func createPartitionImpl(maxRows int, schema sif.Schema) *partitionImpl {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID for Partition: %v", err)
@@ -37,20 +36,19 @@ func createPartitionImpl(maxRows int, privateSchema sif.Schema, publicSchema sif
 		id:                   id.String(),
 		maxRows:              maxRows,
 		numRows:              0,
-		rows:                 make([]byte, maxRows*privateSchema.Size(), maxRows*privateSchema.Size()),
+		rows:                 make([]byte, maxRows*schema.Size(), maxRows*schema.Size()),
 		varRowData:           make([]map[string]interface{}, maxRows),
 		serializedVarRowData: make([]map[string][]byte, maxRows),
-		rowMeta:              make([]byte, maxRows*privateSchema.NumColumns()),
-		privateSchema:        privateSchema,
-		publicSchema:         publicSchema,
+		rowMeta:              make([]byte, maxRows*schema.NumColumns()),
+		schema:               schema,
 		keys:                 make([]uint64, 0),
 		isKeyed:              false,
 	}
 }
 
 // CreatePartition creates a new Partition containing an empty byte array and a schema
-func CreatePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) sif.Partition {
-	return createPartitionImpl(maxRows, privateSchema, publicSchema)
+func CreatePartition(maxRows int, schema sif.Schema) sif.Partition {
+	return createPartitionImpl(maxRows, schema)
 }
 
 // ID retrieves the ID of this Partition
@@ -74,7 +72,7 @@ func (p *partitionImpl) getRow(row *rowImpl, rowNum int) sif.Row {
 	row.data = p.GetRowData(rowNum)
 	row.varData = p.GetVarRowData(rowNum)
 	row.serializedVarData = p.GetSerializedVarRowData(rowNum)
-	row.schema = p.publicSchema
+	row.schema = p.schema
 	return row
 }
 
@@ -85,7 +83,7 @@ func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 		data:              p.GetRowData(rowNum),
 		varData:           p.GetVarRowData(rowNum),
 		serializedVarData: p.GetSerializedVarRowData(rowNum),
-		schema:            p.publicSchema,
+		schema:            p.schema,
 	}
 }
 
@@ -158,7 +156,6 @@ func FromMetaMessage(m *pb.MPartitionMeta, currentSchema sif.Schema) itypes.Tran
 		make([]map[string]interface{}, int(m.MaxRows)),
 		make([]map[string][]byte, int(m.MaxRows)),
 		make([]byte, m.GetMetaBytes()),
-		currentSchema,
 		currentSchema,
 		nil,
 		m.IsKeyed,

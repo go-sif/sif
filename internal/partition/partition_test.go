@@ -18,7 +18,7 @@ func createPartitionTestSchema() sif.Schema {
 
 func TestCreatePartitionImpl(t *testing.T) {
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(4, schema, schema)
+	part := createPartitionImpl(4, schema)
 	require.Equal(t, part.GetMaxRows(), 4)
 	require.Equal(t, part.GetNumRows(), 0)
 	require.Nil(t, part.CanInsertRowData(make([]byte, 1)))
@@ -29,7 +29,7 @@ func TestCreatePartitionImpl(t *testing.T) {
 func TestAppendRowData(t *testing.T) {
 	// make partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(4, schema, schema)
+	part := createPartitionImpl(4, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	r := []byte{byte(uint8(1))}
 	// append and validate row
@@ -52,7 +52,7 @@ func TestAppendRowData(t *testing.T) {
 func TestInsertRowData(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(4, schema, schema)
+	part := createPartitionImpl(4, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -75,7 +75,7 @@ func TestInsertRowData(t *testing.T) {
 func TestPartitionFullError(t *testing.T) {
 	// create partition with max 1 row
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(1, schema, schema)
+	part := createPartitionImpl(1, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -95,7 +95,7 @@ func TestPartitionFullError(t *testing.T) {
 func TestIncompatibleRowError(t *testing.T) {
 	// create partition with max 1 row
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(1, schema, schema)
+	part := createPartitionImpl(1, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -116,7 +116,7 @@ func TestIncompatibleRowError(t *testing.T) {
 func TestMapRows(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(4, schema, schema)
+	part := createPartitionImpl(4, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append rows
 	for i := 0; i < 4; i++ {
@@ -137,7 +137,7 @@ func TestMapRows(t *testing.T) {
 func TestKeyRows(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(8, schema, schema)
+	part := createPartitionImpl(8, schema)
 	// append rows
 	for i := 0; i < 7; i++ {
 		r := []byte{uint8(i)}
@@ -178,7 +178,7 @@ func TestKeyRows(t *testing.T) {
 func TestSplit(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(8, schema, schema)
+	part := createPartitionImpl(8, schema)
 	// append rows
 	for i := 0; i < 8; i++ {
 		r := []byte{byte(uint8(i))}
@@ -221,7 +221,7 @@ func TestSerialization(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.VarStringColumnType{})
-	part := createPartitionImpl(8, schema, schema)
+	part := createPartitionImpl(8, schema)
 	// append rows
 	for i := 0; i < 8; i++ {
 		r := []byte{byte(uint8(i))}
@@ -243,7 +243,7 @@ func TestSerialization(t *testing.T) {
 	// serialize and deserialize
 	buff, err := part.ToBytes()
 	require.Nil(t, err)
-	rpart, err := FromBytes(buff, part.privateSchema, part.publicSchema)
+	rpart, err := FromBytes(buff, part.schema)
 	require.Nil(t, err)
 	// verify values again
 	require.Equal(t, 8, rpart.GetNumRows())
@@ -262,7 +262,7 @@ func TestRepack(t *testing.T) {
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.Float64ColumnType{})
 	schema.CreateColumn("col3", &sif.VarStringColumnType{})
-	part := createPartitionImpl(8, schema, schema)
+	part := createPartitionImpl(8, schema)
 	// append rows
 	tempRow := CreateTempRow()
 	for i := 0; i < 8; i++ {
@@ -313,8 +313,8 @@ func TestKeyColumns(t *testing.T) {
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.Float64ColumnType{})
 	schema.CreateColumn("col3", &sif.VarStringColumnType{})
-	part1 := createPartitionImpl(8, schema, schema)
-	part2 := createPartitionImpl(8, schema, schema)
+	part1 := createPartitionImpl(8, schema)
+	part2 := createPartitionImpl(8, schema)
 	// append rows
 	tempRow := CreateTempRow()
 	for i := 0; i < 4; i++ {

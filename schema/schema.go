@@ -43,8 +43,9 @@ func (c *column) Type() sif.ColumnType {
 // within a Row. It allows one to obtain offsets by name,
 // define new columns, remove columns, etc.
 type schema struct {
-	schema map[string]sif.Column
-	size   int
+	schema   map[string]sif.Column
+	toRemove map[string]bool
+	size     int
 }
 
 // CreateSchema is a factory for Schemas
@@ -87,7 +88,11 @@ func (s *schema) Clone() sif.Schema {
 	for k, v := range s.schema {
 		newSchema[k] = v.Clone()
 	}
-	return &schema{schema: newSchema, size: s.size}
+	newRemoved := make(map[string]bool)
+	for k, v := range s.toRemove {
+		newRemoved[k] = v
+	}
+	return &schema{schema: newSchema, size: s.size, toRemove: newRemoved}
 }
 
 // Size returns the current byte size of a Row respecting this Schema
@@ -122,13 +127,20 @@ func (s *schema) NumVariableLengthColumns() int {
 	return i
 }
 
+// NumRemovedColumns returns the number of removed columns in this Schema
+func (s *schema) NumRemovedColumns() int {
+	return len(s.toRemove)
+}
+
 // Repack optimizes the memory layout of the Schema, removing any gaps in fixed-length data.
 func (s *schema) Repack() (newSchema sif.Schema) {
 	newSchema = &schema{
 		schema: make(map[string]sif.Column),
 	}
 	for k, v := range s.schema {
-		newSchema, _ = newSchema.CreateColumn(k, v.Type())
+		if !s.toRemove[k] {
+			newSchema, _ = newSchema.CreateColumn(k, v.Type())
+		}
 	}
 	return
 }
@@ -167,6 +179,9 @@ func (s *schema) CreateColumn(colName string, columnType sif.ColumnType) (newSch
 
 // RenameColumn renames a column within the Schema
 func (s *schema) RenameColumn(oldName string, newName string) (newSchema sif.Schema, err error) {
+	if s.IsMarkedForRemoval(oldName) {
+		return nil, fmt.Errorf("Cannot rename removed column %s", oldName)
+	}
 	_, err = s.GetOffset(oldName)
 	if err == nil {
 		s.schema[newName] = s.schema[oldName]
@@ -176,22 +191,21 @@ func (s *schema) RenameColumn(oldName string, newName string) (newSchema sif.Sch
 	return
 }
 
-// RemoveColumn removes a column from the Schema
-// This does not adjust the size of the Schema, as data is not moved
-// when a column is deleted.
+// RemoveColumn marks a column for removal from the Schema, at a convenient time
+// This does not alter the schema, other than to mark the column for later removal
 func (s *schema) RemoveColumn(colName string) (sif.Schema, bool) {
-	removed, canRemoved := s.schema[colName]
+	_, canRemoved := s.schema[colName]
 	if !canRemoved {
 		panic(fmt.Errorf("Cannot remove column %s because it does not exist", colName))
 	}
-	delete(s.schema, colName)
-	// update indices
-	for _, v := range s.schema {
-		if v.Index() > removed.Index() {
-			v.SetIndex(v.Index() - 1)
-		}
-	}
+	s.toRemove[colName] = true
 	return s, true
+}
+
+// IsMarkedForRemoval returns true iff the given column has been marked for removal
+func (s *schema) IsMarkedForRemoval(colName string) bool {
+	_, marked := s.toRemove[colName]
+	return marked
 }
 
 // ColumnNames returns the names in the schema, in index order

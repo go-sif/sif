@@ -23,9 +23,8 @@ func FlatMap(fn sif.FlatMapOperation) *sif.DataFrameOperation {
 		TaskType: sif.FlatMapTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
 			return &sif.DataFrameOperationResult{
-				Task:          &flatMapTask{fn: iutil.SafeFlatMapOperation(fn)},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				Task:       &flatMapTask{fn: iutil.SafeFlatMapOperation(fn)},
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

@@ -10,14 +10,14 @@ import (
 )
 
 type dsvFilePartitionIterator struct {
-	parser                     *Parser
-	reader                     *csv.Reader
-	hasNext                    bool
-	source                     sif.DataSource
-	schema                     sif.Schema
-	widestInitialPrivateSchema sif.Schema
-	lock                       sync.Mutex
-	endListeners               []func()
+	parser              *Parser
+	reader              *csv.Reader
+	hasNext             bool
+	source              sif.DataSource
+	schema              sif.Schema
+	widestInitialSchema sif.Schema
+	lock                sync.Mutex
+	endListeners        []func()
 }
 
 // OnEnd registers a listener which fires when this iterator runs out of Partitions
@@ -40,7 +40,7 @@ func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
 	defer dsvi.lock.Unlock()
 	colNames := dsvi.schema.ColumnNames()
 	colTypes := dsvi.schema.ColumnTypes()
-	part := datasource.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialPrivateSchema, dsvi.schema)
+	part := datasource.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialSchema)
 	// parse lines
 	tempRow := datasource.CreateTempRow()
 	for {

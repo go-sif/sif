@@ -34,9 +34,8 @@ func Collect(collectionLimit int64) *sif.DataFrameOperation {
 				return nil, fmt.Errorf("Cannot collect() from a streaming DataSource")
 			}
 			return &sif.DataFrameOperationResult{
-				Task:          &collectTask{collectionLimit},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				Task:       &collectTask{collectionLimit},
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

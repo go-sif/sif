@@ -42,8 +42,7 @@ func Repartition(targetPartitionSize int, kfn sif.KeyingOperation) *sif.DataFram
 					kfn:                 iutil.SafeKeyingOperation(kfn),
 					targetPartitionSize: targetPartitionSize,
 				},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

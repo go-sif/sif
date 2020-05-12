@@ -119,7 +119,7 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 	var parts sif.PartitionIterator
 	// we only load partitions if we're on the first stage, and if they're available to load
 	if pe.onFirstStage() && pe.hasPartitionLoaders() {
-		parts = createPartitionLoaderIterator(pe.partitionLoaders, pe.plan.Parser(), pe.plan.GetStage(0).WidestInitialPrivateSchema())
+		parts = createPartitionLoaderIterator(pe.partitionLoaders, pe.plan.Parser(), pe.plan.GetStage(0).WidestInitialSchema())
 		// in the non-streaming context, the partition loader won't offer more partitions
 		// after we're done iterating through it, so we can safely get rid of it.
 		if !pe.conf.Streaming {
@@ -186,8 +186,8 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 		}
 		// Prepare resulting partitions for transfer to next stage
 		for _, newPart := range newParts {
+			tNewPart := newPart.(itypes.TransferrablePartition)
 			if req.RunShuffle {
-				tNewPart := newPart.(itypes.TransferrablePartition)
 				if !tNewPart.GetIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
 				}
@@ -196,12 +196,20 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 					return err
 				}
 			} else if req.PrepCollect {
-				tNewPart := newPart.(itypes.TransferrablePartition)
 				if pe.collectCache[tNewPart.ID()] != nil {
 					return fmt.Errorf("Partition ID collision")
 				}
 				// only collect partitions that have rows
 				if tNewPart.GetNumRows() > 0 {
+					// repack if any columns have been removed
+					if tNewPart.GetSchema().NumRemovedColumns() > 0 {
+						repackedSchema := tNewPart.GetSchema().Repack()
+						repackedPart, err := part.(sif.OperablePartition).Repack(repackedSchema)
+						if err != nil {
+							return err
+						}
+						tNewPart = repackedPart.(itypes.TransferrablePartition)
+					}
 					pe.collectCache[tNewPart.ID()] = tNewPart
 				}
 			}
@@ -230,10 +238,11 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		targetPartitionSize = currentStage.TargetPartitionSize()
 	}
 
-	// we might need to repack the partition before reducing, if the next stage starts with AddColumns
+	// we might need to repack the partition before shuffling,
+	// if this stage removed columns and/or the next stage adds any
 	nextStage := pe.peekNextStage()
-	nextStageWidestInitialSchema := nextStage.WidestInitialPrivateSchema()
-	if !part.GetPrivateSchema().Equals(nextStageWidestInitialSchema) {
+	nextStageWidestInitialSchema := nextStage.WidestInitialSchema()
+	if part.GetSchema().NumRemovedColumns() > 0 || !part.GetSchema().Equals(nextStageWidestInitialSchema) {
 		repackedPart, err := part.(sif.OperablePartition).Repack(nextStageWidestInitialSchema)
 		if err != nil {
 			return err
@@ -252,7 +261,7 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		bucket := pe.keyToBuckets(key, buckets)
 		pe.shuffleTreesLock.Lock()
 		if _, ok := pe.shuffleTrees[buckets[bucket]]; !ok {
-			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialPrivateSchema(), nextStage.IncomingPublicSchema())
+			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialSchema())
 		}
 		pe.shuffleTreesLock.Unlock()
 		err = pe.shuffleTrees[buckets[bucket]].mergeRow(tempRow, row, currentStage.KeyingOperation(), currentStage.ReductionOperation())
@@ -316,12 +325,12 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 	// but if there is a following stage, the data should match that stage.
 	var incomingDataSchema sif.Schema
 	if pe.HasNextStage() {
-		incomingDataSchema = pe.peekNextStage().WidestInitialPrivateSchema()
+		incomingDataSchema = pe.peekNextStage().WidestInitialSchema()
 	} else {
-		incomingDataSchema = pe.GetCurrentStage().OutgoingPrivateSchema()
+		incomingDataSchema = pe.GetCurrentStage().OutgoingSchema()
 	}
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
-		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), incomingDataSchema, pe.GetCurrentStage().IncomingPublicSchema())
+		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), incomingDataSchema)
 	}
 	part := partition.FromMetaMessage(mpart, incomingDataSchema)
 	err := part.ReceiveStreamedData(dataStream, incomingDataSchema, mpart)

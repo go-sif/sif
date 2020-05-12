@@ -37,7 +37,7 @@ func (p *Parser) PartitionSize() int {
 }
 
 // Parse parses JSONL data to produce Partitions
-func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, widestInitialPrivateSchema sif.Schema, onIteratorEnd func()) (sif.PartitionIterator, error) {
+func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, widestInitialSchema sif.Schema, onIteratorEnd func()) (sif.PartitionIterator, error) {
 	// start parsing by creating a scanner
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 4096), p.conf.MaxBufferSize)
@@ -50,13 +50,13 @@ func (p *Parser) Parse(r io.Reader, source sif.DataSource, schema sif.Schema, wi
 	}
 
 	iterator := &jsonlFilePartitionIterator{
-		parser:                     p,
-		scanner:                    scanner,
-		hasNext:                    true,
-		source:                     source,
-		schema:                     schema,
-		widestInitialPrivateSchema: widestInitialPrivateSchema,
-		endListeners:               []func(){},
+		parser:              p,
+		scanner:             scanner,
+		hasNext:             true,
+		source:              source,
+		schema:              schema,
+		widestInitialSchema: widestInitialSchema,
+		endListeners:        []func(){},
 	}
 	if onIteratorEnd != nil {
 		iterator.OnEnd(onIteratorEnd)

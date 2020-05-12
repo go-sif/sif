@@ -46,7 +46,7 @@ func pTreeTestKeyer(row sif.Row) ([]byte, error) {
 func TestCreatePartitionTree(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
-	root := createPTreeNode(conf, 3, schema, schema)
+	root := createPTreeNode(conf, 3, schema)
 
 	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
@@ -63,7 +63,7 @@ func TestCreatePartitionTree(t *testing.T) {
 func TestMergeRow(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
-	root := createPTreeNode(conf, 3, schema, schema)
+	root := createPTreeNode(conf, 3, schema)
 
 	// add the first row
 	row := partition.CreateRow([]byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
@@ -136,7 +136,7 @@ func TestMergeRow(t *testing.T) {
 func TestMergeRowWithSplit(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
-	root := createPTreeNode(conf, 3, schema, schema)
+	root := createPTreeNode(conf, 3, schema)
 
 	tempRow := partition.CreateTempRow()
 	for i := byte(0); i < byte(6); i++ {
@@ -163,7 +163,7 @@ func TestMergeRowWithSplit(t *testing.T) {
 func TestMergeRowWithRotate(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
-	root := createPTreeNode(conf, 3, schema, schema)
+	root := createPTreeNode(conf, 3, schema)
 	tempRow := partition.CreateTempRow()
 	for i := 0; i < 8; i++ {
 		row := partition.CreateRow([]byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
@@ -227,7 +227,7 @@ func TestDiskSwap(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	conf := &itypes.PlanExecutorConfig{TempFilePath: tempDir, InMemoryPartitions: 5}
 	// each partition can store 2 rows
-	root := createPTreeNode(conf, 2, schema, schema)
+	root := createPTreeNode(conf, 2, schema)
 	tempRow := partition.CreateTempRow()
 	// store enough rows that we have 20 partitions, so some get swapped to disk
 	for i := uint32(0); i < 40; i++ {
@@ -267,7 +267,7 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	conf := &itypes.PlanExecutorConfig{TempFilePath: tempDir, InMemoryPartitions: 5}
 	// each partition can store 2 rows
-	root := createPTreeNode(conf, 2, schema, schema)
+	root := createPTreeNode(conf, 2, schema)
 	tempRow := partition.CreateTempRow()
 	rowCount := 25
 	// store a bunch of random rows, so some partitions get swapped to disk
@@ -307,7 +307,7 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	conf := &itypes.PlanExecutorConfig{TempFilePath: tempDir, InMemoryPartitions: 5}
 	// each partition can store 2 rows
-	root := createPTreeNode(conf, 2, schema, schema)
+	root := createPTreeNode(conf, 2, schema)
 	tempRow := partition.CreateTempRow()
 	rowCount := 25
 	// store a bunch of random rows, so some partitions get swapped to disk

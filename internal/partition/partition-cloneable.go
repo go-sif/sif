@@ -8,20 +8,20 @@ import (
 )
 
 // createCloneablePartition creates a new Partition containing an empty byte array and a schema
-func createCloneablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) itypes.CloneablePartition {
-	return createPartitionImpl(maxRows, privateSchema, publicSchema)
+func createCloneablePartition(maxRows int, schema sif.Schema) itypes.CloneablePartition {
+	return createPartitionImpl(maxRows, schema)
 }
 
 // GetRowMeta retrieves specific row metadata from this Partition
 func (p *partitionImpl) GetRowMeta(rowNum int) []byte {
-	start := rowNum * p.privateSchema.NumColumns()
-	end := start + p.privateSchema.NumColumns()
+	start := rowNum * p.schema.NumColumns()
+	end := start + p.schema.NumColumns()
 	return p.rowMeta[start:end]
 }
 
 // GetRowMetaRange retrieves an arbitrary range of bytes from the row meta
 func (p *partitionImpl) GetRowMetaRange(start int, end int) []byte {
-	maxByte := p.numRows * p.privateSchema.NumColumns()
+	maxByte := p.numRows * p.schema.NumColumns()
 	if end > maxByte {
 		end = maxByte
 	}
@@ -30,14 +30,14 @@ func (p *partitionImpl) GetRowMetaRange(start int, end int) []byte {
 
 // GetRowData retrieves a specific row from this Partition
 func (p *partitionImpl) GetRowData(rowNum int) []byte {
-	start := rowNum * p.privateSchema.Size()
-	end := start + p.privateSchema.Size()
+	start := rowNum * p.schema.Size()
+	end := start + p.schema.Size()
 	return p.rows[start:end]
 }
 
 // GetRowDataRange retrieves an arbitrary range of bytes from the row data
 func (p *partitionImpl) GetRowDataRange(start int, end int) []byte {
-	maxByte := p.numRows * p.privateSchema.Size()
+	maxByte := p.numRows * p.schema.Size()
 	if end > maxByte {
 		end = maxByte
 	}
@@ -60,14 +60,9 @@ func (p *partitionImpl) GetSerializedVarRowData(rowNum int) map[string][]byte {
 	return p.serializedVarRowData[rowNum]
 }
 
-// GetPublicSchema retrieves the public Schema from the most recent task that manipulated this Partition. Represents the client-facing schema.
-func (p *partitionImpl) GetPublicSchema() sif.Schema {
-	return p.publicSchema
-}
-
-// GetPrivateSchema retrieves the private Schema from the most recent task that manipulated this Partition. Represents the true, underlying structure of the data in this Partition.
-func (p *partitionImpl) GetPrivateSchema() sif.Schema {
-	return p.privateSchema
+// GetSchema retrieves the Schema from the most recent task that manipulated this Partition. Represents the client-facing schema.
+func (p *partitionImpl) GetSchema() sif.Schema {
+	return p.schema
 }
 
 // GetIsKeyed returns true iff this Partition has been keyed with KeyRows

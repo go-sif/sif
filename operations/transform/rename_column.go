@@ -17,18 +17,13 @@ func RenameColumn(oldName string, newName string) *sif.DataFrameOperation {
 	return &sif.DataFrameOperation{
 		TaskType: sif.RenameColumnTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
-			newPublicSchema, err := d.GetPublicSchema().Clone().RenameColumn(oldName, newName)
-			if err != nil {
-				return nil, err
-			}
-			newPrivateSchema, err := d.GetPrivateSchema().Clone().RenameColumn(oldName, newName)
+			newSchema, err := d.GetSchema().Clone().RenameColumn(oldName, newName)
 			if err != nil {
 				return nil, err
 			}
 			return &sif.DataFrameOperationResult{
-				Task:          &renameColumnTask{},
-				PublicSchema:  newPublicSchema,
-				PrivateSchema: newPrivateSchema,
+				Task:       &renameColumnTask{},
+				DataSchema: newSchema,
 			}, nil
 		},
 	}

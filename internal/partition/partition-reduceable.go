@@ -13,13 +13,13 @@ import (
 )
 
 // CreateReduceablePartition creates a new Partition containing an empty byte array and a schema
-func CreateReduceablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) itypes.ReduceablePartition {
-	return createPartitionImpl(maxRows, privateSchema, publicSchema)
+func CreateReduceablePartition(maxRows int, schema sif.Schema) itypes.ReduceablePartition {
+	return createPartitionImpl(maxRows, schema)
 }
 
 // CreateKeyedReduceablePartition creates a new Partition containing an empty byte array and a schema
-func CreateKeyedReduceablePartition(maxRows int, privateSchema sif.Schema, publicSchema sif.Schema) itypes.ReduceablePartition {
-	part := createPartitionImpl(maxRows, privateSchema, publicSchema)
+func CreateKeyedReduceablePartition(maxRows int, schema sif.Schema) itypes.ReduceablePartition {
+	part := createPartitionImpl(maxRows, schema)
 	part.isKeyed = true
 	part.keys = make([]uint64, maxRows)
 	return part
@@ -158,8 +158,8 @@ func (p *partitionImpl) Split(pos int) (itypes.ReduceablePartition, itypes.Reduc
 	if pos >= p.numRows {
 		return nil, nil, fmt.Errorf("Split position is outside of Partition bounds")
 	}
-	left := createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
-	right := createPartitionImpl(p.maxRows, p.privateSchema, p.publicSchema)
+	left := createPartitionImpl(p.maxRows, p.schema)
+	right := createPartitionImpl(p.maxRows, p.schema)
 	if p.isKeyed {
 		left.isKeyed = true
 		left.keys = make([]uint64, p.maxRows)
@@ -242,8 +242,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 				svrd[i].RowData[k] = nil
 				continue
 			}
-			// no need to serialize values for columns we've dropped
-			if col, err := p.publicSchema.GetOffset(k); err == nil {
+			if col, err := p.schema.GetOffset(k); err == nil {
 				if vcol, ok := col.Type().(sif.VarColumnType); ok {
 					sdata, err := vcol.Serialize(v)
 					if err != nil {
@@ -279,7 +278,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 }
 
 // FromBytes converts disk-serialized bytes into a Partition
-func FromBytes(data []byte, privateSchema sif.Schema, publicSchema sif.Schema) (itypes.ReduceablePartition, error) {
+func FromBytes(data []byte, schema sif.Schema) (itypes.ReduceablePartition, error) {
 	m := &pb.DPartition{}
 	err := proto.Unmarshal(data, m)
 	if err != nil {
@@ -290,11 +289,10 @@ func FromBytes(data []byte, privateSchema sif.Schema, publicSchema sif.Schema) (
 		maxRows:              int(m.MaxRows),
 		numRows:              int(m.NumRows),
 		rows:                 m.RowData,
-		varRowData:           make([]map[string]interface{}, int(m.MaxRows)*privateSchema.Size()),
-		serializedVarRowData: make([]map[string][]byte, int(m.MaxRows)*privateSchema.Size()),
+		varRowData:           make([]map[string]interface{}, int(m.MaxRows)*schema.Size()),
+		serializedVarRowData: make([]map[string][]byte, int(m.MaxRows)*schema.Size()),
 		rowMeta:              m.RowMeta,
-		privateSchema:        privateSchema,
-		publicSchema:         publicSchema,
+		schema:               schema,
 		keys:                 nil,
 		isKeyed:              m.IsKeyed,
 	}

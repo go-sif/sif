@@ -14,7 +14,7 @@ type DataSourceParser interface {
 		r                          io.Reader,
 		source                     sif.DataSource,
 		schema                     sif.Schema,
-		widestInitialPrivateSchema sif.Schema,
+		widestInitialSchema sif.Schema,
 		onIteratorEnd              func(),
 	) (sif.PartitionIterator, error)
 }

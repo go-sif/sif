@@ -15,8 +15,7 @@ func Group(kfn sif.KeyingOperation) *sif.DataFrameOperation {
 					kfn:                 iutil.SafeKeyingOperation(kfn),
 					targetPartitionSize: -1,
 				},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

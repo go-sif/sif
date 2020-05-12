@@ -17,8 +17,7 @@ func RepartitionReduce(targetPartitionSize int, kfn sif.KeyingOperation, fn sif.
 					fn:                  iutil.SafeReductionOperation(fn),
 					targetPartitionSize: targetPartitionSize,
 				},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

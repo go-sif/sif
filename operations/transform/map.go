@@ -23,9 +23,8 @@ func Map(fn sif.MapOperation) *sif.DataFrameOperation {
 		TaskType: sif.MapTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
 			return &sif.DataFrameOperationResult{
-				Task:          &mapTask{fn: iutil.SafeMapOperation(fn)},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				Task:       &mapTask{fn: iutil.SafeMapOperation(fn)},
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

@@ -12,9 +12,8 @@ type dataFrameImpl struct {
 	source   sif.DataSource       // the source of the data
 	parser   sif.DataSourceParser // the parser for the source data
 	// to be set by apply
-	task          sif.Task
-	publicSchema  sif.Schema
-	privateSchema sif.Schema
+	task   sif.Task
+	schema sif.Schema
 }
 
 // CreateDataFrame is a factory for DataFrames. This function is not intended to be used directly,
@@ -24,9 +23,8 @@ func CreateDataFrame(source sif.DataSource, parser sif.DataSourceParser, schema 
 		parent: nil,
 		apply: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
 			return &sif.DataFrameOperationResult{
-				Task:          &noOpTask{},
-				PublicSchema:  schema,
-				PrivateSchema: schema,
+				Task:       &noOpTask{},
+				DataSchema: schema,
 			}, nil
 		},
 		taskType: sif.ExtractTaskType,
@@ -50,14 +48,9 @@ func (df *dataFrameImpl) Clone() *dataFrameImpl {
 	}
 }
 
-// GetPublicSchema returns the public Schema of a DataFrame
-func (df *dataFrameImpl) GetPublicSchema() sif.Schema {
-	return df.publicSchema
-}
-
-// GetPrivateSchema returns the private Schema of a DataFrame
-func (df *dataFrameImpl) GetPrivateSchema() sif.Schema {
-	return df.privateSchema
+// GetPublicSchema returns the Schema of a DataFrame
+func (df *dataFrameImpl) GetSchema() sif.Schema {
+	return df.schema
 }
 
 // GetDataSource returns the DataSource of a DataFrame

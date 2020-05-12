@@ -23,9 +23,8 @@ func Filter(fn sif.FilterOperation) *sif.DataFrameOperation {
 		TaskType: sif.FilterTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
 			return &sif.DataFrameOperationResult{
-				Task:          &filterTask{fn: iutil.SafeFilterOperation(fn)},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				Task:       &filterTask{fn: iutil.SafeFilterOperation(fn)},
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

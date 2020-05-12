@@ -72,13 +72,18 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 				panic(err)
 			}
 			f.task = dfor.Task
-			f.privateSchema = dfor.PrivateSchema
-			f.publicSchema = dfor.PublicSchema
+			f.schema = dfor.DataSchema
 		}
 		// set outgoing schemas for stage
 		if len(currentStage.frames) > 0 {
-			currentStage.outgoingPrivateSchema = currentStage.frames[len(currentStage.frames)-1].privateSchema
-			currentStage.outgoingPublicSchema = currentStage.frames[len(currentStage.frames)-1].publicSchema
+			lastSchema := lastFrame.schema
+			// add repack if columns have been removed
+			if lastSchema.NumRemovedColumns() > 0 {
+				// TODO fix outgoing schema here, anticipating that we'll actually repack before the stage ends
+				// TODO implement repack in plan_executor
+				// TODO deprecate Repack() operation
+			}
+			currentStage.outgoingSchema = currentStage.frames[len(currentStage.frames)-1].schema
 		}
 	}
 	newStage := func() {
@@ -87,8 +92,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 		nextID++
 		currentStage := stages[len(stages)-1]
 		if len(stages) > 1 {
-			currentStage.incomingPublicSchema = stages[len(stages)-2].outgoingPublicSchema
-			currentStage.incomingPrivateSchema = stages[len(stages)-2].outgoingPrivateSchema
+			currentStage.incomingSchema = stages[len(stages)-2].outgoingSchema
 		}
 	}
 	newStage()
@@ -127,7 +131,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 	}
 	// hack for checking if we never called endStage() on the last stage, which can
 	// happen if it's just a set of map()s which don't end in a collect, accumulate or shuffle
-	if len(stages) > 0 && stages[len(stages)-1].OutgoingPrivateSchema() == nil {
+	if len(stages) > 0 && stages[len(stages)-1].outgoingSchema == nil {
 		endStage()
 	}
 	return &planImpl{stages, df.parser, df.source}
@@ -147,7 +151,6 @@ func (df *dataFrameImpl) workerExecuteTask(previous sif.OperablePartition) ([]si
 		return nil, err
 	}
 	// update current schemas
-	previous.UpdatePublicSchema(df.publicSchema)
-	previous.UpdatePrivateSchema(df.privateSchema)
+	previous.UpdateSchema(df.schema)
 	return res, nil
 }

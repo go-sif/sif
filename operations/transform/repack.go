@@ -21,11 +21,10 @@ func Repack() *sif.DataFrameOperation {
 	return &sif.DataFrameOperation{
 		TaskType: sif.RepackTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
-			newSchema := d.GetPublicSchema().Repack()
+			newSchema := d.GetSchema().Repack()
 			return &sif.DataFrameOperationResult{
-				Task:          &repackTask{newSchema},
-				PublicSchema:  newSchema,
-				PrivateSchema: newSchema,
+				Task:       &repackTask{newSchema},
+				DataSchema: newSchema,
 			}, nil
 		},
 	}

@@ -10,31 +10,27 @@ import (
 // stages block the execution of further stages until they
 // are complete.
 type stageImpl struct {
-	id                    int
-	incomingPublicSchema  sif.Schema
-	outgoingPublicSchema  sif.Schema
-	incomingPrivateSchema sif.Schema
-	outgoingPrivateSchema sif.Schema
-	frames                []*dataFrameImpl
-	keyFn                 sif.KeyingOperation
-	reduceFn              sif.ReductionOperation
-	accumulator           sif.Accumulator
-	targetPartitionSize   int
+	id                  int
+	incomingSchema      sif.Schema
+	outgoingSchema      sif.Schema
+	frames              []*dataFrameImpl
+	keyFn               sif.KeyingOperation
+	reduceFn            sif.ReductionOperation
+	accumulator         sif.Accumulator
+	targetPartitionSize int
 }
 
 // createStage is a factory for Stages, safely assigning deterministic IDs
 func createStage(nextID int) *stageImpl {
 	s := &stageImpl{
-		id:                    nextID,
-		incomingPublicSchema:  nil,
-		outgoingPublicSchema:  nil,
-		incomingPrivateSchema: nil,
-		outgoingPrivateSchema: nil,
-		frames:                []*dataFrameImpl{},
-		keyFn:                 nil,
-		reduceFn:              nil,
-		accumulator:           nil,
-		targetPartitionSize:   -1,
+		id:                  nextID,
+		incomingSchema:      nil,
+		outgoingSchema:      nil,
+		frames:              []*dataFrameImpl{},
+		keyFn:               nil,
+		reduceFn:            nil,
+		accumulator:         nil,
+		targetPartitionSize: -1,
 	}
 	nextID++
 	return s
@@ -45,34 +41,24 @@ func (s *stageImpl) ID() int {
 	return s.id
 }
 
-// IncomingPublicSchema is the public Schema for data entering this Stage
-func (s *stageImpl) IncomingPublicSchema() sif.Schema {
-	return s.incomingPublicSchema
+// IncomingSchema is the public Schema for data entering this Stage
+func (s *stageImpl) IncomingSchema() sif.Schema {
+	return s.incomingSchema
 }
 
-// OutgoingPublicSchema is the public Schema for data leaving this Stage
-func (s *stageImpl) OutgoingPublicSchema() sif.Schema {
-	return s.outgoingPublicSchema
+// OutgoingSchema is the public Schema for data leaving this Stage
+func (s *stageImpl) OutgoingSchema() sif.Schema {
+	return s.outgoingSchema
 }
 
-// IncomingPrivateSchema is the private Schema for data entering this Stage
-func (s *stageImpl) IncomingPrivateSchema() sif.Schema {
-	return s.incomingPrivateSchema
-}
-
-// OutgoingPrivateSchema is the private Schema for data leaving this Stage
-func (s *stageImpl) OutgoingPrivateSchema() sif.Schema {
-	return s.outgoingPrivateSchema
-}
-
-// WidestInitialPrivateSchema returns the number of bytes
-func (s *stageImpl) WidestInitialPrivateSchema() sif.Schema {
+// WidestInitialSchema returns the number of bytes
+func (s *stageImpl) WidestInitialSchema() sif.Schema {
 	var widest sif.Schema
 	for _, f := range s.frames {
 		if f.taskType == sif.RepackTaskType {
 			return widest
 		}
-		widest = f.privateSchema
+		widest = f.schema
 	}
 	return widest
 }

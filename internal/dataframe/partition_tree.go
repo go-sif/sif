@@ -19,26 +19,25 @@ import (
 
 // pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
 type pTreeNode struct {
-	k                      uint64
-	left                   *pTreeNode
-	right                  *pTreeNode
-	center                 *pTreeNode
-	partID                 string
-	maxRows                int
-	nextStagePrivateSchema sif.Schema
-	nextStagePublicSchema  sif.Schema
-	prev                   *pTreeNode // btree-like link between leaves
-	next                   *pTreeNode // btree-like link between leaves
-	parent                 *pTreeNode
-	lruCache               *lru.Cache // TODO replace with a queue that is less likely to evict frequently-used entries
-	tempDir                string
+	k               uint64
+	left            *pTreeNode
+	right           *pTreeNode
+	center          *pTreeNode
+	partID          string
+	maxRows         int
+	nextStageSchema sif.Schema
+	prev            *pTreeNode // btree-like link between leaves
+	next            *pTreeNode // btree-like link between leaves
+	parent          *pTreeNode
+	lruCache        *lru.Cache // TODO replace with a queue that is less likely to evict frequently-used entries
+	tempDir         string
 }
 
 // pTreeRoot is an alias for pTreeNode representing the root node of a pTree
 type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
-func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStagePrivateSchema sif.Schema, nextStagePublicSchema sif.Schema) *pTreeNode {
+func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) *pTreeNode {
 	// TODO the minimum number of in-memory partitions must be greater than the number of partitions
 	// which are used concurrently, such as in a split(). Otherwise a partition
 	// which is being used may be evicted to disk and further writes to it would not be saved.
@@ -59,18 +58,17 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStagePriv
 	if err != nil {
 		log.Fatalf("Unable to initialize lru cache for partitions: %e", err)
 	}
-	part := partition.CreateReduceablePartition(maxRows, nextStagePrivateSchema, nextStagePublicSchema)
+	part := partition.CreateReduceablePartition(maxRows, nextStageSchema)
 	part.KeyRows(nil)
 	partID := part.ID()
 	cache.Add(partID, part)
 	return &pTreeNode{
-		k:                      0,
-		partID:                 partID,
-		lruCache:               cache,
-		maxRows:                part.GetMaxRows(),
-		nextStagePrivateSchema: nextStagePrivateSchema,
-		nextStagePublicSchema:  nextStagePublicSchema,
-		tempDir:                conf.TempFilePath,
+		k:               0,
+		partID:          partID,
+		lruCache:        cache,
+		maxRows:         part.GetMaxRows(),
+		nextStageSchema: nextStageSchema,
+		tempDir:         conf.TempFilePath,
 	}
 }
 
@@ -167,7 +165,7 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 			part.GetRowData(idx),
 			part.GetVarRowData(idx),
 			part.GetSerializedVarRowData(idx),
-			part.GetPublicSchema(),
+			part.GetSchema(),
 		)
 		return reducefn(tempRow, row)
 	}
@@ -189,26 +187,24 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 	}
 	t.k = avgKey
 	t.left = &pTreeNode{
-		k:                      0,
-		partID:                 lp.ID(),
-		prev:                   t.prev,
-		parent:                 t,
-		lruCache:               t.lruCache,
-		tempDir:                t.tempDir,
-		maxRows:                t.maxRows,
-		nextStagePrivateSchema: t.nextStagePrivateSchema,
-		nextStagePublicSchema:  t.nextStagePublicSchema,
+		k:               0,
+		partID:          lp.ID(),
+		prev:            t.prev,
+		parent:          t,
+		lruCache:        t.lruCache,
+		tempDir:         t.tempDir,
+		maxRows:         t.maxRows,
+		nextStageSchema: t.nextStageSchema,
 	}
 	t.right = &pTreeNode{
-		k:                      0,
-		partID:                 rp.ID(),
-		next:                   t.next,
-		parent:                 t,
-		lruCache:               t.lruCache,
-		tempDir:                t.tempDir,
-		maxRows:                t.maxRows,
-		nextStagePrivateSchema: t.nextStagePrivateSchema,
-		nextStagePublicSchema:  t.nextStagePublicSchema,
+		k:               0,
+		partID:          rp.ID(),
+		next:            t.next,
+		parent:          t,
+		lruCache:        t.lruCache,
+		tempDir:         t.tempDir,
+		maxRows:         t.maxRows,
+		nextStageSchema: t.nextStageSchema,
 	}
 	t.left.next = t.right
 	t.right.prev = t.left
@@ -252,18 +248,17 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		// we are now the new center tail of our parent
 		t.parent.center = t
 		// our parent has a fresh right node to insert into
-		rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
+		rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStageSchema)
 		t.parent.right = &pTreeNode{
-			k:                      0,
-			partID:                 rp.ID(),
-			next:                   t.next,
-			prev:                   t.parent.center,
-			parent:                 t,
-			lruCache:               t.lruCache,
-			tempDir:                t.tempDir,
-			maxRows:                t.maxRows,
-			nextStagePrivateSchema: t.nextStagePrivateSchema,
-			nextStagePublicSchema:  t.nextStagePublicSchema,
+			k:               0,
+			partID:          rp.ID(),
+			next:            t.next,
+			prev:            t.parent.center,
+			parent:          t,
+			lruCache:        t.lruCache,
+			tempDir:         t.tempDir,
+			maxRows:         t.maxRows,
+			nextStageSchema: t.nextStageSchema,
 		}
 		t.parent.center.next = t.parent.right
 		if t.parent.right.next != nil {
@@ -279,44 +274,41 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	t.k = avgKey
 	// we need to start a new center chain at this node to store data
 	t.center = &pTreeNode{
-		k:                      0,
-		partID:                 t.partID,
-		parent:                 t,
-		lruCache:               t.lruCache,
-		tempDir:                t.tempDir,
-		maxRows:                t.maxRows,
-		nextStagePrivateSchema: t.nextStagePrivateSchema,
-		nextStagePublicSchema:  t.nextStagePublicSchema,
+		k:               0,
+		partID:          t.partID,
+		parent:          t,
+		lruCache:        t.lruCache,
+		tempDir:         t.tempDir,
+		maxRows:         t.maxRows,
+		nextStageSchema: t.nextStageSchema,
 	}
 	// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
-	lp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
+	lp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStageSchema)
 	t.left = &pTreeNode{
-		k:                      0,
-		partID:                 lp.ID(),
-		prev:                   t.prev,
-		next:                   t.center,
-		parent:                 t,
-		lruCache:               t.lruCache,
-		tempDir:                t.tempDir,
-		maxRows:                t.maxRows,
-		nextStagePrivateSchema: t.nextStagePrivateSchema,
-		nextStagePublicSchema:  t.nextStagePublicSchema,
+		k:               0,
+		partID:          lp.ID(),
+		prev:            t.prev,
+		next:            t.center,
+		parent:          t,
+		lruCache:        t.lruCache,
+		tempDir:         t.tempDir,
+		maxRows:         t.maxRows,
+		nextStageSchema: t.nextStageSchema,
 	}
 	if t.left.prev != nil {
 		t.left.prev.next = t.left
 	}
-	rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStagePrivateSchema, t.nextStagePublicSchema)
+	rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStageSchema)
 	t.right = &pTreeNode{
-		k:                      0,
-		partID:                 rp.ID(),
-		prev:                   t.center,
-		next:                   t.next,
-		parent:                 t,
-		lruCache:               t.lruCache,
-		tempDir:                t.tempDir,
-		maxRows:                t.maxRows,
-		nextStagePrivateSchema: t.nextStagePrivateSchema,
-		nextStagePublicSchema:  t.nextStagePublicSchema,
+		k:               0,
+		partID:          rp.ID(),
+		prev:            t.center,
+		next:            t.next,
+		parent:          t,
+		lruCache:        t.lruCache,
+		tempDir:         t.tempDir,
+		maxRows:         t.maxRows,
+		nextStageSchema: t.nextStageSchema,
 	}
 	if t.right.next != nil {
 		t.right.next.prev = t.right
@@ -362,13 +354,10 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
 		}
-		if t.nextStagePrivateSchema == nil {
-			panic(fmt.Errorf("Next stage private schema was nil"))
+		if t.nextStageSchema == nil {
+			panic(fmt.Errorf("Next stage schema was nil"))
 		}
-		if t.nextStagePublicSchema == nil {
-			panic(fmt.Errorf("Next stage public schema was nil"))
-		}
-		part, err := partition.FromBytes(buff, t.nextStagePrivateSchema, t.nextStagePublicSchema)
+		part, err := partition.FromBytes(buff, t.nextStageSchema)
 		if err != nil {
 			return nil, err
 		}

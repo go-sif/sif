@@ -41,7 +41,7 @@ func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error)
 	defer jsonli.lock.Unlock()
 	colNames := jsonli.schema.ColumnNames()
 	colTypes := jsonli.schema.ColumnTypes()
-	part := datasource.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialPrivateSchema, jsonli.schema)
+	part := datasource.CreateBuildablePartition(jsonli.parser.PartitionSize(), jsonli.widestInitialPrivateSchema)
 	// parse lines
 	tempRow := datasource.CreateTempRow()
 	for {

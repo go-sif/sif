@@ -49,8 +49,7 @@ func Reduce(kfn sif.KeyingOperation, fn sif.ReductionOperation) *sif.DataFrameOp
 					fn:                  iutil.SafeReductionOperation(fn),
 					targetPartitionSize: -1,
 				},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

@@ -19,18 +19,13 @@ func AddColumn(colName string, colType sif.ColumnType) *sif.DataFrameOperation {
 	return &sif.DataFrameOperation{
 		TaskType: sif.WithColumnTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
-			newPublicSchema, err := d.GetPublicSchema().Clone().CreateColumn(colName, colType)
-			if err != nil {
-				return nil, err
-			}
-			newPrivateSchema, err := d.GetPublicSchema().Clone().CreateColumn(colName, colType)
+			newSchema, err := d.GetSchema().Clone().CreateColumn(colName, colType)
 			if err != nil {
 				return nil, err
 			}
 			return &sif.DataFrameOperationResult{
-				Task:          &addColumnTask{},
-				PublicSchema:  newPublicSchema,
-				PrivateSchema: newPrivateSchema,
+				Task:       &addColumnTask{},
+				DataSchema: newSchema,
 			}, nil
 		},
 	}

@@ -14,9 +14,8 @@ type DataFrameOperation struct {
 
 // DataFrameOperationResult is the result of a DataFrameOperation
 type DataFrameOperationResult struct {
-	Task          Task   // the task
-	PublicSchema  Schema // the new public schema
-	PrivateSchema Schema // the new private schema
+	Task       Task   // the task
+	DataSchema Schema // the new data schema
 }
 
 // MapOperation - A generic function for manipulating Rows in-place

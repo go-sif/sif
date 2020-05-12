@@ -50,7 +50,6 @@ func TestCollect(t *testing.T) {
 			return nil
 		}),
 		ops.RemoveColumn("col1"),
-		// ops.Repack(),
 		util.Collect(2), // 2 partitions because there are 10 rows and 5 per partition
 	)
 	require.Nil(t, err)
@@ -58,6 +57,8 @@ func TestCollect(t *testing.T) {
 	// run dataframe
 	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{}, 2)
 	require.Nil(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Collected)
 	for _, part := range res.Collected {
 		part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetVarString("res")

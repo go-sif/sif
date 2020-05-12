@@ -40,7 +40,7 @@ func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
 	defer dsvi.lock.Unlock()
 	colNames := dsvi.schema.ColumnNames()
 	colTypes := dsvi.schema.ColumnTypes()
-	part := datasource.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialPrivateSchema, dsvi.schema)
+	part := datasource.CreateBuildablePartition(dsvi.parser.PartitionSize(), dsvi.widestInitialPrivateSchema)
 	// parse lines
 	tempRow := datasource.CreateTempRow()
 	for {

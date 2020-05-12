@@ -39,8 +39,7 @@ func Accumulate(facc sif.AccumulatorFactory) *sif.DataFrameOperation {
 				Task: &accumulateTask{
 					acc: facc(),
 				},
-				PublicSchema:  d.GetPublicSchema().Clone(),
-				PrivateSchema: d.GetPrivateSchema().Clone(),
+				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},
 	}

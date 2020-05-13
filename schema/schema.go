@@ -97,9 +97,19 @@ func (s *schema) Clone() sif.Schema {
 	return &schema{schema: newSchema, size: s.size, toRemove: newRemoved}
 }
 
-// Size returns the current byte size of a Row respecting this Schema
+// Size returns the current byte size of a Row respecting this Schema, padded so rows fit neatly into 64 bit chunks
 func (s *schema) Size() int {
-	return s.size
+	if s.size < 16 {
+		return 16
+	} else if s.size < 32 {
+		return 32
+	} else if s.size < 64 {
+		return 64
+	} else if s.size%64 != 0 {
+		return ((s.size / 64) + 1) * 64
+	} else {
+		return (s.size / 64) * 64
+	}
 }
 
 // NumColumns returns the number of columns (fixed-length and variable-length) in this Schema

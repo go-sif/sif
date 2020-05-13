@@ -257,7 +257,7 @@ func TestSerialization(t *testing.T) {
 	}
 }
 
-func TestRepack(t *testing.T) {
+func TestRepackShrink(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.Float64ColumnType{})
@@ -288,6 +288,59 @@ func TestRepack(t *testing.T) {
 	// test repack
 	newSchema := schema.Clone()
 	newSchema.RemoveColumn("col1")
+	newPart, err := part.Repack(newSchema)
+	require.Nil(t, err)
+	require.Equal(t, part.GetNumRows(), newPart.GetNumRows())
+	require.Equal(t, part.GetMaxRows(), newPart.GetMaxRows())
+	for i := 0; i < 8; i++ {
+		origRow := part.GetRow(i)
+		newRow := newPart.GetRow(i)
+		val2, err := origRow.GetFloat64("col2")
+		require.Nil(t, err)
+		newVal2, err := newRow.GetFloat64("col2")
+		require.Nil(t, err)
+		require.Equal(t, val2, newVal2)
+		val3, err := origRow.GetVarString("col3")
+		require.Nil(t, err)
+		newVal3, err := newRow.GetVarString("col3")
+		require.Nil(t, err)
+		require.Equal(t, val3, newVal3)
+	}
+}
+
+func TestRepackGrow(t *testing.T) {
+	// create partition
+	schema := createPartitionTestSchema()
+	schema.CreateColumn("col2", &sif.Float64ColumnType{})
+	schema.CreateColumn("col3", &sif.VarStringColumnType{})
+	part := createPartitionImpl(8, schema)
+	// append rows
+	tempRow := CreateTempRow()
+	for i := 0; i < 8; i++ {
+		row, err := part.AppendEmptyRowData(tempRow)
+		require.Nil(t, err)
+		row.SetInt8("col1", int8(i))
+		row.SetFloat64("col2", float64(i+1))
+		row.SetVarString("col3", "Hello World")
+	}
+	// verify values
+	require.Equal(t, 8, part.GetNumRows())
+	for i := 0; i < 8; i++ {
+		val1, err := part.GetRow(i).GetUint8("col1")
+		require.Nil(t, err)
+		require.Equal(t, val1, uint8(i))
+		val2, err := part.GetRow(i).GetFloat64("col2")
+		require.Nil(t, err)
+		require.Equal(t, val2, float64(i+1))
+		val3, err := part.GetRow(i).GetVarString("col3")
+		require.Nil(t, err)
+		require.Equal(t, val3, "Hello World")
+	}
+	// test repack
+	newSchema := schema.Clone()
+	newSchema.RemoveColumn("col1")
+	newSchema.CreateColumn("col4", &sif.Int32ColumnType{})
+	newSchema.CreateColumn("col5", &sif.Int32ColumnType{})
 	newPart, err := part.Repack(newSchema)
 	require.Nil(t, err)
 	require.Equal(t, part.GetNumRows(), newPart.GetNumRows())

@@ -354,7 +354,7 @@ func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 					errors <- err
 					return
 				}
-				err = part.ReceiveStreamedData(stream, incomingSchema, res.Part)
+				err = part.ReceiveStreamedData(stream, res.Part)
 				if err != nil {
 					errors <- err
 					return

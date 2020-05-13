@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/go-sif/sif"
 )
@@ -51,21 +52,22 @@ type schema struct {
 // CreateSchema is a factory for Schemas
 func CreateSchema() sif.Schema {
 	return &schema{
-		schema: make(map[string]sif.Column),
-		size:   0,
+		schema:   make(map[string]sif.Column),
+		toRemove: make(map[string]bool),
+		size:     0,
 	}
 }
 
 // Equals returns true iff this and another Schema are equivalent
-func (s *schema) Equals(otherSchema sif.Schema) bool {
+func (s *schema) Equals(otherSchema sif.Schema) error {
 	if s.Size() != otherSchema.Size() {
-		return false
+		return fmt.Errorf("Schemas have unequal sizes")
 	}
 	if s.NumFixedLengthColumns() != otherSchema.NumFixedLengthColumns() {
-		return false
+		return fmt.Errorf("Schemas have unequal numbers of fixed-length columns")
 	}
 	if s.NumVariableLengthColumns() != otherSchema.NumVariableLengthColumns() {
-		return false
+		return fmt.Errorf("Schemas have unequal numbers of variable-length columns")
 	}
 	return s.ForEachColumn(func(name string, offset sif.Column) error {
 		otherOffset, err := otherSchema.GetOffset(name)
@@ -79,7 +81,7 @@ func (s *schema) Equals(otherSchema sif.Schema) bool {
 			return fmt.Errorf("Column %s does not match", name)
 		}
 		return nil
-	}) != nil
+	})
 }
 
 // Clone returns a copy of this Schema
@@ -137,10 +139,19 @@ func (s *schema) Repack() (newSchema sif.Schema) {
 	newSchema = &schema{
 		schema: make(map[string]sif.Column),
 	}
-	for k, v := range s.schema {
+	// we need the column names in index order
+	cols := make([]string, 0, len(s.ColumnNames())-s.NumRemovedColumns())
+	for k := range s.schema {
 		if !s.toRemove[k] {
-			newSchema, _ = newSchema.CreateColumn(k, v.Type())
+			cols = append(cols, k)
 		}
+	}
+	sort.Slice(cols, func(i, j int) bool {
+		return s.schema[cols[i]].Index() < s.schema[cols[j]].Index()
+	})
+	// re-insert into fresh schema in original index order
+	for _, name := range cols {
+		newSchema, _ = newSchema.CreateColumn(name, s.schema[name].Type())
 	}
 	return
 }

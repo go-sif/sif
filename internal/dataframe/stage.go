@@ -13,6 +13,7 @@ type stageImpl struct {
 	id                  int
 	incomingSchema      sif.Schema
 	outgoingSchema      sif.Schema
+	widestInitialSchema sif.Schema
 	frames              []*dataFrameImpl
 	keyFn               sif.KeyingOperation
 	reduceFn            sif.ReductionOperation
@@ -26,6 +27,7 @@ func createStage(nextID int) *stageImpl {
 		id:                  nextID,
 		incomingSchema:      nil,
 		outgoingSchema:      nil,
+		widestInitialSchema: nil,
 		frames:              []*dataFrameImpl{},
 		keyFn:               nil,
 		reduceFn:            nil,
@@ -53,13 +55,7 @@ func (s *stageImpl) OutgoingSchema() sif.Schema {
 
 // WidestInitialSchema returns the number of bytes required to fit data for the whole stage
 func (s *stageImpl) WidestInitialSchema() sif.Schema {
-	var widest sif.Schema
-	for _, f := range s.frames {
-		if widest == nil || f.GetSchema().Size() > widest.Size() || (f.GetSchema().Size() == widest.Size() && f.GetSchema().NumVariableLengthColumns() > widest.NumVariableLengthColumns()) {
-			widest = f.schema
-		}
-	}
-	return widest
+	return s.widestInitialSchema
 }
 
 // workerExecute runs a stage against a Partition of data, returning

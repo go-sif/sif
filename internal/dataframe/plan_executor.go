@@ -242,7 +242,7 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 	// if this stage removed columns and/or the next stage adds any
 	nextStage := pe.peekNextStage()
 	nextStageWidestInitialSchema := nextStage.WidestInitialSchema()
-	if part.GetSchema().NumRemovedColumns() > 0 || !part.GetSchema().Equals(nextStageWidestInitialSchema) {
+	if part.GetSchema().NumRemovedColumns() > 0 || part.GetSchema().Equals(nextStageWidestInitialSchema) != nil {
 		repackedPart, err := part.(sif.OperablePartition).Repack(nextStageWidestInitialSchema)
 		if err != nil {
 			return err
@@ -333,15 +333,20 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), incomingDataSchema)
 	}
 	part := partition.FromMetaMessage(mpart, incomingDataSchema)
-	err := part.ReceiveStreamedData(dataStream, incomingDataSchema, mpart)
+	err := part.ReceiveStreamedData(dataStream, mpart)
 	if err != nil {
 		return err
 	}
 	// merge data into our tree
 	var multierr *multierror.Error
 	tempRow := partition.CreateTempRow()
+	destinationTree := pe.shuffleTrees[pe.assignedBucket]
+	areEqualSchemas := destinationTree.nextStageSchema.Equals(part.GetSchema())
+	if areEqualSchemas != nil {
+		return fmt.Errorf("Incoming shuffled partition schema does not match expected schema")
+	}
 	part.ForEachRow(func(row sif.Row) error {
-		err = pe.shuffleTrees[pe.assignedBucket].mergeRow(tempRow, row, pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
+		err = destinationTree.mergeRow(tempRow, row, pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 		}

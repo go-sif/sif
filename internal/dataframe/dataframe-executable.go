@@ -76,10 +76,19 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 		}
 		// set outgoing schemas for stage
 		if len(currentStage.frames) > 0 {
+			// set widest initial schema
+			var widest sif.Schema
+			for _, f := range currentStage.frames {
+				if widest == nil || f.GetSchema().Size() > widest.Size() || (f.GetSchema().Size() == widest.Size() && f.GetSchema().NumVariableLengthColumns() > widest.NumVariableLengthColumns()) {
+					widest = f.schema
+				}
+			}
+			currentStage.widestInitialSchema = widest
+			// set outgoing schema
 			lastFrame := currentStage.frames[len(currentStage.frames)-1]
 			if lastFrame.schema.NumRemovedColumns() > 0 {
 				// if a stage ends with removed columns, we will repack automatically
-				currentStage.outgoingSchema = lastFrame.schema.Clone().Repack()
+				currentStage.outgoingSchema = lastFrame.schema.Repack()
 			} else {
 				currentStage.outgoingSchema = lastFrame.schema
 			}

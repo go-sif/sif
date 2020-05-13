@@ -100,7 +100,7 @@ func (p *partitionImpl) ToMetaMessage() *pb.MPartitionMeta {
 }
 
 // ReceiveStreamedData loads data from a protobuf stream into this Partition
-func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, incomingSchema sif.Schema, partitionMeta *pb.MPartitionMeta) error {
+func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta) error {
 	// stream data for Partition
 	rowOffset := 0
 	metaOffset := 0

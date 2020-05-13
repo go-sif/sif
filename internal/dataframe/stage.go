@@ -55,7 +55,7 @@ func (s *stageImpl) OutgoingSchema() sif.Schema {
 func (s *stageImpl) WidestInitialSchema() sif.Schema {
 	var widest sif.Schema
 	for _, f := range s.frames {
-		if f.GetSchema().Size() > widest.Size() {
+		if widest == nil || f.GetSchema().Size() > widest.Size() {
 			widest = f.schema
 		}
 	}

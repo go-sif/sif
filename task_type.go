@@ -12,8 +12,6 @@ const (
 	RenameColumnTaskType TaskType = "rename_column"
 	// ExtractTaskType indicates that this task sources data from a DataSource
 	ExtractTaskType TaskType = "extract"
-	// RepackTaskType indicates that this task triggers a Repack
-	RepackTaskType TaskType = "repack"
 	// ShuffleTaskType indicates that this task triggers a Shuffle
 	ShuffleTaskType TaskType = "shuffle"
 	// AccumulateTaskType indicates that this task triggers an Accumulation

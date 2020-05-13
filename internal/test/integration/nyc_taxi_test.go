@@ -123,7 +123,6 @@ func TestNYCTaxi(t *testing.T) {
 	frame, err := frame.To(
 		// drop unnecessary columns
 		ops.RemoveColumn("hack", "license", "code", "flag", "type", "pickup_time", "dropoff_time", "passengers", "duration", "distance", "pickup_lon", "pickup_lat"),
-		ops.Repack(),
 		// create column for heatmap reduction
 		ops.AddColumn("heatmap", &VarHeatmapColumnType{}),
 		// compute partial heatmaps

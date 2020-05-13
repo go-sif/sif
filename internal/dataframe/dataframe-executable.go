@@ -39,10 +39,6 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 		if len(stages) > 1 {
 			previousStage = stages[len(stages)-2]
 		}
-		// repack should never be the first frame in a stage. Throw error if that is the case
-		if len(currentStage.frames) > 0 && currentStage.frames[0].taskType == sif.RepackTaskType {
-			log.Panicf("Repack cannot be the first Task in a DataFrame")
-		}
 		// sort CreateColumns to top of stage
 		sort.SliceStable(currentStage.frames, func(i, j int) bool {
 			if currentStage.frames[i].taskType == sif.ExtractTaskType {

@@ -51,11 +51,11 @@ func (s *stageImpl) OutgoingSchema() sif.Schema {
 	return s.outgoingSchema
 }
 
-// WidestInitialSchema returns the number of bytes
+// WidestInitialSchema returns the number of bytes required to fit data for the whole stage
 func (s *stageImpl) WidestInitialSchema() sif.Schema {
 	var widest sif.Schema
 	for _, f := range s.frames {
-		if widest == nil || f.GetSchema().Size() > widest.Size() {
+		if widest == nil || f.GetSchema().Size() > widest.Size() || (f.GetSchema().Size() == widest.Size() && f.GetSchema().NumVariableLengthColumns() > widest.NumVariableLengthColumns()) {
 			widest = f.schema
 		}
 	}

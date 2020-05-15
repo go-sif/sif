@@ -13,7 +13,7 @@ func CreateAsyncErrorChannel() chan error {
 	return make(chan error)
 }
 
-// WaitAndFetchError attempts to fetch an error from an asyc goroutine
+// WaitAndFetchError attempts to fetch an error from an async goroutine
 func WaitAndFetchError(wg *sync.WaitGroup, errors chan error) error {
 	// use reading from the errors channel to block, rather than
 	// the WaitGroup directly.

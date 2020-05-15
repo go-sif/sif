@@ -45,6 +45,9 @@ func TestShuffleErrors(t *testing.T) {
 
 	// run dataframe
 	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{IgnoreRowErrors: true}, 2)
+	require.Nil(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Collected)
 	for _, part := range res.Collected {
 		part.ForEachRow(func(row sif.Row) error {
 			val, err := row.GetInt32("res")
@@ -53,5 +56,4 @@ func TestShuffleErrors(t *testing.T) {
 			return nil
 		})
 	}
-	require.Nil(t, err)
 }

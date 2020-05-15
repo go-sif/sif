@@ -22,7 +22,7 @@ func TestCreatePartitionImpl(t *testing.T) {
 	require.Equal(t, part.GetMaxRows(), 4)
 	require.Equal(t, part.GetNumRows(), 0)
 	require.Nil(t, part.CanInsertRowData(make([]byte, 1)))
-	require.NotNil(t, part.CanInsertRowData(make([]byte, 4)))
+	require.NotNil(t, part.CanInsertRowData(make([]byte, 18))) // rows are padded to at least 16bytes
 	require.False(t, part.GetIsKeyed())
 }
 
@@ -105,8 +105,10 @@ func TestIncompatibleRowError(t *testing.T) {
 	val, err := part.GetRow(0).GetUint8("col1")
 	require.Nil(t, err)
 	require.Equal(t, val, uint8(1))
-	// attempt to append incompatible row
-	r = []byte{byte(uint8(1)), byte(uint8(2))}
+	// attempt to append incompatible row (because of padding, we have to actually append up to 16 bytes)
+	r = make([]byte, 17)
+	r[0] = 1
+	r[1] = 2
 	err = part.AppendRowData(r, []byte{0}, make(map[string]interface{}), make(map[string][]byte))
 	require.NotNil(t, err)
 	_, ok := err.(errors.IncompatibleRowError)

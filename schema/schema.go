@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 
 	"github.com/go-sif/sif"
@@ -75,10 +76,16 @@ func (s *schema) Equals(otherSchema sif.Schema) error {
 			return err
 		}
 		if offset.Start() != otherOffset.Start() {
-			return fmt.Errorf("Column %s does not match", name)
+			return fmt.Errorf("Column %s offsets do not match", name)
 		}
-		if offset.Type() != otherOffset.Type() {
-			return fmt.Errorf("Column %s does not match", name)
+		if offset.Index() != otherOffset.Index() {
+			return fmt.Errorf("Column %s indices do not match", name)
+		}
+		if reflect.TypeOf(offset.Type()) != reflect.TypeOf(otherOffset.Type()) {
+			return fmt.Errorf("Column %s types do not match", name)
+		}
+		if offset.Type().Size() != otherOffset.Type().Size() {
+			return fmt.Errorf("Column %s type fields do not match", name)
 		}
 		return nil
 	})

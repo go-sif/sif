@@ -316,11 +316,9 @@ func (pe *planExecutorImpl) GetAccumulator() sif.Accumulator {
 	return pe.GetCurrentStage().Accumulator()
 }
 
-// AcceptShuffledPartition receives a Partition that belongs on this worker and merges it into the local shuffle tree
-func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) error {
-	// merge partition into appropriate shuffle tree
-	pe.shuffleTreesLock.Lock()
-	defer pe.shuffleTreesLock.Unlock()
+// ShufflePartitionData receives a Partition that belongs on this worker and merges it into the local shuffle tree
+func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger chan<- itypes.TransferrablePartition, asyncErrors chan<- error, mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) {
+	defer wg.Done()
 	// if we're the last stage, then the incoming data should match our outgoing schema
 	// but if there is a following stage, the data should match that stage.
 	var incomingDataSchema sif.Schema
@@ -330,27 +328,46 @@ func (pe *planExecutorImpl) AcceptShuffledPartition(mpart *pb.MPartitionMeta, da
 		incomingDataSchema = pe.GetCurrentStage().OutgoingSchema()
 	}
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
+		pe.shuffleTreesLock.Lock()
 		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), incomingDataSchema)
+		pe.shuffleTreesLock.Unlock()
 	}
 	part := partition.FromMetaMessage(mpart, incomingDataSchema)
 	err := part.ReceiveStreamedData(dataStream, mpart)
 	if err != nil {
-		return err
+		asyncErrors <- err
+		return
 	}
-	// merge data into our tree
-	var multierr *multierror.Error
-	tempRow := partition.CreateTempRow()
-	destinationTree := pe.shuffleTrees[pe.assignedBucket]
-	areEqualSchemas := destinationTree.nextStageSchema.Equals(part.GetSchema())
-	if areEqualSchemas != nil {
-		return fmt.Errorf("Incoming shuffled partition schema does not match expected schema")
-	}
-	part.ForEachRow(func(row sif.Row) error {
-		err = destinationTree.mergeRow(tempRow, row, pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
-		if err != nil {
-			multierr = multierror.Append(multierr, err)
+	partMerger <- part
+}
+
+func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerger <-chan itypes.TransferrablePartition, asyncErrors chan<- error) {
+	defer wg.Done()
+	for part := range partMerger {
+		pe.shuffleTreesLock.Lock()
+		// merge partition into appropriate shuffle tree
+		var multierr *multierror.Error
+		tempRow := partition.CreateTempRow()
+		destinationTree := pe.shuffleTrees[pe.assignedBucket]
+		areEqualSchemas := destinationTree.nextStageSchema.Equals(part.GetSchema())
+		if areEqualSchemas != nil {
+			asyncErrors <- fmt.Errorf("Incoming shuffled partition schema does not match expected schema")
+			pe.shuffleTreesLock.Unlock()
+			break
 		}
-		return nil
-	})
-	return multierr.ErrorOrNil()
+		part.ForEachRow(func(row sif.Row) error {
+			err := destinationTree.mergeRow(tempRow, row, pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
+			if err != nil {
+				multierr = multierror.Append(multierr, err)
+			}
+			return nil
+		})
+		errors := multierr.ErrorOrNil()
+		if errors != nil {
+			asyncErrors <- errors
+			pe.shuffleTreesLock.Unlock()
+			break
+		}
+		pe.shuffleTreesLock.Unlock()
+	}
 }

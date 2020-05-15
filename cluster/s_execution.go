@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 
 	pb "github.com/go-sif/sif/internal/rpc"
 	"github.com/go-sif/sif/internal/stats"
@@ -106,7 +107,7 @@ func (s *executionServer) onRowError(ctx context.Context, err error) (outgoingEr
 }
 
 // runShuffle executes a prepared shuffle on a Worker
-func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageRequest) error {
+func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageRequest) (err error) {
 	// build list of workers to communicate with
 	buckets := make([]uint64, 0)
 	targets := make([]pb.PartitionsServiceClient, 0)
@@ -124,6 +125,39 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 	}
 	// assign bucket to self
 	s.planExecutor.AssignShuffleBucket(req.AssignedBucket)
+	// start partition merger, which merges partitions into our tree sequentially
+	var fetchWg, mergeWg sync.WaitGroup
+	asyncFetchErrors := make(chan error, len(buckets)) // each fetch goroutine can send one error before terminating
+	asyncMergeErrors := make(chan error, 1)            // the merge goroutine can only send one error before terminating
+	partChan := make(chan itypes.TransferrablePartition, len(buckets))
+	// setup our cleanup in the correct order (read in reverse)
+	defer close(asyncMergeErrors)
+	// check for remaining merge errors
+	defer func() {
+		select {
+		case mergeErr := <-asyncMergeErrors:
+			if err := s.onRowError(ctx, mergeErr); err != nil {
+				err = mergeErr
+			}
+		default:
+		}
+	}()
+	defer close(asyncFetchErrors) // finally, close error channels
+	// check for remaining fetch errors
+	defer func() {
+		select {
+		case fetchErr := <-asyncFetchErrors:
+			if err := s.onRowError(ctx, fetchErr); err != nil {
+				err = fetchErr
+			}
+		default:
+		}
+	}()
+	defer mergeWg.Wait()  // then, wait for any outstanding merges to finish
+	defer close(partChan) // then, close the partition channel
+	defer fetchWg.Wait()  // first, wait for all fetches to finish
+	mergeWg.Add(1)
+	go s.planExecutor.MergeShuffledPartitions(&mergeWg, partChan, asyncMergeErrors)
 	// round-robin request partitions
 	t := 0
 	for {
@@ -138,16 +172,16 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 			continue // TODO maybe skip worker for a while?
 		} else if res.Part != nil {
 			transferReq := &pb.MTransferPartitionDataRequest{Id: res.Part.Id}
-			// shuffle partition into my local tree
+			// initiate request to shuffle partition data
 			stream, err := targets[t].TransferPartitionData(ctx, transferReq)
 			if err != nil {
 				return err
 			}
-			err = s.planExecutor.AcceptShuffledPartition(res.Part, stream)
-			if err := s.onRowError(ctx, err); err != nil {
-				return err
-			}
+			// split off goroutine to actually transfer the data
+			fetchWg.Add(1)
+			go s.planExecutor.ShufflePartitionData(&fetchWg, partChan, asyncFetchErrors, res.Part, stream)
 		}
+		// if the target worker has no more partitions, take it out of the rotation
 		if !res.HasNext {
 			// remove target from rotation
 			copy(buckets[t:], buckets[t+1:])
@@ -155,6 +189,27 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 			copy(targets[t:], targets[t+1:])
 			targets[len(targets)-1] = nil // for garbage collection
 			targets = targets[:len(targets)-1]
+		}
+		// block every time we've fetched one partition from each target,
+		// so we don't create too many goroutines for ShufflePartitionData
+		if t+1 >= len(targets) {
+			// check fetch errors
+			fetchWg.Wait()
+			select {
+			case fetchErr := <-asyncFetchErrors:
+				if err := s.onRowError(ctx, fetchErr); err != nil {
+					return err
+				}
+			default:
+			}
+			// check merge errors
+			select {
+			case mergeErr := <-asyncMergeErrors:
+				if mergeErr != nil {
+					return mergeErr
+				}
+			default:
+			}
 		}
 		if len(targets) > 0 {
 			t = (t + 1) % len(targets)

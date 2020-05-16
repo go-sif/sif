@@ -204,7 +204,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 					// repack if any columns have been removed
 					if tNewPart.GetSchema().NumRemovedColumns() > 0 {
 						repackedSchema := tNewPart.GetSchema().Repack()
-						repackedPart, err := part.(sif.OperablePartition).Repack(repackedSchema)
+						repackedPart, err := tNewPart.(sif.OperablePartition).Repack(repackedSchema)
 						if err != nil {
 							return err
 						}

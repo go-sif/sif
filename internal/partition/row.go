@@ -374,7 +374,7 @@ func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
 	if ser, ok := r.serializedVarData[colName]; ok {
 		deser, err := vcol.Deserialize(ser)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Error deserializing variable-length column data for column %s: %w", colName, err)
 		}
 		r.varData[colName] = deser
 		delete(r.serializedVarData, colName)

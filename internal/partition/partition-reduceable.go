@@ -240,8 +240,8 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 		svarData := p.GetSerializedVarRowData(i)
 		for k, v := range svarData {
 			svrd[i].RowData[k] = v
-			if v == nil || len(v) == 0 {
-				fmt.Println("shit (serialization)")
+			if len(v) == 0 {
+				log.Panicf("Serialized column data for Column %s should not be zero-length", k)
 			}
 		}
 		// then, serialize any data which was deserialized during this stage
@@ -258,8 +258,8 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 						return nil, err
 					}
 					svrd[i].RowData[k] = sdata
-					if sdata == nil || len(sdata) == 0 {
-						fmt.Println("shit (serialization)")
+					if len(sdata) == 0 {
+						log.Panicf("Serialized column data for Column %s should not be zero-length", k)
 					}
 				} else {
 					log.Panicf("Column %s is not a variable-length type", k)
@@ -280,13 +280,6 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 	data, err := proto.Marshal(dm)
 	if err != nil {
 		return nil, err
-	}
-	for _, r := range dm.SerializedVarRowData {
-		for _, v := range r.RowData {
-			if v == nil || len(v) == 0 {
-				fmt.Println("shit (serialization)")
-			}
-		}
 	}
 	return data, nil
 }

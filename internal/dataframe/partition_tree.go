@@ -16,7 +16,6 @@ import (
 	"github.com/go-sif/sif/internal/util"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/klauspost/compress/zstd"
-	"github.com/pierrec/lz4"
 )
 
 type pTreeCache struct {
@@ -54,7 +53,7 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 		log.Fatalf("Partition Trees must be capable of holding at least 5 Partitions in memory concurrently.")
 	}
 	// init compressor/decompressor
-	compressor, err := zstd.NewWriter(new(bytes.Buffer))
+	compressor, err := zstd.NewWriter(new(bytes.Buffer), zstd.WithEncoderLevel(zstd.SpeedFastest))
 	if err != nil {
 		log.Fatalf("Unable to initialize compressor: %e", err)
 	}
@@ -366,7 +365,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 	}
 	part, ok := t.partitionCache.lruCache.Get(t.partID)
 	if !ok {
-		log.Printf("Load partition %s from disk", t.partID)
+		// log.Printf("Load partition %s from disk", t.partID)
 		tempFilePath := path.Join(t.partitionCache.tempDir, t.partID)
 		f, err := os.Open(tempFilePath)
 		if err != nil {
@@ -382,8 +381,11 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 				log.Printf("Unable to remove file %s", tempFilePath)
 			}
 		}()
-		r := lz4.NewReader(f)
-		buff, err := ioutil.ReadAll(r)
+		err = t.partitionCache.decompressor.Reset(f)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
+		}
+		buff, err := ioutil.ReadAll(t.partitionCache.decompressor)
 		if err != nil {
 			return nil, nil, fmt.Errorf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
 		}
@@ -413,7 +415,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 }
 
 func onPartitionEvict(cache *pTreeCache, partID string, part itypes.ReduceablePartition) {
-	log.Printf("Swapping partition %s to disk", part.ID())
+	// log.Printf("Swapping partition %s to disk", part.ID())
 	buff, err := part.ToBytes()
 	if err != nil {
 		log.Fatalf("Unable to convert partition to buffer %s", err)
@@ -421,6 +423,7 @@ func onPartitionEvict(cache *pTreeCache, partID string, part itypes.ReduceablePa
 
 	tempFilePath := path.Join(cache.tempDir, part.ID())
 	f, err := os.Create(tempFilePath)
+	defer f.Close()
 	if err != nil {
 		log.Fatalf("Unable to create temporary file for partition %s", err)
 	}
@@ -434,10 +437,15 @@ func onPartitionEvict(cache *pTreeCache, partID string, part itypes.ReduceablePa
 			log.Printf("Unable to close file %s", tempFilePath)
 		}
 	}()
-	w := lz4.NewWriter(f)
-	w.Write(buff)
-	w.Flush()
-	defer w.Close()
+	cache.compressor.Reset(f)
+	_, err = cache.compressor.Write(buff)
+	if err != nil {
+		log.Fatalf("Unable to write compressed data for partition %s", err)
+	}
+	err = cache.compressor.Close()
+	if err != nil {
+		log.Fatalf("Unable to write compressed data for partition %s", err)
+	}
 }
 
 func (t *pTreeNode) findPartition(hashedKey uint64) *pTreeNode {

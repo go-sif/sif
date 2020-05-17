@@ -236,6 +236,15 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 		svrd[i] = &pb.DPartition_DVarRow{
 			RowData: make(map[string][]byte),
 		}
+		// transfer un-deserialized variable-length data (possible if never accessed since last reduction)
+		svarData := p.GetSerializedVarRowData(i)
+		for k, v := range svarData {
+			svrd[i].RowData[k] = v
+			if v == nil || len(v) == 0 {
+				fmt.Println("shit (serialization)")
+			}
+		}
+		// then, serialize any data which was deserialized during this stage
 		varData := p.GetVarRowData(i)
 		for k, v := range varData {
 			if v == nil {
@@ -249,15 +258,13 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 						return nil, err
 					}
 					svrd[i].RowData[k] = sdata
+					if sdata == nil || len(sdata) == 0 {
+						fmt.Println("shit (serialization)")
+					}
 				} else {
 					log.Panicf("Column %s is not a variable-length type", k)
 				}
 			}
-		}
-		// transfer un-deserialized variable-length data (possible if never accessed after a reduction)// transfer un-deserialized variable-length data (possible if never accessed after a reduction)
-		svarData := p.GetSerializedVarRowData(i)
-		for k, v := range svarData {
-			svrd[i].RowData[k] = v
 		}
 	}
 	dm := &pb.DPartition{
@@ -273,6 +280,13 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 	data, err := proto.Marshal(dm)
 	if err != nil {
 		return nil, err
+	}
+	for _, r := range dm.SerializedVarRowData {
+		for _, v := range r.RowData {
+			if v == nil || len(v) == 0 {
+				fmt.Println("shit (serialization)")
+			}
+		}
 	}
 	return data, nil
 }
@@ -297,6 +311,9 @@ func FromBytes(data []byte, schema sif.Schema) (itypes.ReduceablePartition, erro
 		isKeyed:              m.IsKeyed,
 	}
 	for i, row := range m.SerializedVarRowData {
+		if row.RowData["heatmap"] == nil {
+			fmt.Println("shit (deserialization)")
+		}
 		part.serializedVarRowData[i] = row.RowData
 	}
 	if m.IsKeyed {

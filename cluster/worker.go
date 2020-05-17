@@ -111,10 +111,14 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	}
 	log.Printf("Using temporary directory: %s", tmpDirPath)
 	defer os.RemoveAll(tmpDir)
+	inMemoryPartitions := w.opts.NumInMemoryPartitions / w.opts.NumWorkers // we will have one ptree per worker, so we have to divide
+	if inMemoryPartitions < 10 {
+		inMemoryPartitions = 10
+	}
 	statsTracker := &istats.RunStatistics{}
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
 		TempFilePath:       tmpDir,
-		InMemoryPartitions: w.opts.NumInMemoryPartitions,
+		InMemoryPartitions: inMemoryPartitions,
 		Streaming:          eframe.GetParent().GetDataSource().IsStreaming(),
 		IgnoreRowErrors:    w.opts.IgnoreRowErrors,
 	}, statsTracker)

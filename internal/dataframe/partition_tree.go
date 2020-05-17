@@ -1,6 +1,7 @@
 package dataframe
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,8 +15,17 @@ import (
 	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/go-sif/sif/internal/util"
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4"
 )
+
+type pTreeCache struct {
+	tempDir      string
+	compressor   *zstd.Encoder
+	decompressor *zstd.Decoder
+	lruCache     *lru.Cache
+	inUse        map[string]bool
+}
 
 // pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
 type pTreeNode struct {
@@ -29,8 +39,7 @@ type pTreeNode struct {
 	prev            *pTreeNode // btree-like link between leaves
 	next            *pTreeNode // btree-like link between leaves
 	parent          *pTreeNode
-	lruCache        *lru.Cache // TODO replace with a queue that is less likely to evict frequently-used entries
-	tempDir         string
+	partitionCache  *pTreeCache
 }
 
 // pTreeRoot is an alias for pTreeNode representing the root node of a pTree
@@ -44,31 +53,53 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 	if conf.InMemoryPartitions < 5 {
 		log.Fatalf("Partition Trees must be capable of holding at least 5 Partitions in memory concurrently.")
 	}
-	cache, err := lru.NewWithEvict(conf.InMemoryPartitions, func(key interface{}, value interface{}) {
+	// init compressor/decompressor
+	compressor, err := zstd.NewWriter(new(bytes.Buffer))
+	if err != nil {
+		log.Fatalf("Unable to initialize compressor: %e", err)
+	}
+	decompressor, err := zstd.NewReader(new(bytes.Buffer))
+	if err != nil {
+		log.Fatalf("Unable to initialize decompressor: %e", err)
+	}
+	// setup partition cache
+	partitionCache := &pTreeCache{
+		compressor:   compressor,
+		decompressor: decompressor,
+		tempDir:      conf.TempFilePath,
+		inUse:        make(map[string]bool),
+	}
+	memLru, err := lru.NewWithEvict(conf.InMemoryPartitions, func(key interface{}, value interface{}) {
 		partID, ok := key.(string)
 		if !ok {
 			log.Fatalf("Unable to sync partition %s to disk due to key casting issue", key)
+		}
+		// Calls to Remove() don't swap to disk if the partition is in use
+		if partitionCache.inUse[partID] {
+			return
 		}
 		part, ok := value.(itypes.ReduceablePartition)
 		if !ok {
 			log.Fatalf("Unable to sync partition %s to disk due to value casting issue", value)
 		}
-		onPartitionEvict(conf.TempFilePath, partID, part)
+		onPartitionEvict(partitionCache, partID, part)
 	})
 	if err != nil {
 		log.Fatalf("Unable to initialize lru cache for partitions: %e", err)
 	}
+	partitionCache.lruCache = memLru
+	// create initial partition for root node
 	part := partition.CreateReduceablePartition(maxRows, nextStageSchema)
 	part.KeyRows(nil)
 	partID := part.ID()
-	cache.Add(partID, part)
+	memLru.Add(partID, part)
+	// return root node
 	return &pTreeNode{
 		k:               0,
 		partID:          partID,
-		lruCache:        cache,
 		maxRows:         part.GetMaxRows(),
 		nextStageSchema: nextStageSchema,
-		tempDir:         conf.TempFilePath,
+		partitionCache:  partitionCache,
 	}
 }
 
@@ -108,11 +139,12 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 	// locate and load partition for the given hashed key
 	partNode := t.findPartition(hashedKey)
 	// make sure partition is loaded
-	_, err := partNode.loadPartition()
-	if err != nil {
-		return err
-	}
-	part, err := partNode.loadPartition()
+	part, cachePartition, err := partNode.loadPartition()
+	defer func() {
+		if cachePartition != nil {
+			cachePartition()
+		}
+	}()
 	if err != nil {
 		return err
 	}
@@ -136,7 +168,7 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 		// if the partition was full, try split and retry
 		if _, ok = insertErr.(errors.PartitionFullError); ok {
 			// first try to split the rows in a balanced way, based on the avg key
-			avgKey, nextNode, err := partNode.balancedSplitNode(hashedKey)
+			avgKey, nextNode, err := balancedSplitNode(partNode, part, hashedKey)
 			if _, ok := err.(errors.FullOfIdenticalKeysError); ok {
 				// if we fail because all the keys are the same, we'll
 				// start or add to a linked list of partitions which contain
@@ -145,11 +177,19 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 				if err != nil {
 					return err
 				}
+				cachePartition() // put the rotated partition back in the cache
+				cachePartition = nil
+				// recurse using this correct subtree to save time
+				return nextNode.doMergeRow(tempRow, row, hashedKey, reducefn)
 			} else if err != nil {
 				return err
+			} else {
+				// we don't need to return the split partition to
+				// the cache, because it doesn't exist anymore
+				cachePartition = nil
+				// recurse using this correct subtree to save time
+				return nextNode.doMergeRow(tempRow, row, hashedKey, reducefn)
 			}
-			// recurse using this correct subtree to save time
-			return nextNode.doMergeRow(tempRow, row, hashedKey, reducefn)
 		} else if !ok && insertErr != nil {
 			return insertErr
 		}
@@ -161,6 +201,7 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 		// If the actual key already exists in the partition, merge into row
 		partition.PopulateTempRow(
 			tempRow,
+			part.ID(),
 			part.GetRowMeta(idx),
 			part.GetRowData(idx),
 			part.GetVarRowData(idx),
@@ -175,11 +216,8 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 // uses PartitionReduceable.BalancedSplit to split a single pTreeNode into
 // two nodes (left & right). Fails if all the rows in the current pTreeNode
 // have an identical key, in which case a split achieves nothing.
-func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, error) {
-	part, err := t.loadPartition()
-	if err != nil {
-		return 0, nil, err
-	}
+// PRECONDITION: part is already loaded and locked
+func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey uint64) (uint64, *pTreeNode, error) {
 	avgKey, lp, rp, err := part.BalancedSplit()
 	if err != nil {
 		// this is where we end up if all the keys are the same
@@ -191,20 +229,18 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 		partID:          lp.ID(),
 		prev:            t.prev,
 		parent:          t,
-		lruCache:        t.lruCache,
-		tempDir:         t.tempDir,
 		maxRows:         t.maxRows,
 		nextStageSchema: t.nextStageSchema,
+		partitionCache:  t.partitionCache,
 	}
 	t.right = &pTreeNode{
 		k:               0,
 		partID:          rp.ID(),
 		next:            t.next,
 		parent:          t,
-		lruCache:        t.lruCache,
-		tempDir:         t.tempDir,
 		maxRows:         t.maxRows,
 		nextStageSchema: t.nextStageSchema,
+		partitionCache:  t.partitionCache,
 	}
 	t.left.next = t.right
 	t.right.prev = t.left
@@ -218,8 +254,8 @@ func (t *pTreeNode) balancedSplitNode(hashedKey uint64) (uint64, *pTreeNode, err
 	t.prev = nil  // non-leaf nodes don't have horizontal links
 	t.next = nil  // non-leaf nodes don't have horizontal links
 	// add left and right to front of "visited" queue
-	t.lruCache.Add(t.left.partID, lp)
-	t.lruCache.Add(t.right.partID, rp)
+	t.partitionCache.lruCache.Add(t.left.partID, lp)
+	t.partitionCache.lruCache.Add(t.right.partID, rp)
 	// tell the caller where to go next
 	if hashedKey < t.k {
 		return avgKey, t.left, nil
@@ -255,17 +291,16 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 			next:            t.next,
 			prev:            t.parent.center,
 			parent:          t,
-			lruCache:        t.lruCache,
-			tempDir:         t.tempDir,
 			maxRows:         t.maxRows,
 			nextStageSchema: t.nextStageSchema,
+			partitionCache:  t.partitionCache,
 		}
 		t.parent.center.next = t.parent.right
 		if t.parent.right.next != nil {
 			t.parent.right.next.prev = t.parent.right
 		}
 		// add new partition to front of "visited" queue
-		t.lruCache.Add(rp.ID(), rp)
+		t.partitionCache.lruCache.Add(rp.ID(), rp)
 		// we know we got into this situation by adding a row with key == avgKey. These
 		// rows now belong in t.parent.right, so return that as the "next" node to recurse on
 		return t.parent.right, nil
@@ -277,10 +312,9 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		k:               0,
 		partID:          t.partID,
 		parent:          t,
-		lruCache:        t.lruCache,
-		tempDir:         t.tempDir,
 		maxRows:         t.maxRows,
 		nextStageSchema: t.nextStageSchema,
+		partitionCache:  t.partitionCache,
 	}
 	// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
 	lp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStageSchema)
@@ -290,10 +324,9 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		prev:            t.prev,
 		next:            t.center,
 		parent:          t,
-		lruCache:        t.lruCache,
-		tempDir:         t.tempDir,
 		maxRows:         t.maxRows,
 		nextStageSchema: t.nextStageSchema,
+		partitionCache:  t.partitionCache,
 	}
 	if t.left.prev != nil {
 		t.left.prev.next = t.left
@@ -305,17 +338,16 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		prev:            t.center,
 		next:            t.next,
 		parent:          t,
-		lruCache:        t.lruCache,
-		tempDir:         t.tempDir,
 		maxRows:         t.maxRows,
 		nextStageSchema: t.nextStageSchema,
+		partitionCache:  t.partitionCache,
 	}
 	if t.right.next != nil {
 		t.right.next.prev = t.right
 	}
 	// add new partitions to front of "visited" queue
-	t.lruCache.Add(lp.ID(), lp)
-	t.lruCache.Add(rp.ID(), rp)
+	t.partitionCache.lruCache.Add(lp.ID(), lp)
+	t.partitionCache.lruCache.Add(rp.ID(), rp)
 	// update links for center chain
 	t.center.next = t.right
 	t.center.prev = t.left
@@ -328,16 +360,17 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	return t.right, nil
 }
 
-func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
+func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) {
 	if len(t.partID) == 0 {
-		return nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
+		return nil, nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
 	}
-	part, ok := t.lruCache.Get(t.partID)
+	part, ok := t.partitionCache.lruCache.Get(t.partID)
 	if !ok {
-		tempFilePath := path.Join(t.tempDir, t.partID)
+		log.Printf("Load partition %s from disk", t.partID)
+		tempFilePath := path.Join(t.partitionCache.tempDir, t.partID)
 		f, err := os.Open(tempFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", tempFilePath, err)
+			return nil, nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", tempFilePath, err)
 		}
 		defer func() {
 			err := f.Close()
@@ -352,29 +385,41 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, error) {
 		r := lz4.NewReader(f)
 		buff, err := ioutil.ReadAll(r)
 		if err != nil {
-			return nil, fmt.Errorf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
+			return nil, nil, fmt.Errorf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
 		}
 		if t.nextStageSchema == nil {
 			panic(fmt.Errorf("Next stage schema was nil"))
 		}
 		part, err := partition.FromBytes(buff, t.nextStageSchema)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		// move this node to the front of the "visited" queue
-		t.lruCache.Add(t.partID, part)
-		return part, nil
+		return part, func() {
+			// we only add the partition to the LRU cache when it's finished being
+			// operated on to make sure it isn't swapped to disk while it's in use
+			delete(t.partitionCache.inUse, t.partID)
+			t.partitionCache.lruCache.Add(t.partID, part)
+		}, nil
 	}
-	return part.(itypes.ReduceablePartition), nil
+	t.partitionCache.inUse[t.partID] = true
+	t.partitionCache.lruCache.Remove(t.partID)
+	rpart := part.(itypes.ReduceablePartition)
+	return rpart, func() {
+		// we only add the partition to the LRU cache when it's finished being
+		// operated on to make sure it isn't swapped to disk while it's in use
+		delete(t.partitionCache.inUse, t.partID)
+		t.partitionCache.lruCache.Add(t.partID, rpart)
+	}, nil
 }
 
-func onPartitionEvict(tempDir string, partID string, part itypes.ReduceablePartition) {
+func onPartitionEvict(cache *pTreeCache, partID string, part itypes.ReduceablePartition) {
+	log.Printf("Swapping partition %s to disk", part.ID())
 	buff, err := part.ToBytes()
 	if err != nil {
 		log.Fatalf("Unable to convert partition to buffer %s", err)
 	}
 
-	tempFilePath := path.Join(tempDir, part.ID())
+	tempFilePath := path.Join(cache.tempDir, part.ID())
 	f, err := os.Create(tempFilePath)
 	if err != nil {
 		log.Fatalf("Unable to create temporary file for partition %s", err)

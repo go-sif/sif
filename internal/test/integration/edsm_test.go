@@ -30,7 +30,7 @@ func createTestEDSMDataFrame(t *testing.T) sif.DataFrame {
 	schema.CreateColumn("date", &sif.TimeColumnType{Format: "2006-01-02 15:04:05"})
 
 	parser := jsonl.CreateParser(&jsonl.ParserConf{
-		PartitionSize: 256,
+		PartitionSize: 16,
 	})
 	cwd, err := os.Getwd()
 	require.Nil(t, err)
@@ -104,8 +104,8 @@ func TestEDSMHeatmap(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			key := tval.Format("2006")
-			// key := tval.Format("2006-01-02-15") // uncomment for hourly
+			// key := tval.Format("2006")
+			key := tval.Format("2006-01-02-15") // uncomment for hourly
 			return []byte(key), nil
 		}, func(lrow sif.Row, rrow sif.Row) error {
 			lval, err := lrow.GetVarCustomData("heatmap")
@@ -136,8 +136,8 @@ func TestEDSMHeatmap(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			dateOfImage := tval.Format("2006")
-			// dateOfImage := tval.Format("2006-01-02-15") // uncomment for hourly
+			// dateOfImage := tval.Format("2006")
+			dateOfImage := tval.Format("2006-01-02-15") // uncomment for hourly
 			heatmapData, err := row.GetVarCustomData("heatmap")
 			if err != nil {
 				return err
@@ -182,6 +182,6 @@ func TestEDSMHeatmap(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	_, err = siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{NumInMemoryPartitions: 5}, 2)
+	_, err = siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{NumInMemoryPartitions: 16}, 2)
 	require.Nil(t, err)
 }

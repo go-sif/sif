@@ -34,7 +34,7 @@ func TestJSONLDatasourceParser(t *testing.T) {
 		ps, err := pl.Load(parser, schema)
 		require.Nil(t, err)
 		for ps.HasNextPartition() {
-			part, err := ps.NextPartition()
+			part, _, err := ps.NextPartition()
 			require.Nil(t, err)
 			totalRows += part.GetNumRows()
 		}

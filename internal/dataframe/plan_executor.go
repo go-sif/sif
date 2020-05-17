@@ -171,18 +171,31 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 	parts := pe.GetPartitionSource()
 
 	for parts.HasNextPartition() {
-		part, err := parts.NextPartition()
+		part, unlockPartition, err := parts.NextPartition()
 		if _, ok := err.(errors.NoMorePartitionsError); ok {
+			if unlockPartition != nil {
+				unlockPartition()
+			}
 			// It's ok for a data source to throw this once, as HasNextPartition is just a hint
 			break
 		} else if err != nil {
+			if unlockPartition != nil {
+				unlockPartition()
+			}
 			return err
 		}
 		pe.statsTracker.StartPartition()
 		opart := part.(sif.OperablePartition)
 		newParts, err := fn(opart)
 		if err := onRowError(err); err != nil {
+			if unlockPartition != nil {
+				unlockPartition()
+			}
 			return err
+		}
+		// we're done with the source partition now
+		if unlockPartition != nil {
+			unlockPartition()
 		}
 		// Prepare resulting partitions for transfer to next stage
 		for _, newPart := range newParts {
@@ -250,7 +263,7 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		part = repackedPart.(itypes.TransferrablePartition)
 	}
 
-	// merge rows into our tree
+	// merge rows into our trees
 	i := 0
 	tempRow := partition.CreateTempRow()
 	err := part.ForEachRow(func(row sif.Row) error {

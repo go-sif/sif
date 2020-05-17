@@ -36,7 +36,7 @@ func (jsonli *jsonlFilePartitionIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error) {
+func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, func(), error) {
 	jsonli.lock.Lock()
 	defer jsonli.lock.Unlock()
 	colNames := jsonli.schema.ColumnNames()
@@ -47,7 +47,7 @@ func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error)
 	for {
 		// If the partition is full, we're done
 		if part.GetNumRows() == part.GetMaxRows() {
-			return part, nil
+			return part, nil, nil
 		}
 		// Otherwise, grab another line from the file
 		hasNext := jsonli.scanner.Scan()
@@ -58,21 +58,21 @@ func (jsonli *jsonlFilePartitionIterator) NextPartition() (sif.Partition, error)
 			}
 			jsonli.endListeners = []func(){}
 			// TODO have the other side discard empty partitions
-			return part, nil
+			return part, nil, nil
 		}
 		if err := jsonli.scanner.Err(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		rowString := jsonli.scanner.Text()
 		// create a new row to place values into
 		row, err := part.AppendEmptyRowData(tempRow)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		err = ParseJSONRow(colNames, colTypes, gjson.Parse(rowString), row)
 		if err != nil {
 			log.Printf("Unable to parse line:\n\t%s", rowString)
-			return nil, err
+			return nil, nil, err
 		}
 	}
 }

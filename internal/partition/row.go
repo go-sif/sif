@@ -372,6 +372,12 @@ func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
 	}
 	// deserialize serialized data if present
 	if ser, ok := r.serializedVarData[colName]; ok {
+		if ser == nil {
+			// if the serialized data is nil, then it represents a nil value
+			r.varData[colName] = nil
+			delete(r.serializedVarData, colName)
+			return nil, errors.NilValueError{Name: colName}
+		}
 		deser, err := vcol.Deserialize(ser)
 		if err != nil {
 			return nil, fmt.Errorf("Error deserializing variable-length column data for column %s: %w", colName, err)

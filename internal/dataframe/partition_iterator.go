@@ -221,9 +221,7 @@ func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, func(), error
 	toDestroy := tpi.next
 	tpi.next = tpi.next.next // advance iterator
 	if tpi.destructive {
-		toDestroy.partitionCache.inUse[toDestroy.partID] = true
-		toDestroy.partitionCache.lruCache.Remove(toDestroy.partID)
-		delete(toDestroy.partitionCache.inUse, toDestroy.partID)
+		toDestroy.unpersist()
 		return part, nil, nil
 	}
 	return part, unlockPartition, nil

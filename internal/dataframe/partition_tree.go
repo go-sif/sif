@@ -169,6 +169,12 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 			// first try to split the rows in a balanced way, based on the avg key
 			avgKey, nextNode, err := balancedSplitNode(partNode, part, hashedKey)
 			if _, ok := err.(errors.FullOfIdenticalKeysError); ok {
+				// we can release the partition data back to the cache immediately, because we won't use the data during rotation
+				// we have to manually cache the partition, instead of calling cachePartition,
+				// because cachePartition is going to look at the wrong pTreeNode for the partID now.
+				// log.Printf("Returning rotated partition %s to cache", part.ID())
+				cachePartition()
+				cachePartition = nil // prevent original cachePartition deferred call
 				// if we fail because all the keys are the same, we'll
 				// start or add to a linked list of partitions which contain
 				// all the same key, and make a fresh partition to work with
@@ -176,8 +182,6 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 				if err != nil {
 					return err
 				}
-				cachePartition() // put the rotated partition back in the cache
-				cachePartition = nil
 				// recurse using this correct subtree to save time
 				return nextNode.doMergeRow(tempRow, row, hashedKey, reducefn)
 			} else if err != nil {
@@ -185,6 +189,7 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 			} else {
 				// we don't need to return the split partition to
 				// the cache, because it doesn't exist anymore
+				// log.Printf("Discarding split partition %s from cache", part.ID())
 				cachePartition = nil
 				// recurse using this correct subtree to save time
 				return nextNode.doMergeRow(tempRow, row, hashedKey, reducefn)
@@ -222,6 +227,7 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 		// this is where we end up if all the keys are the same
 		return avgKey, nil, err
 	}
+	// log.Printf("Splitting partition %s", t.partID)
 	t.k = avgKey
 	t.left = &pTreeNode{
 		k:               0,
@@ -266,6 +272,7 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 // current pTreeNode all have the same key, we instead store
 // the partition in the "center" of the parent, or ourselves
 func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
+	// log.Printf("Rotating partition %s to center", t.partID)
 	// if our parent's avgKey is identical to all of the rows in this
 	// pTreeNode, then this pTreeNode belongs in the parents' center chain
 	if t.parent != nil && t.parent.k == avgKey {
@@ -365,7 +372,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 	}
 	part, ok := t.partitionCache.lruCache.Get(t.partID)
 	if !ok {
-		// log.Printf("Load partition %s from disk", t.partID)
+		// log.Printf("Loading partition %s from disk", t.partID)
 		tempFilePath := path.Join(t.partitionCache.tempDir, t.partID)
 		f, err := os.Open(tempFilePath)
 		if err != nil {
@@ -397,6 +404,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 			return nil, nil, err
 		}
 		return part, func() {
+			// log.Printf("Returning partition %s to cache", t.partID)
 			// we only add the partition to the LRU cache when it's finished being
 			// operated on to make sure it isn't swapped to disk while it's in use
 			delete(t.partitionCache.inUse, t.partID)
@@ -406,7 +414,9 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 	t.partitionCache.inUse[t.partID] = true
 	t.partitionCache.lruCache.Remove(t.partID)
 	rpart := part.(itypes.ReduceablePartition)
+	// log.Printf("Loading partition %s from cache", t.partID)
 	return rpart, func() {
+		// log.Printf("Returning partition %s to cache", t.partID)
 		// we only add the partition to the LRU cache when it's finished being
 		// operated on to make sure it isn't swapped to disk while it's in use
 		delete(t.partitionCache.inUse, t.partID)

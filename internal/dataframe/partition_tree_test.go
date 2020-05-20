@@ -317,7 +317,7 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
 	tempRow := partition.CreateTempRow()
-	rowCount := 25
+	rowCount := 50
 	// store a bunch of random rows, so some partitions get swapped to disk
 	for i := 0; i < rowCount; i++ {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)

@@ -22,6 +22,7 @@ const (
 // offsets). In practice, users of Row will call its
 // getter and setter methods to retrieve, manipulate and store data
 type rowImpl struct {
+	partID            string
 	meta              []byte
 	data              []byte                 // likely a slice of a partition array
 	varData           map[string]interface{} // variable-length data
@@ -30,8 +31,8 @@ type rowImpl struct {
 }
 
 // CreateRow builds a new row from individual internal components
-func CreateRow(meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) sif.Row {
-	return &rowImpl{meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
+func CreateRow(partID string, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) sif.Row {
+	return &rowImpl{partID: partID, meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
 }
 
 // CreateTempRow builds an empty row struct which cannot be used until passed to a function which populates it with data
@@ -40,8 +41,9 @@ func CreateTempRow() sif.Row {
 }
 
 // PopulateTempRow overwrites the internal data of a temporary row
-func PopulateTempRow(row sif.Row, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) {
+func PopulateTempRow(row sif.Row, partID string, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) {
 	r := row.(*rowImpl)
+	r.partID = partID
 	r.meta = meta
 	r.data = data
 	r.varData = varData
@@ -607,5 +609,5 @@ func (r *rowImpl) Repack(newSchema sif.Schema) (sif.Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &rowImpl{meta, buff, varData, serializedVarData, newSchema}, nil
+	return &rowImpl{r.partID, meta, buff, varData, serializedVarData, newSchema}, nil
 }

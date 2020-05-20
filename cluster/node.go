@@ -78,9 +78,6 @@ func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
 	if len(opts.CoordinatorHost) == 0 {
 		log.Fatal("NodeOptions.CoordinatorHost must be the IP address of the Sif Coordinator")
 	}
-	if opts.NumInMemoryPartitions > 0 && opts.NumInMemoryPartitions < 5 {
-		log.Fatal("NumInMemoryPartitions must be 5 or greater")
-	}
 	// default certain options if not supplied
 	if opts.Port == 0 {
 		opts.Port = 1643

@@ -39,7 +39,7 @@ func (psi *partitionSliceIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (psi *partitionSliceIterator) NextPartition() (sif.Partition, error) {
+func (psi *partitionSliceIterator) NextPartition() (sif.Partition, func(), error) {
 	psi.lock.Lock()
 	defer psi.lock.Unlock()
 	if psi.next >= len(psi.partitions) {
@@ -47,11 +47,11 @@ func (psi *partitionSliceIterator) NextPartition() (sif.Partition, error) {
 			l()
 		}
 		psi.endListeners = []func(){}
-		return nil, errors.NoMorePartitionsError{}
+		return nil, nil, errors.NoMorePartitionsError{}
 	}
 	part := psi.partitions[psi.next]
 	psi.next++
-	return part, nil
+	return part, nil, nil
 }
 
 // PartitionLoaderIterator produces Partitions from PartitionLoaders
@@ -89,7 +89,7 @@ func (pli *partitionLoaderIterator) HasNextPartition() bool {
 	return pli.next < len(pli.partitionLoaders) || pli.partitionGroup.HasNextPartition()
 }
 
-func (pli *partitionLoaderIterator) NextPartition() (sif.Partition, error) {
+func (pli *partitionLoaderIterator) NextPartition() (sif.Partition, func(), error) {
 	pli.lock.Lock()
 	defer pli.lock.Unlock()
 	// TODO switch to round robin across all loaders, for streaming data
@@ -100,22 +100,22 @@ func (pli *partitionLoaderIterator) NextPartition() (sif.Partition, error) {
 				l()
 			}
 			pli.endListeners = []func(){}
-			return nil, errors.NoMorePartitionsError{}
+			return nil, nil, errors.NoMorePartitionsError{}
 		}
 		l := pli.partitionLoaders[pli.next]
 		pli.next++
 		partGroup, err := l.Load(pli.parser, pli.widestInitialSchema) // load data into a partition wide enough to accommodate upcoming column adds
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		pli.partitionGroup = partGroup
 	}
 	// return the next partition from the existing group
-	part, err := pli.partitionGroup.NextPartition()
+	part, unlockPartition, err := pli.partitionGroup.NextPartition()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return part, nil
+	return part, unlockPartition, nil
 }
 
 // PartitionCacheIterator produces Partitions non-sorted, cached data
@@ -157,7 +157,7 @@ func (pci *partitionCacheIterator) HasNextPartition() bool {
 	return pci.next < len(pci.keys)
 }
 
-func (pci *partitionCacheIterator) NextPartition() (sif.Partition, error) {
+func (pci *partitionCacheIterator) NextPartition() (sif.Partition, func(), error) {
 	pci.lock.Lock()
 	defer pci.lock.Unlock()
 	if pci.next >= len(pci.keys) {
@@ -165,14 +165,14 @@ func (pci *partitionCacheIterator) NextPartition() (sif.Partition, error) {
 			l()
 		}
 		pci.endListeners = []func(){}
-		return nil, errors.NoMorePartitionsError{}
+		return nil, nil, errors.NoMorePartitionsError{}
 	}
 	p := pci.partitions[pci.keys[pci.next]]
 	if pci.destructive {
 		delete(pci.partitions, pci.keys[pci.next])
 	}
 	pci.next++
-	return p, nil
+	return p, nil, nil
 }
 
 // pTreePartitionIterator iterates over Partitions in a pTree, starting at the bottom left.
@@ -204,7 +204,7 @@ func (tpi *pTreePartitionIterator) HasNextPartition() bool {
 	return tpi.next != nil
 }
 
-func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, error) {
+func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, func(), error) {
 	tpi.lock.Lock()
 	defer tpi.lock.Unlock()
 	if tpi.next == nil {
@@ -212,16 +212,17 @@ func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, error) {
 			l()
 		}
 		tpi.endListeners = []func(){}
-		return nil, errors.NoMorePartitionsError{}
+		return nil, nil, errors.NoMorePartitionsError{}
 	}
-	part, err := tpi.next.loadPartition() // temp var for partition
+	part, unlockPartition, err := tpi.next.loadPartition() // temp var for partition
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	toDestroy := tpi.next
 	tpi.next = tpi.next.next // advance iterator
 	if tpi.destructive {
-		toDestroy.lruCache.Remove(toDestroy.partID)
+		toDestroy.unpersist()
+		return part, nil, nil
 	}
-	return part, nil
+	return part, unlockPartition, nil
 }

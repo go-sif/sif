@@ -45,7 +45,7 @@ func (s *partitionServer) ShufflePartition(ctx context.Context, req *pb.MShuffle
 	if !pi.HasNextPartition() {
 		return &pb.MShufflePartitionResponse{Ready: true, HasNext: false, Part: nil}, nil
 	}
-	part, err := pi.NextPartition()
+	part, _, err := pi.NextPartition() // we don't need unlockPartition, because ShufflePartitionIterators remove the partition from the internal lru cache
 	if err != nil {
 		return nil, err
 	}

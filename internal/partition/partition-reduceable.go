@@ -230,16 +230,33 @@ func (p *partitionImpl) BalancedSplit() (uint64, itypes.ReduceablePartition, ity
 // ToBytes serializes a Partition to a byte array suitable for persistence to disk
 func (p *partitionImpl) ToBytes() ([]byte, error) {
 	numRows := p.GetNumRows()
-	svrd := make([]*pb.DPartition_DVarRow, numRows)
-	// include deserialized var row data
-	for i := 0; i < numRows; i++ {
-		svrd[i] = &pb.DPartition_DVarRow{
-			RowData: make(map[string][]byte),
+	svrd := make(map[string]*pb.DPartition_DVarCol)
+	// set up column data holders
+	p.schema.ForEachColumn(func(name string, col sif.Column) error {
+		if p.schema.IsMarkedForRemoval(name) {
+			return nil
+		} else if !sif.IsVariableLength(col.Type()) {
+			return nil
 		}
+		svrd[name] = &pb.DPartition_DVarCol{
+			RowData: make(map[uint32][]byte),
+		}
+		return nil
+	})
+	for i := 0; i < numRows; i++ {
+		// transfer un-deserialized variable-length data (possible if never accessed since last reduction)
+		svarData := p.GetSerializedVarRowData(i)
+		for k, v := range svarData {
+			svrd[k].RowData[uint32(i)] = v
+			if len(v) == 0 {
+				log.Panicf("Serialized column data for Column %s should not be zero-length", k)
+			}
+		}
+		// then, serialize any data which was deserialized during this stage
 		varData := p.GetVarRowData(i)
 		for k, v := range varData {
 			if v == nil {
-				svrd[i].RowData[k] = nil
+				svrd[k].RowData[uint32(i)] = nil
 				continue
 			}
 			if col, err := p.schema.GetOffset(k); err == nil {
@@ -248,16 +265,14 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 					if err != nil {
 						return nil, err
 					}
-					svrd[i].RowData[k] = sdata
+					svrd[k].RowData[uint32(i)] = sdata
+					if len(sdata) == 0 {
+						log.Panicf("Serialized column data for Column %s should not be zero-length", k)
+					}
 				} else {
 					log.Panicf("Column %s is not a variable-length type", k)
 				}
 			}
-		}
-		// transfer un-deserialized variable-length data (possible if never accessed after a reduction)// transfer un-deserialized variable-length data (possible if never accessed after a reduction)
-		svarData := p.GetSerializedVarRowData(i)
-		for k, v := range svarData {
-			svrd[i].RowData[k] = v
 		}
 	}
 	dm := &pb.DPartition{
@@ -296,8 +311,13 @@ func FromBytes(data []byte, schema sif.Schema) (itypes.ReduceablePartition, erro
 		keys:                 nil,
 		isKeyed:              m.IsKeyed,
 	}
-	for i, row := range m.SerializedVarRowData {
-		part.serializedVarRowData[i] = row.RowData
+	for colName, colData := range m.SerializedVarRowData {
+		for j, sv := range colData.RowData {
+			if part.serializedVarRowData[j] == nil {
+				part.serializedVarRowData[j] = make(map[string][]byte)
+			}
+			part.serializedVarRowData[j][colName] = sv
+		}
 	}
 	if m.IsKeyed {
 		part.keys = m.Keys

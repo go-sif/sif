@@ -35,7 +35,7 @@ func (dsvi *dsvFilePartitionIterator) HasNextPartition() bool {
 }
 
 // NextPartition returns the next Partition if one is available, or an error
-func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
+func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, func(), error) {
 	dsvi.lock.Lock()
 	defer dsvi.lock.Unlock()
 	colNames := dsvi.schema.ColumnNames()
@@ -46,7 +46,7 @@ func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
 	for {
 		// If the partition is full, we're done
 		if part.GetNumRows() == part.GetMaxRows() {
-			return part, nil
+			return part, nil, nil
 		}
 		// Otherwise, grab another line from the file
 		rowStrings, err := dsvi.reader.Read()
@@ -57,18 +57,18 @@ func (dsvi *dsvFilePartitionIterator) NextPartition() (sif.Partition, error) {
 			}
 			dsvi.endListeners = []func(){}
 			// TODO have the other side discard empty partitions
-			return part, nil
+			return part, nil, nil
 		} else if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		// create a new row to place values into
 		row, err := part.AppendEmptyRowData(tempRow)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		err = scanRow(dsvi.parser.conf, colNames, colTypes, rowStrings, row)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 }

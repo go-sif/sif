@@ -79,9 +79,8 @@ message DPartition {
     bytes rowMeta = 6;
     repeated uint64 keys = 7 [packed=true];
 
-    message DVarRow {
-        map<string, bytes> rowData = 1;
+    message DVarCol {
+        map<uint32, bytes> rowData = 1;
     }
-
-    repeated DVarRow serializedVarRowData = 8;
+    map<string, DVarCol> serializedVarRowData = 8;
 }

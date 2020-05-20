@@ -22,6 +22,7 @@ const (
 // offsets). In practice, users of Row will call its
 // getter and setter methods to retrieve, manipulate and store data
 type rowImpl struct {
+	partID            string
 	meta              []byte
 	data              []byte                 // likely a slice of a partition array
 	varData           map[string]interface{} // variable-length data
@@ -30,8 +31,8 @@ type rowImpl struct {
 }
 
 // CreateRow builds a new row from individual internal components
-func CreateRow(meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) sif.Row {
-	return &rowImpl{meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
+func CreateRow(partID string, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) sif.Row {
+	return &rowImpl{partID: partID, meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
 }
 
 // CreateTempRow builds an empty row struct which cannot be used until passed to a function which populates it with data
@@ -40,8 +41,9 @@ func CreateTempRow() sif.Row {
 }
 
 // PopulateTempRow overwrites the internal data of a temporary row
-func PopulateTempRow(row sif.Row, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) {
+func PopulateTempRow(row sif.Row, partID string, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) {
 	r := row.(*rowImpl)
+	r.partID = partID
 	r.meta = meta
 	r.data = data
 	r.varData = varData
@@ -372,9 +374,15 @@ func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
 	}
 	// deserialize serialized data if present
 	if ser, ok := r.serializedVarData[colName]; ok {
+		if ser == nil {
+			// if the serialized data is nil, then it represents a nil value
+			r.varData[colName] = nil
+			delete(r.serializedVarData, colName)
+			return nil, errors.NilValueError{Name: colName}
+		}
 		deser, err := vcol.Deserialize(ser)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Error deserializing variable-length column data for column %s: %w", colName, err)
 		}
 		r.varData[colName] = deser
 		delete(r.serializedVarData, colName)
@@ -601,5 +609,5 @@ func (r *rowImpl) Repack(newSchema sif.Schema) (sif.Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &rowImpl{meta, buff, varData, serializedVarData, newSchema}, nil
+	return &rowImpl{r.partID, meta, buff, varData, serializedVarData, newSchema}, nil
 }

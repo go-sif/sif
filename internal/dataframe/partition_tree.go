@@ -480,5 +480,4 @@ func (t *pTreeNode) unpersist() {
 	t.partitionCache.inUse[t.partID] = true
 	t.partitionCache.lruCache.Remove(t.partID)
 	delete(t.partitionCache.inUse, t.partID)
-	// t.cache.lruDisk.Remove(partID)
 }

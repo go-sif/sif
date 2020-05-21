@@ -3,6 +3,7 @@ module github.com/go-sif/sif
 require (
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/docker/docker v1.13.1 // indirect
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/golang/protobuf v1.3.4
 	github.com/google/go-cmp v0.4.0 // indirect

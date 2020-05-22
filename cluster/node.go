@@ -40,33 +40,35 @@ type Node interface {
 
 // NodeOptions are options for a Node, configuring elements of a Sif cluster
 type NodeOptions struct {
-	Port                  int           // port for this Node to bind to
-	Host                  string        // hostname for this Node to bind to
-	CoordinatorPort       int           // port for the Coordinator Node (potentially identical to Port if this is the Coordinator)
-	CoordinatorHost       string        // [REQUIRED] hostname of the Coordinator Node (potentially identical to Host if this is the Coordinator)
-	NumWorkers            int           // [REQUIRED] the number of Workers to wait for before running the job
-	WorkerJoinTimeout     time.Duration // how long the Coordinator should wait for Workers to join
-	WorkerJoinRetries     int           // how many times a Worker should retry connecting to the Coordinator (at one second intervals)
-	RPCTimeout            time.Duration // timeout for all RPC calls
-	TempDir               string        // location for storing temporary files (primarily persisted partitions)
-	NumInMemoryPartitions int           // the number of partitions to retain in memory before swapping to disk
-	IgnoreRowErrors       bool          // iff true, log row transformation errors instead of crashing immediately
+	Port                     int           // port for this Node to bind to
+	Host                     string        // hostname for this Node to bind to
+	CoordinatorPort          int           // port for the Coordinator Node (potentially identical to Port if this is the Coordinator)
+	CoordinatorHost          string        // [REQUIRED] hostname of the Coordinator Node (potentially identical to Host if this is the Coordinator)
+	NumWorkers               int           // [REQUIRED] the number of Workers to wait for before running the job
+	WorkerJoinTimeout        time.Duration // how long the Coordinator should wait for Workers to join
+	WorkerJoinRetries        int           // how many times a Worker should retry connecting to the Coordinator (at one second intervals)
+	RPCTimeout               time.Duration // timeout for all RPC calls
+	TempDir                  string        // location for storing temporary files (primarily persisted partitions)
+	NumInMemoryPartitions    int           // the number of partitions to retain in memory before swapping to compressed memory
+	CompressedMemoryFraction float32       // the percentage of NumInMemoryPartitions which will be compressed
+	IgnoreRowErrors          bool          // iff true, log row transformation errors instead of crashing immediately
 }
 
 // CloneNodeOptions makes a copy of a NodeOptions
 func CloneNodeOptions(opts *NodeOptions) *NodeOptions {
 	return &NodeOptions{
-		Port:                  opts.Port,
-		Host:                  opts.Host,
-		CoordinatorPort:       opts.CoordinatorPort,
-		CoordinatorHost:       opts.CoordinatorHost,
-		NumWorkers:            opts.NumWorkers,
-		WorkerJoinTimeout:     opts.WorkerJoinTimeout,
-		WorkerJoinRetries:     opts.WorkerJoinRetries,
-		RPCTimeout:            opts.RPCTimeout,
-		TempDir:               opts.TempDir,
-		NumInMemoryPartitions: opts.NumInMemoryPartitions,
-		IgnoreRowErrors:       opts.IgnoreRowErrors,
+		Port:                     opts.Port,
+		Host:                     opts.Host,
+		CoordinatorPort:          opts.CoordinatorPort,
+		CoordinatorHost:          opts.CoordinatorHost,
+		NumWorkers:               opts.NumWorkers,
+		WorkerJoinTimeout:        opts.WorkerJoinTimeout,
+		WorkerJoinRetries:        opts.WorkerJoinRetries,
+		RPCTimeout:               opts.RPCTimeout,
+		TempDir:                  opts.TempDir,
+		NumInMemoryPartitions:    opts.NumInMemoryPartitions,
+		CompressedMemoryFraction: opts.CompressedMemoryFraction,
+		IgnoreRowErrors:          opts.IgnoreRowErrors,
 	}
 }
 
@@ -102,6 +104,9 @@ func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
 	}
 	if opts.NumInMemoryPartitions == 0 {
 		opts.NumInMemoryPartitions = 100 // TODO should this just be a memory limit, and we compute NumInMemoryPartitions ourselves?
+	}
+	if opts.CompressedMemoryFraction == 0 {
+		opts.CompressedMemoryFraction = 0.75 // TODO should this just be a memory limit, and we compute NumCompressedMemoryPartitions ourselves?
 	}
 }
 

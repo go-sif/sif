@@ -35,6 +35,7 @@ type lru struct {
 	maxCompressed              int
 	toCompressed               chan *cachedPartition
 	toDisk                     chan *cachedCompressedPartition
+	tmpDir                     string
 }
 
 type cachedPartition struct {
@@ -57,6 +58,7 @@ type LRUConfig struct {
 
 // NewLRU produces an LRU PartitionCache
 func NewLRU(config *LRUConfig) PartitionCache {
+	// validate parameters
 	if config.Size < 5 {
 		log.Panicf("LRUConfig.Size %d must be greater than 5", config.Size)
 	}
@@ -66,6 +68,12 @@ func NewLRU(config *LRUConfig) PartitionCache {
 	if config.Schema == nil {
 		log.Panicf("Next stage schema was nil")
 	}
+	// create temporary directory for partitions
+	tmpDir, err := ioutil.TempDir(config.DiskPath, "*")
+	if err != nil {
+		panic(err)
+	}
+	// setup limits
 	maxUncompressed := int(float32(config.Size) * (1 - config.CompressedFraction))
 	maxCompressed := config.Size - maxUncompressed
 	transferChanSize := config.Size / 100
@@ -94,6 +102,7 @@ func NewLRU(config *LRUConfig) PartitionCache {
 		maxCompressed:          maxCompressed,
 		toCompressed:           make(chan *cachedPartition, transferChanSize),
 		toDisk:                 make(chan *cachedCompressedPartition, transferChanSize),
+		tmpDir:                 tmpDir,
 	}
 	go result.evictToCompressedMemory()
 	go result.evictToDisk()
@@ -103,6 +112,8 @@ func NewLRU(config *LRUConfig) PartitionCache {
 func (c *lru) Destroy() {
 	close(c.toCompressed)
 	close(c.toDisk)
+	// destroy all partitions in the disk cache
+	defer os.RemoveAll(c.tmpDir)
 	// empty maps
 	c.pmapLock.Lock()
 	defer c.pmapLock.Unlock()
@@ -206,7 +217,7 @@ func (c *lru) getFromCompressedCache(key string) (value itypes.ReduceablePartiti
 
 // getFromCache removes the partition from the disk cache and returns it, if present
 func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err error) {
-	tempFilePath := path.Join(c.config.DiskPath, key)
+	tempFilePath := path.Join(c.tmpDir, key)
 	f, err := os.Open(tempFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", tempFilePath, err)
@@ -287,7 +298,7 @@ func (c *lru) evictToDisk() {
 	for msg := range c.toDisk {
 		c.plocks.Lock(msg.key)
 		// log.Printf("Swapping partition %s to disk", msg.key)
-		tempFilePath := path.Join(c.config.DiskPath, msg.key)
+		tempFilePath := path.Join(c.tmpDir, msg.key)
 		f, err := os.Create(tempFilePath)
 		if err != nil {
 			log.Fatalf("Unable to create temporary file for partition %s", err)

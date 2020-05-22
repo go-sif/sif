@@ -34,7 +34,7 @@ type pTreeRoot = pTreeNode
 func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) *pTreeNode {
 	cache := pcache.NewLRU(&pcache.LRUConfig{
 		Size:               conf.InMemoryPartitions,
-		CompressedFraction: conf.CompressedMemoryPartitions,
+		CompressedFraction: conf.CompressedMemoryFraction,
 		DiskPath:           conf.TempFilePath,
 		Schema:             nextStageSchema,
 	})

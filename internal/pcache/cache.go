@@ -81,7 +81,7 @@ func NewLRU(config *LRUConfig) PartitionCache {
 	if err != nil {
 		log.Fatalf("Unable to initialize decompressor: %e", err)
 	}
-	return &lru{
+	result := &lru{
 		compressor:             compressor,
 		decompressor:           decompressor,
 		config:                 config,
@@ -95,12 +95,28 @@ func NewLRU(config *LRUConfig) PartitionCache {
 		toCompressed:           make(chan *cachedPartition, transferChanSize),
 		toDisk:                 make(chan *cachedCompressedPartition, transferChanSize),
 	}
+	go result.evictToCompressedMemory()
+	go result.evictToDisk()
+	return result
 }
 
 func (c *lru) Destroy() {
 	close(c.toCompressed)
 	close(c.toDisk)
-	panic("not implemented") // TODO: Implement
+	// empty maps
+	c.pmapLock.Lock()
+	defer c.pmapLock.Unlock()
+	c.pmap = make(map[string]*list.Element)
+	c.compressedPmapLock.Lock()
+	defer c.compressedPmapLock.Unlock()
+	c.compressedPmap = make(map[string]*list.Element)
+	// empty lists
+	c.recentUncompressedListLock.Lock()
+	defer c.recentUncompressedListLock.Unlock()
+	c.recentUncompressedList = list.New()
+	c.recentCompressedListLock.Lock()
+	defer c.recentCompressedListLock.Unlock()
+	c.recentCompressedList = list.New()
 }
 
 func (c *lru) Add(key string, value itypes.ReduceablePartition) {
@@ -123,15 +139,18 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 	// if we're full, it can only be because the uncompressed
 	// cache has grown, so let's just check that one
 	if c.recentUncompressedList.Len() > c.maxUncompressed {
-		toRemove := c.recentCompressedList.Back()
+		toRemove := c.recentUncompressedList.Back()
 		c.recentUncompressedList.Remove(toRemove)
-		c.toCompressed <- toRemove.Value.(*cachedPartition)
-		go c.evictToCompressedMemory()
+		cachedPart := toRemove.Value.(*cachedPartition)
+		delete(c.pmap, cachedPart.key)
+		c.toCompressed <- cachedPart
 	}
 }
 
 // Get removes the partition from the caches and returns it, if present. Returns an error otherwise.
 func (c *lru) Get(key string) (value itypes.ReduceablePartition, err error) {
+	c.plocks.Lock(key)
+	defer c.plocks.Unlock(key)
 	value, err = c.getFromCache(key)
 	if err != nil {
 		value, err = c.getFromCompressedCache(key)
@@ -222,9 +241,72 @@ func (c *lru) Resize(size int) {
 }
 
 func (c *lru) evictToCompressedMemory() {
-	panic("not implemented") // TODO: Implement
+	for msg := range c.toCompressed {
+		c.plocks.Lock(msg.key)
+		// log.Printf("Swapping partition %s to compressed memory", msg.key)
+		buff, err := msg.value.ToBytes()
+		if err != nil {
+			log.Fatalf("Unable to convert partition to buffer %s", err)
+		}
+		var compressed bytes.Buffer
+		c.compressor.Reset(&compressed)
+		_, err = c.compressor.Write(buff)
+		if err != nil {
+			log.Fatalf("Unable to convert partition to buffer %s", err)
+		}
+		err = c.compressor.Close()
+		if err != nil {
+			log.Fatalf("Unable to convert partition to buffer %s", err)
+		}
+		result := compressed.Bytes()
+		// update the recent list
+		c.recentCompressedListLock.Lock()
+		e := c.recentCompressedList.PushFront(&cachedCompressedPartition{
+			key:   msg.key,
+			value: result,
+		})
+		c.recentCompressedListLock.Unlock()
+		// update the compressed map
+		c.compressedPmapLock.Lock()
+		c.compressedPmap[msg.key] = e
+		c.compressedPmapLock.Unlock()
+		// log.Printf("Finished swapping partition %s to compressed memory", msg.key)
+		// check if we have too many compressed partitions
+		if c.recentCompressedList.Len() > c.maxCompressed {
+			toRemove := c.recentCompressedList.Back()
+			c.recentCompressedList.Remove(toRemove)
+			cachedCompressedPart := toRemove.Value.(*cachedCompressedPartition)
+			delete(c.compressedPmap, cachedCompressedPart.key)
+			c.toDisk <- cachedCompressedPart
+		}
+		c.plocks.Unlock(msg.key)
+	}
 }
 
 func (c *lru) evictToDisk() {
-	panic("not implemented") // TODO: Implement
+	for msg := range c.toDisk {
+		c.plocks.Lock(msg.key)
+		// log.Printf("Swapping partition %s to disk", msg.key)
+		tempFilePath := path.Join(c.config.DiskPath, msg.key)
+		f, err := os.Create(tempFilePath)
+		if err != nil {
+			log.Fatalf("Unable to create temporary file for partition %s", err)
+		}
+		_, err = f.Write(msg.value)
+		if err != nil {
+			log.Fatalf("Unable to write temporary file for partition %s", err)
+		}
+		err = f.Sync()
+		if err != nil {
+			log.Fatalf("Unable to sync file %s: %e", tempFilePath, err)
+			return
+		}
+		err = f.Close()
+		if err != nil {
+			log.Fatalf("Unable to close file %s: %e", tempFilePath, err)
+			return
+		}
+		log.Printf("Finished swapping partition %s to disk", msg.key)
+		c.plocks.Unlock(msg.key)
+	}
 }

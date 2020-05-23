@@ -180,7 +180,7 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 		// this is where we end up if all the keys are the same
 		return avgKey, nil, err
 	}
-	log.Printf("Splitting partition %s", t.partID)
+	// log.Printf("Splitting partition %s", t.partID)
 	t.k = avgKey
 	t.left = &pTreeNode{
 		k:               0,
@@ -225,7 +225,7 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 // current pTreeNode all have the same key, we instead store
 // the partition in the "center" of the parent, or ourselves
 func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
-	log.Printf("Rotating partition %s to center", t.partID)
+	// log.Printf("Rotating partition %s to center", t.partID)
 	// if our parent's avgKey is identical to all of the rows in this
 	// pTreeNode, then this pTreeNode belongs in the parents' center chain
 	if t.parent != nil && t.parent.k == avgKey {
@@ -328,7 +328,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 		return nil, nil, err
 	}
 	return part, func() {
-		log.Printf("Returning partition %s to cache", t.partID)
+		// log.Printf("Returning partition %s to cache", t.partID)
 		// we only add the partition to the LRU cache when it's finished being
 		// operated on to make sure it isn't swapped to disk while it's in use
 		t.partitionCache.Add(t.partID, part)

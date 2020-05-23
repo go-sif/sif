@@ -117,7 +117,7 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 	c.plocks.Lock(key)
 	defer c.plocks.Unlock(key)
 
-	log.Printf("Adding partition %s to uncompressed memory", key)
+	// log.Printf("Adding partition %s to uncompressed memory", key)
 
 	// update the recent list
 	c.recentUncompressedListLock.Lock()
@@ -148,7 +148,7 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 func (c *lru) Get(key string) (value itypes.ReduceablePartition, err error) {
 	c.plocks.Lock(key)
 	defer c.plocks.Unlock(key)
-	log.Printf("Loading partition %s...", key)
+	// log.Printf("Loading partition %s...", key)
 	value, err = c.getFromCache(key)
 	if err != nil {
 		value, err = c.getFromCompressedCache(key)
@@ -172,7 +172,7 @@ func (c *lru) getFromCache(key string) (value itypes.ReduceablePartition, err er
 		c.recentUncompressedListLock.Lock()
 		c.recentUncompressedList.Remove(ve)
 		c.recentUncompressedListLock.Unlock()
-		log.Printf("Loaded partition %s from uncompressed memory", key)
+		// log.Printf("Loaded partition %s from uncompressed memory", key)
 		return ve.Value.(*cachedPartition).value, nil
 	}
 	return nil, fmt.Errorf("Partition %s is not in the cache", key)
@@ -198,7 +198,7 @@ func (c *lru) getFromCompressedCache(key string) (value itypes.ReduceablePartiti
 		if err != nil {
 			panic(err)
 		}
-		log.Printf("Loaded partition %s from compressed memory", key)
+		// log.Printf("Loaded partition %s from compressed memory", key)
 		return decompressedPart, nil
 	}
 	return nil, fmt.Errorf("Partition %s is not in the cache", key)
@@ -233,7 +233,7 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("Loaded partition %s from disk", key)
+	// log.Printf("Loaded partition %s from disk", key)
 	return part, nil
 }
 
@@ -242,9 +242,9 @@ func (c *lru) Resize(size int) {
 }
 
 func (c *lru) evictToCompressedMemory() {
-	log.Printf("Starting uncompressed memory evictor")
+	// log.Printf("Starting uncompressed memory evictor")
 	for msg := range c.toCompressed {
-		log.Printf("Swapping partition %s to compressed memory", msg.key)
+		// log.Printf("Swapping partition %s to compressed memory", msg.key)
 		buff, err := msg.value.ToBytes()
 		if err != nil {
 			log.Fatalf("Unable to convert partition to buffer %s", err)
@@ -296,9 +296,9 @@ func (c *lru) evictToCompressedMemory() {
 }
 
 func (c *lru) evictToDisk() {
-	log.Printf("Starting compressed memory evictor")
+	// log.Printf("Starting compressed memory evictor")
 	for msg := range c.toDisk {
-		log.Printf("Swapping partition %s to disk", msg.key)
+		// log.Printf("Swapping partition %s to disk", msg.key)
 		tempFilePath := path.Join(c.tmpDir, msg.key)
 		f, err := os.Create(tempFilePath)
 		if err != nil {

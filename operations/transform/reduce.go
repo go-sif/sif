@@ -1,8 +1,6 @@
 package transform
 
 import (
-	"fmt"
-
 	"github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -23,7 +21,7 @@ func (s *reduceTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePa
 	// Start by keying the rows in the partition
 	part, err := previous.KeyRows(s.kfn)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to key rows: %e", err)
+		return nil, err
 	}
 	return []sif.OperablePartition{part}, nil
 }

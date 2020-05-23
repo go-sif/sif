@@ -131,17 +131,18 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 					if err != nil {
 						return err
 					}
-					for j := 0; j < len(sdata); j += maxChunkBytes {
+					totalSize := len(sdata)
+					for j := 0; j < totalSize; j += maxChunkBytes {
 						end := j + maxChunkBytes
-						if end > len(sdata) {
-							end = len(sdata)
+						if end > totalSize {
+							end = totalSize
 						}
 						stream.Send(&pb.MPartitionChunk{
 							Data:           sdata[j:end],
 							DataType:       iutil.RowVarDataType,
 							VarDataRowNum:  int32(i),
 							VarDataColName: k,
-							TotalSizeBytes: int32(len(sdata)),
+							TotalSizeBytes: int32(totalSize),
 							Append:         int32(j),
 						})
 					}
@@ -157,12 +158,23 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 			if v == nil {
 				continue
 			}
-			stream.Send(&pb.MPartitionChunk{
-				Data:           v,
-				DataType:       iutil.RowVarDataType,
-				VarDataRowNum:  int32(i),
-				VarDataColName: k,
-			})
+			if len(v) == 0 {
+				return fmt.Errorf("Serialized column data for column %s in partition %s should not be zero-length", k, part.ID())
+			}
+			totalSize := len(v)
+			for j := 0; j < totalSize; j += maxChunkBytes {
+				end := j + maxChunkBytes
+				if end > totalSize {
+					end = totalSize
+				}
+				stream.Send(&pb.MPartitionChunk{
+					Data:           v[j:end],
+					DataType:       iutil.RowVarDataType,
+					VarDataRowNum:  int32(i),
+					VarDataColName: k,
+					TotalSizeBytes: int32(totalSize),
+				})
+			}
 		}
 	}
 	// transfer key data

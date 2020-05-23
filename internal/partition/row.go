@@ -40,17 +40,6 @@ func CreateTempRow() sif.Row {
 	return &rowImpl{}
 }
 
-// PopulateTempRow overwrites the internal data of a temporary row
-func PopulateTempRow(row sif.Row, partID string, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) {
-	r := row.(*rowImpl)
-	r.partID = partID
-	r.meta = meta
-	r.data = data
-	r.varData = varData
-	r.serializedVarData = serializedVarData
-	r.schema = schema
-}
-
 // Schema returns a read-only copy of the schema for a row
 func (r *rowImpl) Schema() sif.Schema {
 	return r.schema.Clone() // TODO expensive but safe?
@@ -380,11 +369,16 @@ func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
 			delete(r.serializedVarData, colName)
 			return nil, errors.NilValueError{Name: colName}
 		}
+		// serialized data should never be empty
+		if len(ser) == 0 {
+			return nil, fmt.Errorf("Serialized column data for column %s in partition %s should not be zero-length", colName, r.partID)
+		}
 		deser, err := vcol.Deserialize(ser)
 		if err != nil {
-			return nil, fmt.Errorf("Error deserializing variable-length column data for column %s: %w", colName, err)
+			return nil, fmt.Errorf("Error deserializing variable-length column data for column %s in partition %s: %w", colName, r.partID, err)
 		}
 		r.varData[colName] = deser
+		// log.Printf("Deserializing column %s in partition %s", colName, r.partID)
 		delete(r.serializedVarData, colName)
 		return r.varData[colName], nil
 	}
@@ -609,5 +603,6 @@ func (r *rowImpl) Repack(newSchema sif.Schema) (sif.Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &rowImpl{r.partID, meta, buff, varData, serializedVarData, newSchema}, nil
+	// no partID or lock, because this new row belongs to no partition
+	return &rowImpl{"", meta, buff, varData, serializedVarData, newSchema}, nil
 }

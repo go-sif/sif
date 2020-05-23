@@ -186,9 +186,9 @@ type pTreePartitionIterator struct {
 
 func createPTreeIterator(tree *pTreeRoot, destructive bool) sif.PartitionIterator {
 	if tree == nil {
-		return &pTreePartitionIterator{next: nil, destructive: destructive, endListeners: []func(){}}
+		return &pTreePartitionIterator{next: nil, destructive: destructive, endListeners: []func(){tree.clearCaches}}
 	}
-	return &pTreePartitionIterator{next: tree.firstNode(), destructive: destructive, endListeners: []func(){}}
+	return &pTreePartitionIterator{next: tree.firstNode(), destructive: destructive, endListeners: []func(){tree.clearCaches}}
 }
 
 // OnEnd registers a listener which fires when this iterator runs out of Partitions
@@ -218,11 +218,6 @@ func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, func(), error
 	if err != nil {
 		return nil, nil, err
 	}
-	toDestroy := tpi.next
 	tpi.next = tpi.next.next // advance iterator
-	if tpi.destructive {
-		toDestroy.unpersist()
-		return part, nil, nil
-	}
 	return part, unlockPartition, nil
 }

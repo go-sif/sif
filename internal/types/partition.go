@@ -31,6 +31,7 @@ type ReduceablePartition interface {
 	CloneablePartition
 	sif.BuildablePartition
 	sif.KeyablePartition
+	PopulateTempRow(tempRow sif.Row, idx int)
 	FindFirstKey(key uint64) (int, error)                                              // PRECONDITION: Partition must already be sorted by key
 	FindLastKey(key uint64) (int, error)                                               // PRECONDITION: Partition must already be sorted by key
 	FindFirstRowKey(keyBuf []byte, key uint64, keyfn sif.KeyingOperation) (int, error) // PRECONDITION: Partition must already be sorted by key

@@ -1,30 +1,17 @@
 package dataframe
 
 import (
-	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"os"
-	"path"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/partition"
+	"github.com/go-sif/sif/internal/pcache"
 	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/go-sif/sif/internal/util"
-	lru "github.com/hashicorp/golang-lru"
-	"github.com/klauspost/compress/zstd"
 )
-
-type pTreeCache struct {
-	tempDir      string
-	compressor   *zstd.Encoder
-	decompressor *zstd.Decoder
-	lruCache     *lru.Cache
-	inUse        map[string]bool
-}
 
 // pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
 type pTreeNode struct {
@@ -38,7 +25,7 @@ type pTreeNode struct {
 	prev            *pTreeNode // btree-like link between leaves
 	next            *pTreeNode // btree-like link between leaves
 	parent          *pTreeNode
-	partitionCache  *pTreeCache
+	partitionCache  pcache.PartitionCache
 }
 
 // pTreeRoot is an alias for pTreeNode representing the root node of a pTree
@@ -46,59 +33,33 @@ type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
 func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) *pTreeNode {
-	// TODO the minimum number of in-memory partitions must be greater than the number of partitions
-	// which are used concurrently, such as in a split(). Otherwise a partition
-	// which is being used may be evicted to disk and further writes to it would not be saved.
 	if conf.InMemoryPartitions < 5 {
-		log.Fatalf("Partition Trees must be capable of holding at least 5 Partitions in memory concurrently.")
+		conf.InMemoryPartitions = 5
 	}
-	// init compressor/decompressor
-	compressor, err := zstd.NewWriter(new(bytes.Buffer), zstd.WithEncoderLevel(zstd.SpeedFastest))
-	if err != nil {
-		log.Fatalf("Unable to initialize compressor: %e", err)
+	if conf.CompressedMemoryFraction < 0 || conf.CompressedMemoryFraction > 1 {
+		log.Panicf("PlanExecutorConfig.CompressedMemoryFraction must be between 0 and 1")
 	}
-	decompressor, err := zstd.NewReader(new(bytes.Buffer))
-	if err != nil {
-		log.Fatalf("Unable to initialize decompressor: %e", err)
+	if conf.CompressedMemoryFraction == 0 {
+		conf.CompressedMemoryFraction = 0.75
 	}
-	// setup partition cache
-	partitionCache := &pTreeCache{
-		compressor:   compressor,
-		decompressor: decompressor,
-		tempDir:      conf.TempFilePath,
-		inUse:        make(map[string]bool),
-	}
-	memLru, err := lru.NewWithEvict(conf.InMemoryPartitions, func(key interface{}, value interface{}) {
-		partID, ok := key.(string)
-		if !ok {
-			log.Fatalf("Unable to sync partition %s to disk due to key casting issue", key)
-		}
-		// Calls to Remove() don't swap to disk if the partition is in use
-		if partitionCache.inUse[partID] {
-			return
-		}
-		part, ok := value.(itypes.ReduceablePartition)
-		if !ok {
-			log.Fatalf("Unable to sync partition %s to disk due to value casting issue", value)
-		}
-		onPartitionEvict(partitionCache, partID, part)
+	cache := pcache.NewLRU(&pcache.LRUConfig{
+		Size:               conf.InMemoryPartitions,
+		CompressedFraction: conf.CompressedMemoryFraction,
+		DiskPath:           conf.TempFilePath,
+		Schema:             nextStageSchema,
 	})
-	if err != nil {
-		log.Fatalf("Unable to initialize lru cache for partitions: %e", err)
-	}
-	partitionCache.lruCache = memLru
 	// create initial partition for root node
 	part := partition.CreateReduceablePartition(maxRows, nextStageSchema)
 	part.KeyRows(nil)
 	partID := part.ID()
-	memLru.Add(partID, part)
+	cache.Add(partID, part)
 	// return root node
 	return &pTreeNode{
 		k:               0,
 		partID:          partID,
 		maxRows:         part.GetMaxRows(),
 		nextStageSchema: nextStageSchema,
-		partitionCache:  partitionCache,
+		partitionCache:  cache,
 	}
 }
 
@@ -203,15 +164,7 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 		return err
 	} else {
 		// If the actual key already exists in the partition, merge into row
-		partition.PopulateTempRow(
-			tempRow,
-			part.ID(),
-			part.GetRowMeta(idx),
-			part.GetRowData(idx),
-			part.GetVarRowData(idx),
-			part.GetSerializedVarRowData(idx),
-			part.GetSchema(),
-		)
+		part.PopulateTempRow(tempRow, idx)
 		return reducefn(tempRow, row)
 	}
 	return nil
@@ -259,8 +212,8 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 	t.prev = nil  // non-leaf nodes don't have horizontal links
 	t.next = nil  // non-leaf nodes don't have horizontal links
 	// add left and right to front of "visited" queue
-	t.partitionCache.lruCache.Add(t.left.partID, lp)
-	t.partitionCache.lruCache.Add(t.right.partID, rp)
+	t.partitionCache.Add(t.left.partID, lp)
+	t.partitionCache.Add(t.right.partID, rp)
 	// tell the caller where to go next
 	if hashedKey < t.k {
 		return avgKey, t.left, nil
@@ -306,7 +259,7 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 			t.parent.right.next.prev = t.parent.right
 		}
 		// add new partition to front of "visited" queue
-		t.partitionCache.lruCache.Add(rp.ID(), rp)
+		t.partitionCache.Add(rp.ID(), rp)
 		// we know we got into this situation by adding a row with key == avgKey. These
 		// rows now belong in t.parent.right, so return that as the "next" node to recurse on
 		return t.parent.right, nil
@@ -352,8 +305,8 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		t.right.next.prev = t.right
 	}
 	// add new partitions to front of "visited" queue
-	t.partitionCache.lruCache.Add(lp.ID(), lp)
-	t.partitionCache.lruCache.Add(rp.ID(), rp)
+	t.partitionCache.Add(lp.ID(), lp)
+	t.partitionCache.Add(rp.ID(), rp)
 	// update links for center chain
 	t.center.next = t.right
 	t.center.prev = t.left
@@ -370,92 +323,16 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 	if len(t.partID) == 0 {
 		return nil, nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
 	}
-	part, ok := t.partitionCache.lruCache.Get(t.partID)
-	if !ok {
-		// log.Printf("Loading partition %s from disk", t.partID)
-		tempFilePath := path.Join(t.partitionCache.tempDir, t.partID)
-		f, err := os.Open(tempFilePath)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Unable to load disk-swapped partition %s: %e", tempFilePath, err)
-		}
-		defer func() {
-			err := f.Close()
-			if err != nil {
-				log.Printf("Unable to close file %s", tempFilePath)
-			}
-			err = os.Remove(tempFilePath)
-			if err != nil {
-				log.Printf("Unable to remove file %s", tempFilePath)
-			}
-		}()
-		err = t.partitionCache.decompressor.Reset(f)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
-		}
-		buff, err := ioutil.ReadAll(t.partitionCache.decompressor)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
-		}
-		if t.nextStageSchema == nil {
-			panic(fmt.Errorf("Next stage schema was nil"))
-		}
-		part, err := partition.FromBytes(buff, t.nextStageSchema)
-		if err != nil {
-			return nil, nil, err
-		}
-		return part, func() {
-			// log.Printf("Returning partition %s to cache", t.partID)
-			// we only add the partition to the LRU cache when it's finished being
-			// operated on to make sure it isn't swapped to disk while it's in use
-			delete(t.partitionCache.inUse, t.partID)
-			t.partitionCache.lruCache.Add(t.partID, part)
-		}, nil
+	part, err := t.partitionCache.Get(t.partID)
+	if err != nil {
+		return nil, nil, err
 	}
-	t.partitionCache.inUse[t.partID] = true
-	t.partitionCache.lruCache.Remove(t.partID)
-	rpart := part.(itypes.ReduceablePartition)
-	// log.Printf("Loading partition %s from cache", t.partID)
-	return rpart, func() {
+	return part, func() {
 		// log.Printf("Returning partition %s to cache", t.partID)
 		// we only add the partition to the LRU cache when it's finished being
 		// operated on to make sure it isn't swapped to disk while it's in use
-		delete(t.partitionCache.inUse, t.partID)
-		t.partitionCache.lruCache.Add(t.partID, rpart)
+		t.partitionCache.Add(t.partID, part)
 	}, nil
-}
-
-func onPartitionEvict(cache *pTreeCache, partID string, part itypes.ReduceablePartition) {
-	// log.Printf("Swapping partition %s to disk", part.ID())
-	buff, err := part.ToBytes()
-	if err != nil {
-		log.Fatalf("Unable to convert partition to buffer %s", err)
-	}
-
-	tempFilePath := path.Join(cache.tempDir, part.ID())
-	f, err := os.Create(tempFilePath)
-	defer f.Close()
-	if err != nil {
-		log.Fatalf("Unable to create temporary file for partition %s", err)
-	}
-	defer func() {
-		err = f.Sync()
-		if err != nil {
-			log.Printf("Unable to sync file %s", tempFilePath)
-		}
-		err := f.Close()
-		if err != nil {
-			log.Printf("Unable to close file %s", tempFilePath)
-		}
-	}()
-	cache.compressor.Reset(f)
-	_, err = cache.compressor.Write(buff)
-	if err != nil {
-		log.Fatalf("Unable to write compressed data for partition %s", err)
-	}
-	err = cache.compressor.Close()
-	if err != nil {
-		log.Fatalf("Unable to write compressed data for partition %s", err)
-	}
 }
 
 func (t *pTreeNode) findPartition(hashedKey uint64) *pTreeNode {
@@ -476,9 +353,6 @@ func (t *pTreeRoot) firstNode() *pTreeNode {
 	return first
 }
 
-func (t *pTreeNode) unpersist() {
-	t.partitionCache.inUse[t.partID] = true
-	t.partitionCache.lruCache.Remove(t.partID)
-	delete(t.partitionCache.inUse, t.partID)
-	// t.cache.lruDisk.Remove(partID)
+func (t *pTreeNode) clearCaches() {
+	t.partitionCache.Destroy()
 }

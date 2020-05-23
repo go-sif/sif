@@ -117,10 +117,11 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	}
 	statsTracker := &istats.RunStatistics{}
 	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
-		TempFilePath:       tmpDir,
-		InMemoryPartitions: inMemoryPartitions,
-		Streaming:          eframe.GetParent().GetDataSource().IsStreaming(),
-		IgnoreRowErrors:    w.opts.IgnoreRowErrors,
+		TempFilePath:             tmpDir,
+		InMemoryPartitions:       inMemoryPartitions,
+		CompressedMemoryFraction: w.opts.CompressedMemoryFraction,
+		Streaming:                eframe.GetParent().GetDataSource().IsStreaming(),
+		IgnoreRowErrors:          w.opts.IgnoreRowErrors,
 	}, statsTracker)
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()

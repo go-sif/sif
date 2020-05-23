@@ -131,6 +131,9 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 				m[chunk.VarDataColName] = make([]byte, chunk.TotalSizeBytes)
 				copy(m[chunk.VarDataColName], chunk.Data)
 			}
+			if len(m[chunk.VarDataColName]) == 0 {
+				return fmt.Errorf("Streamed 0 bytes for column %s. Expected %d", chunk.VarDataColName, chunk.TotalSizeBytes)
+			}
 		case iutil.MetaDataType:
 			copy(p.rowMeta[metaOffset:metaOffset+len(chunk.Data)], chunk.Data)
 			metaOffset += len(chunk.Data)
@@ -151,16 +154,16 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 // FromMetaMessage deserializes a Partition from a protobuf message
 func FromMetaMessage(m *pb.MPartitionMeta, currentSchema sif.Schema) itypes.TransferrablePartition {
 	part := &partitionImpl{
-		m.Id,
-		int(m.MaxRows),
-		int(m.NumRows),
-		make([]byte, m.GetRowBytes()),
-		make([]map[string]interface{}, int(m.MaxRows)),
-		make([]map[string][]byte, int(m.MaxRows)),
-		make([]byte, m.GetMetaBytes()),
-		currentSchema,
-		nil,
-		m.IsKeyed,
+		id:                   m.Id,
+		maxRows:              int(m.MaxRows),
+		numRows:              int(m.NumRows),
+		rows:                 make([]byte, m.GetRowBytes()),
+		varRowData:           make([]map[string]interface{}, int(m.MaxRows)),
+		serializedVarRowData: make([]map[string][]byte, int(m.MaxRows)),
+		rowMeta:              make([]byte, m.GetMetaBytes()),
+		schema:               currentSchema,
+		keys:                 nil,
+		isKeyed:              m.IsKeyed,
 	}
 	if m.IsKeyed {
 		part.keys = make([]uint64, int(m.MaxRows))

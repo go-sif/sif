@@ -29,7 +29,6 @@ func CreateKeyedReduceablePartition(maxRows int, schema sif.Schema) itypes.Reduc
 func (p *partitionImpl) PopulateTempRow(tempRow sif.Row, idx int) {
 	r := tempRow.(*rowImpl)
 	r.partID = p.ID()
-	r.partVarDataLock = &p.varDataLock
 	r.meta = p.GetRowMeta(idx)
 	r.data = p.GetRowData(idx)
 	r.varData = p.GetVarRowData(idx)

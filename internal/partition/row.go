@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync"
 
 	time "time"
 
@@ -24,7 +23,6 @@ const (
 // getter and setter methods to retrieve, manipulate and store data
 type rowImpl struct {
 	partID            string
-	partVarDataLock   *sync.Mutex
 	meta              []byte
 	data              []byte                 // likely a slice of a partition array
 	varData           map[string]interface{} // variable-length data
@@ -33,8 +31,8 @@ type rowImpl struct {
 }
 
 // CreateRow builds a new row from individual internal components
-func CreateRow(partID string, partVarDataLock *sync.Mutex, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) sif.Row {
-	return &rowImpl{partID: partID, partVarDataLock: partVarDataLock, meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
+func CreateRow(partID string, meta []byte, data []byte, varData map[string]interface{}, serializedVarData map[string][]byte, schema sif.Schema) sif.Row {
+	return &rowImpl{partID: partID, meta: meta, data: data, varData: varData, serializedVarData: serializedVarData, schema: schema}
 }
 
 // CreateTempRow builds an empty row struct which cannot be used until passed to a function which populates it with data
@@ -355,8 +353,6 @@ func (r *rowImpl) GetString(colName string) (string, error) {
 
 // GetVarCustomData retrieves variable-length data of a custom type from the column with the given name
 func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
-	r.partVarDataLock.Lock()
-	defer r.partVarDataLock.Unlock()
 	offset, err := r.schema.GetOffset(colName)
 	if err != nil {
 		return nil, err
@@ -608,5 +604,5 @@ func (r *rowImpl) Repack(newSchema sif.Schema) (sif.Row, error) {
 		return nil, err
 	}
 	// no partID or lock, because this new row belongs to no partition
-	return &rowImpl{"", &sync.Mutex{}, meta, buff, varData, serializedVarData, newSchema}, nil
+	return &rowImpl{"", meta, buff, varData, serializedVarData, newSchema}, nil
 }

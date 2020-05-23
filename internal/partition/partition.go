@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"sync"
 
 	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
@@ -19,7 +18,6 @@ type partitionImpl struct {
 	maxRows              int
 	numRows              int
 	rows                 []byte
-	varDataLock          sync.Mutex
 	varRowData           []map[string]interface{}
 	serializedVarRowData []map[string][]byte // for receiving serialized data from a shuffle (temporary)
 	rowMeta              []byte
@@ -71,7 +69,6 @@ func (p *partitionImpl) GetNumRows() int {
 // getRowInternal retrieves a specific row from this Partition, without allocation
 func (p *partitionImpl) getRow(row *rowImpl, rowNum int) sif.Row {
 	row.partID = p.id
-	row.partVarDataLock = &p.varDataLock
 	row.meta = p.GetRowMeta(rowNum)
 	row.data = p.GetRowData(rowNum)
 	row.varData = p.GetVarRowData(rowNum)
@@ -84,7 +81,6 @@ func (p *partitionImpl) getRow(row *rowImpl, rowNum int) sif.Row {
 func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 	return &rowImpl{
 		partID:            p.id,
-		partVarDataLock:   &p.varDataLock,
 		meta:              p.GetRowMeta(rowNum),
 		data:              p.GetRowData(rowNum),
 		varData:           p.GetVarRowData(rowNum),
@@ -107,8 +103,6 @@ func (p *partitionImpl) ToMetaMessage() *pb.MPartitionMeta {
 
 // ReceiveStreamedData loads data from a protobuf stream into this Partition
 func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta) error {
-	p.varDataLock.Lock()
-	defer p.varDataLock.Unlock()
 	// stream data for Partition
 	rowOffset := 0
 	metaOffset := 0

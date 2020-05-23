@@ -110,29 +110,14 @@ func NewLRU(config *LRUConfig) PartitionCache {
 }
 
 func (c *lru) Destroy() {
-	close(c.toCompressed)
-	close(c.toDisk)
-	// destroy all partitions in the disk cache
-	defer os.RemoveAll(c.tmpDir)
-	// empty maps
-	c.pmapLock.Lock()
-	defer c.pmapLock.Unlock()
-	c.pmap = make(map[string]*list.Element)
-	c.compressedPmapLock.Lock()
-	defer c.compressedPmapLock.Unlock()
-	c.compressedPmap = make(map[string]*list.Element)
-	// empty lists
-	c.recentUncompressedListLock.Lock()
-	defer c.recentUncompressedListLock.Unlock()
-	c.recentUncompressedList = list.New()
-	c.recentCompressedListLock.Lock()
-	defer c.recentCompressedListLock.Unlock()
-	c.recentCompressedList = list.New()
+	close(c.toCompressed) // this will trigger the disk channel to be closed
 }
 
 func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 	c.plocks.Lock(key)
 	defer c.plocks.Unlock(key)
+
+	log.Printf("Adding partition %s to uncompressed memory", key)
 
 	// update the recent list
 	c.recentUncompressedListLock.Lock()
@@ -151,8 +136,9 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 	// cache has grown, so let's just check that one
 	if c.recentUncompressedList.Len() > c.maxUncompressed {
 		toRemove := c.recentUncompressedList.Back()
-		c.recentUncompressedList.Remove(toRemove)
 		cachedPart := toRemove.Value.(*cachedPartition)
+		c.plocks.Lock(cachedPart.key)
+		c.recentUncompressedList.Remove(toRemove)
 		delete(c.pmap, cachedPart.key)
 		c.toCompressed <- cachedPart
 	}
@@ -185,6 +171,7 @@ func (c *lru) getFromCache(key string) (value itypes.ReduceablePartition, err er
 		c.recentUncompressedListLock.Lock()
 		c.recentUncompressedList.Remove(ve)
 		c.recentUncompressedListLock.Unlock()
+		log.Printf("Loaded partition %s from uncompressed memory", key)
 		return ve.Value.(*cachedPartition).value, nil
 	}
 	return nil, fmt.Errorf("Partition %s is not in the cache", key)
@@ -200,7 +187,7 @@ func (c *lru) getFromCompressedCache(key string) (value itypes.ReduceablePartiti
 		c.recentCompressedListLock.Lock()
 		c.recentCompressedList.Remove(cve)
 		c.recentCompressedListLock.Unlock()
-		bf := bytes.NewReader(cve.Value.([]byte))
+		bf := bytes.NewReader(cve.Value.(*cachedCompressedPartition).value)
 		err := c.decompressor.Reset(bf)
 		if err != nil {
 			panic(err)
@@ -210,6 +197,7 @@ func (c *lru) getFromCompressedCache(key string) (value itypes.ReduceablePartiti
 		if err != nil {
 			panic(err)
 		}
+		log.Printf("Loaded partition %s from compressed memory", key)
 		return decompressedPart, nil
 	}
 	return nil, fmt.Errorf("Partition %s is not in the cache", key)
@@ -244,6 +232,7 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 	if err != nil {
 		panic(err)
 	}
+	log.Printf("Loaded partition %s from disk", key)
 	return part, nil
 }
 
@@ -252,9 +241,9 @@ func (c *lru) Resize(size int) {
 }
 
 func (c *lru) evictToCompressedMemory() {
+	log.Printf("Starting uncompressed memory evictor")
 	for msg := range c.toCompressed {
-		c.plocks.Lock(msg.key)
-		// log.Printf("Swapping partition %s to compressed memory", msg.key)
+		log.Printf("Swapping partition %s to compressed memory", msg.key)
 		buff, err := msg.value.ToBytes()
 		if err != nil {
 			log.Fatalf("Unable to convert partition to buffer %s", err)
@@ -285,27 +274,38 @@ func (c *lru) evictToCompressedMemory() {
 		// check if we have too many compressed partitions
 		if c.recentCompressedList.Len() > c.maxCompressed {
 			toRemove := c.recentCompressedList.Back()
-			c.recentCompressedList.Remove(toRemove)
 			cachedCompressedPart := toRemove.Value.(*cachedCompressedPartition)
+			c.plocks.Lock(cachedCompressedPart.key)
+			c.recentCompressedList.Remove(toRemove)
 			delete(c.compressedPmap, cachedCompressedPart.key)
 			c.toDisk <- cachedCompressedPart
 		}
-		c.plocks.Unlock(msg.key)
+		c.plocks.Unlock(msg.key) // this partition was locked once it was scheduled for eviction. now we unlock it
 	}
+	// this is our cleanup logic for uncompressed partitions:
+	close(c.toDisk) // we close toDisk once we're done, since we're the producer
+	// empty maps
+	c.pmapLock.Lock()
+	defer c.pmapLock.Unlock()
+	c.pmap = make(map[string]*list.Element)
+	// empty lists
+	c.recentUncompressedListLock.Lock()
+	defer c.recentUncompressedListLock.Unlock()
+	c.recentUncompressedList = list.New()
 }
 
 func (c *lru) evictToDisk() {
+	log.Printf("Starting compressed memory evictor")
 	for msg := range c.toDisk {
-		c.plocks.Lock(msg.key)
-		// log.Printf("Swapping partition %s to disk", msg.key)
+		log.Printf("Swapping partition %s to disk", msg.key)
 		tempFilePath := path.Join(c.tmpDir, msg.key)
 		f, err := os.Create(tempFilePath)
 		if err != nil {
-			log.Fatalf("Unable to create temporary file for partition %s", err)
+			log.Fatalf("Unable to create temporary file for partition: %e", err)
 		}
 		_, err = f.Write(msg.value)
 		if err != nil {
-			log.Fatalf("Unable to write temporary file for partition %s", err)
+			log.Fatalf("Unable to write temporary file for partition: %e", err)
 		}
 		err = f.Sync()
 		if err != nil {
@@ -318,6 +318,15 @@ func (c *lru) evictToDisk() {
 			return
 		}
 		log.Printf("Finished swapping partition %s to disk", msg.key)
-		c.plocks.Unlock(msg.key)
+		c.plocks.Unlock(msg.key) // this partition was locked once it was scheduled for eviction. now we unlock it
 	}
+	// this is our cleanup logic for compressed partitions:
+	// empty maps
+	c.compressedPmapLock.Lock()
+	defer c.compressedPmapLock.Unlock()
+	c.compressedPmap = make(map[string]*list.Element)
+	// empty lists
+	c.recentCompressedListLock.Lock()
+	defer c.recentCompressedListLock.Unlock()
+	c.recentCompressedList = list.New()
 }

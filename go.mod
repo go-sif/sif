@@ -3,12 +3,11 @@ module github.com/go-sif/sif
 require (
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/docker v1.13.1 // indirect
+	github.com/docker/docker v1.13.1
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/golang/protobuf v1.3.4
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/hashicorp/go-multierror v1.0.0
-	github.com/hashicorp/golang-lru v0.5.3
 	github.com/klauspost/compress v1.10.5
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/stretchr/testify v1.5.1

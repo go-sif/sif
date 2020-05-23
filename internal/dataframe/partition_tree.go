@@ -2,6 +2,7 @@ package dataframe
 
 import (
 	"fmt"
+	"log"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
@@ -32,6 +33,15 @@ type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
 func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) *pTreeNode {
+	if conf.InMemoryPartitions < 5 {
+		conf.InMemoryPartitions = 5
+	}
+	if conf.CompressedMemoryFraction < 0 || conf.CompressedMemoryFraction > 1 {
+		log.Panicf("PlanExecutorConfig.CompressedMemoryFraction must be between 0 and 1")
+	}
+	if conf.CompressedMemoryFraction == 0 {
+		conf.CompressedMemoryFraction = 0.75
+	}
 	cache := pcache.NewLRU(&pcache.LRUConfig{
 		Size:               conf.InMemoryPartitions,
 		CompressedFraction: conf.CompressedMemoryFraction,
@@ -326,7 +336,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 		return nil, nil, err
 	}
 	return part, func() {
-		// log.Printf("Returning partition %s to cache", t.partID)
+		log.Printf("Returning partition %s to cache", t.partID)
 		// we only add the partition to the LRU cache when it's finished being
 		// operated on to make sure it isn't swapped to disk while it's in use
 		t.partitionCache.Add(t.partID, part)

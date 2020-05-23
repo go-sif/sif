@@ -1,7 +1,6 @@
 package dataframe
 
 import (
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -45,8 +44,9 @@ func pTreeTestKeyer(row sif.Row) ([]byte, error) {
 
 func TestCreatePartitionTree(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema)
+	defer root.clearCaches()
 
 	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
@@ -63,8 +63,9 @@ func TestCreatePartitionTree(t *testing.T) {
 
 func TestMergeRow(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema)
+	defer root.clearCaches()
 
 	// add the first row
 	row := partition.CreateRow("part-0", []byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
@@ -139,8 +140,9 @@ func TestMergeRow(t *testing.T) {
 
 func TestMergeRowWithSplit(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema)
+	defer root.clearCaches()
 
 	tempRow := partition.CreateTempRow()
 	for i := byte(0); i < byte(6); i++ {
@@ -167,8 +169,9 @@ func TestMergeRowWithSplit(t *testing.T) {
 
 func TestMergeRowWithRotate(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &itypes.PlanExecutorConfig{TempFilePath: "./", InMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 20}
 	root := createPTreeNode(conf, 3, schema)
+	defer root.clearCaches()
 	tempRow := partition.CreateTempRow()
 	for i := 0; i < 8; i++ {
 		row := partition.CreateRow("part-0", []byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
@@ -229,12 +232,10 @@ func TestDiskSwap(t *testing.T) {
 		return nil
 	}
 
-	tempDir, err := ioutil.TempDir("./", "sif-worker-8080")
-	require.Nil(t, err)
-	defer os.RemoveAll(tempDir)
-	conf := &itypes.PlanExecutorConfig{TempFilePath: tempDir, InMemoryPartitions: 5}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 5}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
+	defer root.clearCaches()
 	tempRow := partition.CreateTempRow()
 	// store enough rows that we have 20 partitions, so some get swapped to disk
 	for i := uint32(0); i < 40; i++ {
@@ -269,12 +270,10 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 		return nil
 	}
 
-	tempDir, err := ioutil.TempDir("./", "sif-worker-8080")
-	require.Nil(t, err)
-	defer os.RemoveAll(tempDir)
-	conf := &itypes.PlanExecutorConfig{TempFilePath: tempDir, InMemoryPartitions: 5}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 5}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
+	defer root.clearCaches()
 	tempRow := partition.CreateTempRow()
 	rowCount := 25
 	// store a bunch of random rows, so some partitions get swapped to disk
@@ -310,14 +309,12 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 	schema.CreateColumn("key", &sif.Uint32ColumnType{})
 	schema.CreateColumn("val", &sif.Uint32ColumnType{})
 
-	tempDir, err := ioutil.TempDir("./", "sif-worker-8080")
-	require.Nil(t, err)
-	defer os.RemoveAll(tempDir)
-	conf := &itypes.PlanExecutorConfig{TempFilePath: tempDir, InMemoryPartitions: 5}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 10, CompressedMemoryFraction: 0.75}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
+	defer root.clearCaches()
 	tempRow := partition.CreateTempRow()
-	rowCount := 50
+	rowCount := 200
 	// store a bunch of random rows, so some partitions get swapped to disk
 	for i := 0; i < rowCount; i++ {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)

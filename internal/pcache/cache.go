@@ -148,6 +148,7 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 func (c *lru) Get(key string) (value itypes.ReduceablePartition, err error) {
 	c.plocks.Lock(key)
 	defer c.plocks.Unlock(key)
+	log.Printf("Loading partition %s...", key)
 	value, err = c.getFromCache(key)
 	if err != nil {
 		value, err = c.getFromCompressedCache(key)

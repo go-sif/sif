@@ -164,15 +164,7 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 		return err
 	} else {
 		// If the actual key already exists in the partition, merge into row
-		partition.PopulateTempRow(
-			tempRow,
-			part.ID(),
-			part.GetRowMeta(idx),
-			part.GetRowData(idx),
-			part.GetVarRowData(idx),
-			part.GetSerializedVarRowData(idx),
-			part.GetSchema(),
-		)
+		part.PopulateTempRow(tempRow, idx)
 		return reducefn(tempRow, row)
 	}
 	return nil
@@ -188,7 +180,7 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 		// this is where we end up if all the keys are the same
 		return avgKey, nil, err
 	}
-	// log.Printf("Splitting partition %s", t.partID)
+	log.Printf("Splitting partition %s", t.partID)
 	t.k = avgKey
 	t.left = &pTreeNode{
 		k:               0,
@@ -233,7 +225,7 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 // current pTreeNode all have the same key, we instead store
 // the partition in the "center" of the parent, or ourselves
 func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
-	// log.Printf("Rotating partition %s to center", t.partID)
+	log.Printf("Rotating partition %s to center", t.partID)
 	// if our parent's avgKey is identical to all of the rows in this
 	// pTreeNode, then this pTreeNode belongs in the parents' center chain
 	if t.parent != nil && t.parent.k == avgKey {

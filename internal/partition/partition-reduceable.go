@@ -25,6 +25,18 @@ func CreateKeyedReduceablePartition(maxRows int, schema sif.Schema) itypes.Reduc
 	return part
 }
 
+// PopulateTempRow overwrites the internal data of a temporary row
+func (p *partitionImpl) PopulateTempRow(tempRow sif.Row, idx int) {
+	r := tempRow.(*rowImpl)
+	r.partID = p.ID()
+	r.partVarDataLock = &p.varDataLock
+	r.meta = p.GetRowMeta(idx)
+	r.data = p.GetRowData(idx)
+	r.varData = p.GetVarRowData(idx)
+	r.serializedVarData = p.GetSerializedVarRowData(idx)
+	r.schema = p.GetSchema()
+}
+
 // FindFirstKey locates the first instance of a key within a sorted Partition,
 // returning the FIRST index of the key in the Partition, or an error
 // if it isn't found along with the location the key should be
@@ -247,10 +259,10 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 		// transfer un-deserialized variable-length data (possible if never accessed since last reduction)
 		svarData := p.GetSerializedVarRowData(i)
 		for k, v := range svarData {
-			svrd[k].RowData[uint32(i)] = v
 			if len(v) == 0 {
 				log.Panicf("Serialized column data for Column %s should not be zero-length", k)
 			}
+			svrd[k].RowData[uint32(i)] = v
 		}
 		// then, serialize any data which was deserialized during this stage
 		varData := p.GetVarRowData(i)
@@ -292,7 +304,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 	return data, nil
 }
 
-// FromBytes converts disk-serialized bytes into a Partition
+// FromBytes converts serialized bytes into a Partition
 func FromBytes(data []byte, schema sif.Schema) (itypes.ReduceablePartition, error) {
 	m := &pb.DPartition{}
 	err := proto.Unmarshal(data, m)
@@ -315,6 +327,9 @@ func FromBytes(data []byte, schema sif.Schema) (itypes.ReduceablePartition, erro
 		for j, sv := range colData.RowData {
 			if part.serializedVarRowData[j] == nil {
 				part.serializedVarRowData[j] = make(map[string][]byte)
+			}
+			if len(sv) == 0 {
+				log.Panicf("Serialized column data for Column %s should not be zero-length", colName)
 			}
 			part.serializedVarRowData[j][colName] = sv
 		}

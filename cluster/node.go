@@ -91,13 +91,13 @@ func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
 		opts.CoordinatorPort = 1643
 	}
 	if opts.RPCTimeout == 0 {
-		opts.RPCTimeout = time.Duration(5) * time.Second // TODO sensible default?
+		opts.RPCTimeout = time.Duration(60) * time.Second // TODO sensible default?
 	}
 	if opts.WorkerJoinTimeout == 0 {
-		opts.WorkerJoinTimeout = time.Duration(5) * time.Second // TODO sensible default?
+		opts.WorkerJoinTimeout = time.Duration(60) * time.Second // TODO sensible default?
 	}
 	if opts.WorkerJoinRetries == 0 {
-		opts.WorkerJoinRetries = 5 // TODO sensible default?
+		opts.WorkerJoinRetries = 10 // TODO sensible default?
 	}
 	if len(opts.TempDir) == 0 {
 		opts.TempDir = os.TempDir()

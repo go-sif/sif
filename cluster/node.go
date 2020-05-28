@@ -49,8 +49,8 @@ type NodeOptions struct {
 	WorkerJoinRetries        int           // how many times a Worker should retry connecting to the Coordinator (at one second intervals)
 	RPCTimeout               time.Duration // timeout for all RPC calls
 	TempDir                  string        // location for storing temporary files (primarily persisted partitions)
-	NumInMemoryPartitions    int           // the number of partitions to retain in memory before swapping to compressed memory
-	CompressedMemoryFraction float32       // the percentage of NumInMemoryPartitions which will be compressed
+	CacheMemoryHighWatermark uint64        // the number of partitions to retain in memory before swapping to compressed memory
+	CompressedCacheFraction  float32       // the percentage of NumInMemoryPartitions which will be compressed
 	IgnoreRowErrors          bool          // iff true, log row transformation errors instead of crashing immediately
 }
 
@@ -66,8 +66,8 @@ func CloneNodeOptions(opts *NodeOptions) *NodeOptions {
 		WorkerJoinRetries:        opts.WorkerJoinRetries,
 		RPCTimeout:               opts.RPCTimeout,
 		TempDir:                  opts.TempDir,
-		NumInMemoryPartitions:    opts.NumInMemoryPartitions,
-		CompressedMemoryFraction: opts.CompressedMemoryFraction,
+		CacheMemoryHighWatermark: opts.CacheMemoryHighWatermark,
+		CompressedCacheFraction:  opts.CompressedCacheFraction,
 		IgnoreRowErrors:          opts.IgnoreRowErrors,
 	}
 }
@@ -102,11 +102,13 @@ func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
 	if len(opts.TempDir) == 0 {
 		opts.TempDir = os.TempDir()
 	}
-	if opts.NumInMemoryPartitions == 0 {
-		opts.NumInMemoryPartitions = 100 // TODO should this just be a memory limit, and we compute NumInMemoryPartitions ourselves?
+	if opts.CacheMemoryHighWatermark == 0 {
+		opts.CacheMemoryHighWatermark = 2 * 1024 * 1024 * 1024 // 2GiB
+	} else if opts.CacheMemoryHighWatermark < 64*1024*1024 {
+		log.Panic("NodeOptions.CacheMemoryHighWatermark must be at least 64MiB")
 	}
-	if opts.CompressedMemoryFraction == 0 {
-		opts.CompressedMemoryFraction = 0.75 // TODO should this just be a memory limit, and we compute NumCompressedMemoryPartitions ourselves?
+	if opts.CompressedCacheFraction == 0 {
+		opts.CompressedCacheFraction = 0.75
 	}
 }
 

@@ -33,18 +33,21 @@ type pTreeRoot = pTreeNode
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
 func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) *pTreeNode {
-	if conf.InMemoryPartitions < 5 {
-		conf.InMemoryPartitions = 5
+	if conf.CacheMemoryHighWatermark == 0 {
+		conf.CacheMemoryHighWatermark = 512 * 1024 * 1024 // 512MiB
 	}
-	if conf.CompressedMemoryFraction < 0 || conf.CompressedMemoryFraction > 1 {
-		log.Panicf("PlanExecutorConfig.CompressedMemoryFraction must be between 0 and 1")
+	if conf.CacheMemoryInitialSize == 0 {
+		conf.CacheMemoryInitialSize = 1024 // pick a meaninglessly large number, as we'll use the memory high watermark to scale down
 	}
-	if conf.CompressedMemoryFraction == 0 {
-		conf.CompressedMemoryFraction = 0.75
+	if conf.CompressedCacheFraction < 0 || conf.CompressedCacheFraction > 1 {
+		log.Panicf("PlanExecutorConfig.CompressedCacheFraction must be between 0 and 1")
+	}
+	if conf.CompressedCacheFraction == 0 {
+		conf.CompressedCacheFraction = 0.75
 	}
 	cache := pcache.NewLRU(&pcache.LRUConfig{
-		Size:               conf.InMemoryPartitions,
-		CompressedFraction: conf.CompressedMemoryFraction,
+		InitialSize:        conf.CacheMemoryInitialSize,
+		CompressedFraction: conf.CompressedCacheFraction,
 		DiskPath:           conf.TempFilePath,
 		Schema:             nextStageSchema,
 	})
@@ -351,6 +354,12 @@ func (t *pTreeRoot) firstNode() *pTreeNode {
 	for ; first.left != nil; first = first.left {
 	}
 	return first
+}
+
+func (t *pTreeNode) resizeCaches(frac float64) {
+	if t.partitionCache != nil {
+		t.partitionCache.Resize(frac)
+	}
 }
 
 func (t *pTreeNode) clearCaches() {

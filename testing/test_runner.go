@@ -30,8 +30,8 @@ func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeO
 	opts.NumWorkers = numWorkers
 	opts.WorkerJoinTimeout = time.Duration(5) * time.Second
 	opts.RPCTimeout = time.Duration(5) * time.Second
-	if opts.NumInMemoryPartitions == 0 {
-		opts.NumInMemoryPartitions = 10
+	if opts.CacheMemoryHighWatermark == 0 {
+		opts.CacheMemoryHighWatermark = 512 * 1024 * 1024
 	}
 
 	coordinator, err := cluster.CreateNodeInRole(cluster.Coordinator, opts)

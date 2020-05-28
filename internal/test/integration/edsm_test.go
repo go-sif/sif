@@ -182,6 +182,6 @@ func TestEDSMHeatmap(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	_, err = siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{NumInMemoryPartitions: 16}, 2)
+	_, err = siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{CacheMemoryHighWatermark: 85 * 1024 * 1024}, 2)
 	require.Nil(t, err)
 }

@@ -1,6 +1,8 @@
 package dataframe
 
 import (
+	"context"
+
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -34,6 +36,6 @@ func (p *planImpl) Source() sif.DataSource {
 }
 
 // Execute creates a planExecutor for this Plan
-func (p *planImpl) Execute(conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics) itypes.PlanExecutor {
-	return CreatePlanExecutor(p, conf, statsTracker)
+func (p *planImpl) Execute(ctx context.Context, conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics) itypes.PlanExecutor {
+	return CreatePlanExecutor(ctx, p, conf, statsTracker)
 }

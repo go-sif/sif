@@ -117,10 +117,11 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	}
 	log.Printf("Running job...")
 	statsTracker := &stats.RunStatistics{}
-	planExecutor := eframe.Optimize().Execute(&itypes.PlanExecutorConfig{
-		TempFilePath:       "",
-		InMemoryPartitions: 0,
-		Streaming:          c.frame.GetDataSource().IsStreaming(),
+	planExecutor := eframe.Optimize().Execute(ctx, &itypes.PlanExecutorConfig{
+		TempFilePath:             "",
+		CacheMemoryHighWatermark: c.opts.CacheMemoryHighWatermark,
+		CompressedCacheFraction:  c.opts.CompressedCacheFraction,
+		Streaming:                c.frame.GetDataSource().IsStreaming(),
 	}, statsTracker)
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()

@@ -44,7 +44,7 @@ func pTreeTestKeyer(row sif.Row) ([]byte, error) {
 
 func TestCreatePartitionTree(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 20}
 	root := createPTreeNode(conf, 3, schema)
 	defer root.clearCaches()
 
@@ -63,7 +63,7 @@ func TestCreatePartitionTree(t *testing.T) {
 
 func TestMergeRow(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 20}
 	root := createPTreeNode(conf, 3, schema)
 	defer root.clearCaches()
 
@@ -140,7 +140,7 @@ func TestMergeRow(t *testing.T) {
 
 func TestMergeRowWithSplit(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 20}
 	root := createPTreeNode(conf, 3, schema)
 	defer root.clearCaches()
 
@@ -169,7 +169,7 @@ func TestMergeRowWithSplit(t *testing.T) {
 
 func TestMergeRowWithRotate(t *testing.T) {
 	schema := createPTreeTestSchema()
-	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 20}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 20}
 	root := createPTreeNode(conf, 3, schema)
 	defer root.clearCaches()
 	tempRow := partition.CreateTempRow()
@@ -232,7 +232,7 @@ func TestDiskSwap(t *testing.T) {
 		return nil
 	}
 
-	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 5}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 5}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
 	defer root.clearCaches()
@@ -270,7 +270,7 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 		return nil
 	}
 
-	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 5}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 5}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
 	defer root.clearCaches()
@@ -309,7 +309,7 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 	schema.CreateColumn("key", &sif.Uint32ColumnType{})
 	schema.CreateColumn("val", &sif.Uint32ColumnType{})
 
-	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), InMemoryPartitions: 10, CompressedMemoryFraction: 0.75}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 10, CompressedCacheFraction: 0.75}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
 	defer root.clearCaches()

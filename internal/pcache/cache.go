@@ -22,6 +22,7 @@ type lru struct {
 	config                     *LRUConfig
 	compressor                 *zstd.Encoder
 	decompressor               *zstd.Decoder
+	globalLock                 sync.Mutex
 	plocks                     *locker.Locker
 	pmapLock                   sync.Mutex
 	pmap                       map[string]*list.Element
@@ -50,7 +51,7 @@ type cachedCompressedPartition struct {
 
 // LRUConfig configures an LRU PartitionCache
 type LRUConfig struct {
-	Size               int
+	InitialSize        int
 	CompressedFraction float32
 	DiskPath           string
 	Schema             sif.Schema
@@ -59,8 +60,8 @@ type LRUConfig struct {
 // NewLRU produces an LRU PartitionCache
 func NewLRU(config *LRUConfig) PartitionCache {
 	// validate parameters
-	if config.Size < 5 {
-		log.Panicf("LRUConfig.Size %d must be greater than 5", config.Size)
+	if config.InitialSize < 5 {
+		log.Panicf("LRUConfig.InitialSize %d must be greater than 5", config.InitialSize)
 	}
 	if config.CompressedFraction < 0 || config.CompressedFraction > 1 {
 		log.Panicf("LRUConfig.CompressedFraction %f must be between 0 and 1", config.CompressedFraction)
@@ -68,18 +69,10 @@ func NewLRU(config *LRUConfig) PartitionCache {
 	if config.Schema == nil {
 		log.Panicf("Next stage schema was nil")
 	}
-	// create temporary directory for partitions
-	tmpDir, err := ioutil.TempDir(config.DiskPath, "*")
-	if err != nil {
-		panic(err)
-	}
 	// setup limits
-	maxUncompressed := int(float32(config.Size) * (1 - config.CompressedFraction))
-	maxCompressed := config.Size - maxUncompressed
-	transferChanSize := config.Size / 100
-	if transferChanSize < 5 {
-		transferChanSize = 5
-	}
+	maxUncompressed := int(float32(config.InitialSize) * (1 - config.CompressedFraction))
+	maxCompressed := config.InitialSize - maxUncompressed
+	transferChanSize := 10
 	// init compressor/decompressor
 	compressor, err := zstd.NewWriter(new(bytes.Buffer), zstd.WithEncoderLevel(zstd.SpeedFastest))
 	if err != nil {
@@ -102,7 +95,7 @@ func NewLRU(config *LRUConfig) PartitionCache {
 		maxCompressed:          maxCompressed,
 		toCompressed:           make(chan *cachedPartition, transferChanSize),
 		toDisk:                 make(chan *cachedCompressedPartition, transferChanSize),
-		tmpDir:                 tmpDir,
+		tmpDir:                 config.DiskPath,
 	}
 	go result.evictToCompressedMemory()
 	go result.evictToDisk()
@@ -110,10 +103,63 @@ func NewLRU(config *LRUConfig) PartitionCache {
 }
 
 func (c *lru) Destroy() {
+	c.globalLock.Lock()
+	defer c.globalLock.Unlock()
 	close(c.toCompressed) // this will trigger the disk channel to be closed
 }
 
+func (c *lru) CurrentSize() int {
+	return c.maxUncompressed + c.maxCompressed
+}
+
+func (c *lru) Resize(frac float64) {
+	// lock out any client interaction with the data structure
+	c.globalLock.Lock()
+	defer c.globalLock.Unlock()
+	// compute new sizes
+	newSize := int(float64(c.CurrentSize()) * frac)
+	newMaxUncompressed := int(float32(newSize) * (1 - c.config.CompressedFraction))
+	newMaxCompressed := newSize - newMaxUncompressed
+	if c.maxUncompressed == newMaxUncompressed && c.maxCompressed == newMaxCompressed {
+		return // do nothing
+	}
+	// evict from the compressed cache, if we've shrunk
+	if newMaxCompressed < c.maxCompressed {
+		c.recentCompressedListLock.Lock()
+		for c.recentCompressedList.Len() > newMaxCompressed {
+			c.compressedPmapLock.Lock()
+			toRemove := c.recentCompressedList.Back()
+			cachedCompressedPart := toRemove.Value.(*cachedCompressedPartition)
+			c.plocks.Lock(cachedCompressedPart.key)
+			c.recentCompressedList.Remove(toRemove)
+			delete(c.compressedPmap, cachedCompressedPart.key)
+			c.toDisk <- cachedCompressedPart
+			c.compressedPmapLock.Unlock()
+		}
+		c.recentCompressedListLock.Unlock()
+	}
+	// evict from the uncompressed cache, if we've shrunk
+	if newMaxUncompressed < c.maxUncompressed {
+		c.recentUncompressedListLock.Lock()
+		for c.recentUncompressedList.Len() > newMaxUncompressed {
+			c.pmapLock.Lock()
+			toRemove := c.recentUncompressedList.Back()
+			cachedPart := toRemove.Value.(*cachedPartition)
+			c.plocks.Lock(cachedPart.key)
+			c.recentUncompressedList.Remove(toRemove)
+			delete(c.pmap, cachedPart.key)
+			c.toCompressed <- cachedPart
+			c.pmapLock.Unlock()
+		}
+		c.recentUncompressedListLock.Unlock()
+	}
+	c.maxUncompressed = newMaxUncompressed
+	c.maxCompressed = newMaxCompressed
+}
+
 func (c *lru) Add(key string, value itypes.ReduceablePartition) {
+	c.globalLock.Lock()
+	defer c.globalLock.Unlock()
 	c.plocks.Lock(key)
 	defer c.plocks.Unlock(key)
 
@@ -146,6 +192,8 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 
 // Get removes the partition from the caches and returns it, if present. Returns an error otherwise.
 func (c *lru) Get(key string) (value itypes.ReduceablePartition, err error) {
+	c.globalLock.Lock()
+	defer c.globalLock.Unlock()
 	c.plocks.Lock(key)
 	defer c.plocks.Unlock(key)
 	// log.Printf("Loading partition %s...", key)
@@ -235,10 +283,6 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 	}
 	// log.Printf("Loaded partition %s from disk", key)
 	return part, nil
-}
-
-func (c *lru) Resize(size int) {
-	panic("not implemented") // TODO: Implement
 }
 
 func (c *lru) evictToCompressedMemory() {

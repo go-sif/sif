@@ -1,9 +1,12 @@
 package dataframe
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"runtime"
 	"sync"
+	"time"
 
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/errors"
@@ -17,9 +20,10 @@ import (
 
 // planExecutorImpl executes a plan, on a master or on workers
 type planExecutorImpl struct {
-	id                   string
-	plan                 itypes.Plan
-	conf                 *itypes.PlanExecutorConfig
+	id   string
+	plan itypes.Plan
+	conf *itypes.PlanExecutorConfig
+
 	nextStage            int
 	partitionLoaders     []sif.PartitionLoader
 	partitionLoadersLock sync.Mutex
@@ -36,12 +40,12 @@ type planExecutorImpl struct {
 }
 
 // CreatePlanExecutor is a factory for planExecutors
-func CreatePlanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics) itypes.PlanExecutor {
+func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics) itypes.PlanExecutor {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)
 	}
-	return &planExecutorImpl{
+	executor := &planExecutorImpl{
 		id:               id.String(),
 		plan:             plan,
 		conf:             conf,
@@ -51,6 +55,8 @@ func CreatePlanExecutor(plan itypes.Plan, conf *itypes.PlanExecutorConfig, stats
 		collectCache:     make(map[string]sif.Partition),
 		statsTracker:     statsTracker,
 	}
+	go executor.monitorMemoryUsage(ctx)
+	return executor
 }
 
 // ID returns the configuration for this PlanExecutor
@@ -382,5 +388,46 @@ func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerg
 			break
 		}
 		pe.shuffleTreesLock.Unlock()
+	}
+}
+
+func (pe *planExecutorImpl) monitorMemoryUsage(ctx context.Context) {
+	var m runtime.MemStats
+	lowWatermark := uint64(float64(pe.conf.CacheMemoryHighWatermark) * 0.75)
+	usage := make([]uint64, 4)
+	usageHead := 0
+	var avg uint64
+	for range time.Tick(250 * time.Millisecond) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// record current memory usage
+			runtime.ReadMemStats(&m)
+			usage[usageHead] = m.Alloc / uint64(len(usage))
+			usageHead = (usageHead + 1) % len(usage)
+			// compute rolling average
+			avg = 0
+			for _, v := range usage {
+				avg += v
+			}
+			// check watermarks
+			if avg > pe.conf.CacheMemoryHighWatermark {
+				log.Printf("Memory usage %d is greater than high watermark %d. Shrinking partition caches by 10%%", avg, pe.conf.CacheMemoryHighWatermark)
+				pe.shuffleTreesLock.Lock()
+				for _, tree := range pe.shuffleTrees {
+					tree.resizeCaches(0.90)
+				}
+				pe.shuffleTreesLock.Unlock()
+			} else if avg < lowWatermark {
+				// Auto-grow partition caches by 5% until they start to hit the high watermark
+				// log.Printf("Memory usage %d is lower than low watermark %d. Growing partition caches by 5%%", avg, lowWatermark)
+				pe.shuffleTreesLock.Lock()
+				for _, tree := range pe.shuffleTrees {
+					tree.resizeCaches(1.05)
+				}
+				pe.shuffleTreesLock.Unlock()
+			}
+		}
 	}
 }

@@ -129,6 +129,9 @@ func (c *lru) Resize(frac float64) {
 		for c.recentCompressedList.Len() > newMaxCompressed {
 			c.compressedPmapLock.Lock()
 			toRemove := c.recentCompressedList.Back()
+			if toRemove == nil || toRemove.Value == nil {
+				break
+			}
 			cachedCompressedPart := toRemove.Value.(*cachedCompressedPartition)
 			c.plocks.Lock(cachedCompressedPart.key)
 			c.recentCompressedList.Remove(toRemove)
@@ -144,6 +147,9 @@ func (c *lru) Resize(frac float64) {
 		for c.recentUncompressedList.Len() > newMaxUncompressed {
 			c.pmapLock.Lock()
 			toRemove := c.recentUncompressedList.Back()
+			if toRemove == nil || toRemove.Value == nil {
+				break
+			}
 			cachedPart := toRemove.Value.(*cachedPartition)
 			c.plocks.Lock(cachedPart.key)
 			c.recentUncompressedList.Remove(toRemove)

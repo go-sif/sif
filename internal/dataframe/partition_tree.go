@@ -37,7 +37,7 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 		conf.CacheMemoryHighWatermark = 512 * 1024 * 1024 // 512MiB
 	}
 	if conf.CacheMemoryInitialSize == 0 {
-		conf.CacheMemoryInitialSize = 1024 // pick a meaninglessly large number, as we'll use the memory high watermark to scale down
+		conf.CacheMemoryInitialSize = 32 * 1024 // pick a meaninglessly large number, as we'll use the memory high watermark to scale down
 	}
 	if conf.CompressedCacheFraction < 0 || conf.CompressedCacheFraction > 1 {
 		log.Panicf("PlanExecutorConfig.CompressedCacheFraction must be between 0 and 1")

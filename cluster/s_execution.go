@@ -45,6 +45,7 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 	}()
 	s.statsTracker.StartStage()
 	s.statsTracker.StartTransform()
+	log.Printf("Mapping partitions in stage %d...", req.StageId)
 	err := s.planExecutor.FlatMapPartitions(stage.WorkerExecute, req, onRowErrorWithContext)
 	if err != nil {
 		if _, ok := err.(*multierror.Error); !s.planExecutor.GetConf().IgnoreRowErrors || !ok {
@@ -54,8 +55,10 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 			return nil, err
 		}
 	}
+	log.Printf("Finished mapping partitions in stage %d", req.StageId)
 	s.statsTracker.EndTransform(stage.ID())
 	if req.RunShuffle {
+		log.Printf("Shuffling partitions in stage %d...", req.StageId)
 		s.statsTracker.StartShuffle()
 		err = s.runShuffle(ctx, req)
 		if err != nil {
@@ -63,6 +66,7 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 			log.Printf("Failed to shuffle in stage %d: %e", req.StageId, err)
 			return nil, err
 		}
+		log.Printf("Finished shuffling partitions in stage %d", req.StageId)
 		s.statsTracker.EndShuffle(stage.ID())
 	}
 	s.statsTracker.EndStage(stage.ID())

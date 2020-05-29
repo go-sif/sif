@@ -36,6 +36,6 @@ func (p *planImpl) Source() sif.DataSource {
 }
 
 // Execute creates a planExecutor for this Plan
-func (p *planImpl) Execute(ctx context.Context, conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics) itypes.PlanExecutor {
-	return CreatePlanExecutor(ctx, p, conf, statsTracker)
+func (p *planImpl) Execute(ctx context.Context, conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics, isCoordinator bool) itypes.PlanExecutor {
+	return CreatePlanExecutor(ctx, p, conf, statsTracker, isCoordinator)
 }

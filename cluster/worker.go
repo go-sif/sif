@@ -121,7 +121,7 @@ func (w *worker) Start(frame sif.DataFrame) error {
 		CompressedCacheFraction:  w.opts.CompressedCacheFraction,
 		Streaming:                eframe.GetParent().GetDataSource().IsStreaming(),
 		IgnoreRowErrors:          w.opts.IgnoreRowErrors,
-	}, statsTracker)
+	}, statsTracker, false)
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()
 	// register rpc handlers for frame execution

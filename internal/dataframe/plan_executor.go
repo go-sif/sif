@@ -40,7 +40,7 @@ type planExecutorImpl struct {
 }
 
 // CreatePlanExecutor is a factory for planExecutors
-func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics) itypes.PlanExecutor {
+func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.PlanExecutorConfig, statsTracker *stats.RunStatistics, isCoordinator bool) itypes.PlanExecutor {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)
@@ -55,7 +55,9 @@ func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.Plan
 		collectCache:     make(map[string]sif.Partition),
 		statsTracker:     statsTracker,
 	}
-	go executor.monitorMemoryUsage(ctx)
+	if !isCoordinator {
+		go executor.monitorMemoryUsage(ctx)
+	}
 	return executor
 }
 
@@ -393,13 +395,13 @@ func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerg
 
 func (pe *planExecutorImpl) monitorMemoryUsage(ctx context.Context) {
 	var m runtime.MemStats
-	lowWatermark := uint64(float64(pe.conf.CacheMemoryHighWatermark) * 0.75)
 	usage := make([]uint64, 4)
 	usageHead := 0
 	var avg uint64
 	for range time.Tick(250 * time.Millisecond) {
 		select {
 		case <-ctx.Done():
+			log.Printf("Finished monitoring memory usage")
 			return
 		default:
 			// record current memory usage
@@ -417,14 +419,6 @@ func (pe *planExecutorImpl) monitorMemoryUsage(ctx context.Context) {
 				pe.shuffleTreesLock.Lock()
 				for _, tree := range pe.shuffleTrees {
 					tree.resizeCaches(0.90)
-				}
-				pe.shuffleTreesLock.Unlock()
-			} else if avg < lowWatermark {
-				// Auto-grow partition caches by 5% until they start to hit the high watermark
-				// log.Printf("Memory usage %d is lower than low watermark %d. Growing partition caches by 5%%", avg, lowWatermark)
-				pe.shuffleTreesLock.Lock()
-				for _, tree := range pe.shuffleTrees {
-					tree.resizeCaches(1.05)
 				}
 				pe.shuffleTreesLock.Unlock()
 			}

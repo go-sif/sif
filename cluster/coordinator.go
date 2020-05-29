@@ -122,7 +122,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		CacheMemoryHighWatermark: c.opts.CacheMemoryHighWatermark,
 		CompressedCacheFraction:  c.opts.CompressedCacheFraction,
 		Streaming:                c.frame.GetDataSource().IsStreaming(),
-	}, statsTracker)
+	}, statsTracker, true)
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()
 	// analyze and assign partitions

@@ -328,7 +328,9 @@ func (c *lru) evictToCompressedMemory() {
 			cachedCompressedPart := toRemove.Value.(*cachedCompressedPartition)
 			c.plocks.Lock(cachedCompressedPart.key)
 			c.recentCompressedList.Remove(toRemove)
+			c.compressedPmapLock.Lock()
 			delete(c.compressedPmap, cachedCompressedPart.key)
+			c.compressedPmapLock.Unlock()
 			c.toDisk <- cachedCompressedPart
 		}
 		c.plocks.Unlock(msg.key) // this partition was locked once it was scheduled for eviction. now we unlock it

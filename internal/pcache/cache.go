@@ -237,33 +237,7 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 func (c *lru) evictToDisk() {
 	// log.Printf("Starting disk evictor")
 	for msg := range c.toDisk {
-		// log.Printf("Swapping partition %s to disk", msg.key)
-		tempFilePath := path.Join(c.tmpDir, msg.key)
-		f, err := os.Create(tempFilePath)
-		if err != nil {
-			log.Fatalf("Unable to create temporary file for partition: %e", err)
-		}
-		bytes, err := msg.value.ToBytes()
-		if err != nil {
-			log.Fatalf("Unable to convert partition to buffer %s", err)
-		}
-		c.compressor.Reset(f)
-		n, err := c.compressor.Write(bytes)
-		if err != nil || n == 0 {
-			log.Fatalf("Unable to write temporary file for partition: %e", err)
-		}
-		err = c.compressor.Close()
-		if err != nil {
-			log.Fatalf("Unable to close compressor for file %s: %e", tempFilePath, err)
-			return
-		}
-		err = f.Close()
-		if err != nil {
-			log.Fatalf("Unable to close file %s: %e", tempFilePath, err)
-			return
-		}
-		log.Printf("Finished swapping partition %s to disk", msg.key)
-		c.plocks.Unlock(msg.key) // this partition was locked once it was scheduled for eviction. now we unlock it
+		c.writePartitionToDisk(msg)
 	}
 	// this is our cleanup logic for the cache, which will only
 	// run when the compression channel is closed
@@ -275,4 +249,36 @@ func (c *lru) evictToDisk() {
 	c.recentListLock.Lock()
 	defer c.recentListLock.Unlock()
 	c.recentList = list.New()
+}
+
+func (c *lru) writePartitionToDisk(msg *cachedPartition) {
+	// log.Printf("Swapping partition %s to disk", msg.key)
+	tempFilePath := path.Join(c.tmpDir, msg.key)
+	f, err := os.Create(tempFilePath)
+	if err != nil {
+		log.Fatalf("Unable to create temporary file for partition: %e", err)
+	}
+	bytes, err := msg.value.ToBytes()
+	if err != nil {
+		log.Fatalf("Unable to convert partition to buffer %s", err)
+	}
+	c.compressor.Reset(f)
+	n, err := c.compressor.Write(bytes)
+	if err != nil || n == 0 {
+		log.Fatalf("Unable to write temporary file for partition: %e", err)
+	}
+	err = c.compressor.Close()
+	if err != nil {
+		log.Fatalf("Unable to close compressor for file %s: %e", tempFilePath, err)
+		return
+	}
+	err = f.Close()
+	if err != nil {
+		log.Fatalf("Unable to close file %s: %e", tempFilePath, err)
+		return
+	}
+	// log.Printf("Finished swapping partition %s to disk", msg.key)
+	c.plocks.Unlock(msg.key) // this partition was locked once it was scheduled for eviction. now we unlock it
+	msg.key = ""
+	msg.value = nil
 }

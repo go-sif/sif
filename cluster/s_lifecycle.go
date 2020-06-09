@@ -17,10 +17,8 @@ func createLifecycleServer(node Node) *lifecycleServer {
 }
 
 func (s *lifecycleServer) GracefulStop(ctx context.Context, req *pb.MWorkerDescriptor) (*pb.MStopResponse, error) {
-	err := s.node.GracefulStop()
-	if err != nil {
-		return nil, err
-	}
+	// we can't wait for the error to respond, because this counts as an open RPC, which blocks GracefulStop
+	defer s.node.GracefulStop()
 	return &pb.MStopResponse{Time: time.Now().Unix()}, nil
 }
 

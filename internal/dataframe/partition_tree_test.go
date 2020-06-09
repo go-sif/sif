@@ -12,6 +12,7 @@ import (
 	"github.com/go-sif/sif/operations/transform"
 	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createPTreeTestSchema() sif.Schema {
@@ -305,11 +306,13 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 }
 
 func TestPartitionIterationDuringRepartition(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	schema := schema.CreateSchema()
 	schema.CreateColumn("key", &sif.Uint32ColumnType{})
 	schema.CreateColumn("val", &sif.Uint32ColumnType{})
 
-	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 10, CompressedCacheFraction: 0.75}
+	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 10}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
 	defer root.clearCaches()

@@ -23,6 +23,7 @@ type planExecutorImpl struct {
 	id   string
 	plan itypes.Plan
 	conf *itypes.PlanExecutorConfig
+	done context.CancelFunc
 
 	nextStage            int
 	partitionLoaders     []sif.PartitionLoader
@@ -49,6 +50,7 @@ func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.Plan
 		id:               id.String(),
 		plan:             plan,
 		conf:             conf,
+		done:             func() {},
 		partitionLoaders: make([]sif.PartitionLoader, 0),
 		shuffleTrees:     make(map[uint64]*pTreeRoot),
 		shuffleIterators: make(map[uint64]sif.PartitionIterator),
@@ -56,7 +58,9 @@ func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.Plan
 		statsTracker:     statsTracker,
 	}
 	if !isCoordinator {
-		go executor.monitorMemoryUsage(ctx)
+		monitorCtx, canceller := context.WithCancel(ctx)
+		executor.done = canceller
+		go executor.monitorMemoryUsage(monitorCtx)
 	}
 	return executor
 }
@@ -69,6 +73,15 @@ func (pe *planExecutorImpl) ID() string {
 // GetConf returns the configuration for this PlanExecutor
 func (pe *planExecutorImpl) GetConf() *itypes.PlanExecutorConfig {
 	return pe.conf
+}
+
+func (pe *planExecutorImpl) Stop() {
+	pe.done()
+	pe.shuffleTreesLock.Lock()
+	for _, tree := range pe.shuffleTrees {
+		tree.clearCaches()
+	}
+	pe.shuffleTreesLock.Unlock()
 }
 
 // HasNextStage forms an iterator for planExecutor Stages
@@ -138,7 +151,6 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 	} else {
 		pe.shuffleTreesLock.Lock()
 		parts = createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true)
-		// once we consume a completed shuffle, we don't need a record of it anymore.
 		pe.shuffleTrees = make(map[uint64]*pTreeRoot)
 		pe.shuffleIterators = make(map[uint64]sif.PartitionIterator)
 		pe.shuffleReady = false
@@ -411,16 +423,24 @@ func (pe *planExecutorImpl) monitorMemoryUsage(ctx context.Context) {
 			// compute rolling average
 			avg = 0
 			for _, v := range usage {
+				if v == 0 {
+					// we haven't captured enough data yet
+					continue
+				}
 				avg += v
 			}
 			// check watermarks
-			if avg > pe.conf.CacheMemoryHighWatermark {
-				log.Printf("Memory usage %d is greater than high watermark %d. Shrinking partition caches by 10%%", avg, pe.conf.CacheMemoryHighWatermark)
-				pe.shuffleTreesLock.Lock()
+			if avg > pe.conf.CacheMemoryHighWatermark && len(pe.shuffleTrees) > 0 {
+				shrinkFac := (float64(pe.conf.CacheMemoryHighWatermark) / float64(avg)) - 0.05
+				// pe.shuffleTreesLock.Lock() // we won't be modifying the map at this point
+				resized := true
 				for _, tree := range pe.shuffleTrees {
-					tree.resizeCaches(0.90)
+					resized = resized && tree.resizeCaches(shrinkFac)
 				}
-				pe.shuffleTreesLock.Unlock()
+				if resized {
+					log.Printf("Memory usage %d is greater than high watermark %d. Shrunk partition caches by %f", avg, pe.conf.CacheMemoryHighWatermark, shrinkFac)
+				}
+				// pe.shuffleTreesLock.Unlock()
 			}
 		}
 	}

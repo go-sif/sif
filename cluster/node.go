@@ -49,8 +49,7 @@ type NodeOptions struct {
 	WorkerJoinRetries        int           // how many times a Worker should retry connecting to the Coordinator (at one second intervals)
 	RPCTimeout               time.Duration // timeout for all RPC calls
 	TempDir                  string        // location for storing temporary files (primarily persisted partitions)
-	CacheMemoryHighWatermark uint64        // the number of partitions to retain in memory before swapping to compressed memory
-	CompressedCacheFraction  float32       // the percentage of NumInMemoryPartitions which will be compressed
+	CacheMemoryHighWatermark uint64        // the number of partitions to retain in memory before swapping to disk
 	IgnoreRowErrors          bool          // iff true, log row transformation errors instead of crashing immediately
 }
 
@@ -67,7 +66,6 @@ func CloneNodeOptions(opts *NodeOptions) *NodeOptions {
 		RPCTimeout:               opts.RPCTimeout,
 		TempDir:                  opts.TempDir,
 		CacheMemoryHighWatermark: opts.CacheMemoryHighWatermark,
-		CompressedCacheFraction:  opts.CompressedCacheFraction,
 		IgnoreRowErrors:          opts.IgnoreRowErrors,
 	}
 }
@@ -106,9 +104,6 @@ func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
 		opts.CacheMemoryHighWatermark = 2 * 1024 * 1024 * 1024 // 2GiB
 	} else if opts.CacheMemoryHighWatermark < 64*1024*1024 {
 		log.Panic("NodeOptions.CacheMemoryHighWatermark must be at least 64MiB")
-	}
-	if opts.CompressedCacheFraction == 0 {
-		opts.CompressedCacheFraction = 0.75
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 type PlanExecutor interface {
 	ID() string                   // ID returns the ID for this PlanExecutor
 	GetConf() *PlanExecutorConfig // GetConf returns the configuration for this PlanExecutor
+	Stop()                        // ends a PlanExecutor execution
 	HasNextStage() bool           // HasNextStage forms an iterator for planExecutor Stages
 	GetNextStage() Stage          // NextStage forms an iterator for planExecutor Stages
 	GetNumStages() int            // GetNumStages returns the total number of stages

@@ -118,10 +118,10 @@ func (w *worker) Start(frame sif.DataFrame) error {
 		NumWorkers:               w.opts.NumWorkers,
 		TempFilePath:             tmpDir,
 		CacheMemoryHighWatermark: w.opts.CacheMemoryHighWatermark,
-		CompressedCacheFraction:  w.opts.CompressedCacheFraction,
 		Streaming:                eframe.GetParent().GetDataSource().IsStreaming(),
 		IgnoreRowErrors:          w.opts.IgnoreRowErrors,
 	}, statsTracker, false)
+	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()
 	// register rpc handlers for frame execution

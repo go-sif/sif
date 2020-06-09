@@ -91,6 +91,8 @@ func (b *VarHeatmapColumnType) Deserialize(ser []byte) (interface{}, error) {
 }
 
 func TestNYCTaxi(t *testing.T) {
+	// defer goleak.VerifyNone(t)
+
 	heatmapSize := 2048
 	// utility functions
 	minLat := float64(40.690015)

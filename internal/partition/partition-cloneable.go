@@ -9,7 +9,7 @@ import (
 
 // createCloneablePartition creates a new Partition containing an empty byte array and a schema
 func createCloneablePartition(maxRows int, schema sif.Schema) itypes.CloneablePartition {
-	return createPartitionImpl(maxRows, schema)
+	return createPartitionImpl(maxRows, defaultCapacity, schema)
 }
 
 // GetRowMeta retrieves specific row metadata from this Partition

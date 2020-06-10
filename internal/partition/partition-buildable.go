@@ -9,7 +9,32 @@ import (
 
 // CreateBuildablePartition creates a new Partition containing an empty byte array and a schema
 func CreateBuildablePartition(maxRows int, schema sif.Schema) sif.BuildablePartition {
-	return createPartitionImpl(maxRows, schema)
+	return createPartitionImpl(maxRows, maxRows, schema)
+}
+
+func (p *partitionImpl) growPartition() {
+	newCapacity := p.capacity * 2
+	if newCapacity > p.maxRows {
+		newCapacity = p.maxRows
+	}
+	newRowData := make([]byte, newCapacity*p.schema.Size())
+	copy(newRowData, p.rows)
+	p.rows = newRowData
+	newRowMeta := make([]byte, newCapacity*p.schema.NumColumns())
+	copy(newRowMeta, p.rowMeta)
+	p.rowMeta = newRowMeta
+	newVarRowData := make([]map[string]interface{}, newCapacity)
+	copy(newVarRowData, p.varRowData)
+	p.varRowData = newVarRowData
+	newSerializedVarRowData := make([]map[string][]byte, newCapacity)
+	copy(newSerializedVarRowData, p.serializedVarRowData)
+	p.serializedVarRowData = newSerializedVarRowData
+	if p.isKeyed {
+		newKeys := make([]uint64, newCapacity)
+		copy(newKeys, p.keys)
+		p.keys = newKeys
+	}
+	p.capacity = newCapacity
 }
 
 // CanInsertRowData checks if a Row can be inserted into this Partition
@@ -19,6 +44,10 @@ func (p *partitionImpl) CanInsertRowData(row []byte) error {
 		return errors.IncompatibleRowError{}
 	} else if p.numRows >= p.maxRows {
 		return errors.PartitionFullError{}
+	} else if p.numRows >= p.capacity {
+		// we need to grow the partition
+		p.growPartition()
+		return nil
 	} else {
 		return nil
 	}
@@ -28,6 +57,8 @@ func (p *partitionImpl) CanInsertRowData(row []byte) error {
 func (p *partitionImpl) AppendEmptyRowData(tempRow sif.Row) (sif.Row, error) {
 	if p.numRows >= p.maxRows {
 		return nil, errors.PartitionFullError{}
+	} else if p.numRows >= p.capacity {
+		p.growPartition()
 	}
 	p.numRows++
 	return p.getRow(tempRow.(*rowImpl), p.numRows-1), nil

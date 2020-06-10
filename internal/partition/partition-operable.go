@@ -10,7 +10,7 @@ import (
 
 // createOperablePartition creates a new Partition containing an empty byte array and a schema
 func createOperablePartition(maxRows int, schema sif.Schema) sif.OperablePartition {
-	return createPartitionImpl(maxRows, schema)
+	return createPartitionImpl(maxRows, defaultCapacity, schema)
 }
 
 // UpdateSchema updates the Schema of this Partition
@@ -33,7 +33,7 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 			if inPlace {
 				inPlace = false
 				// immediately switch into creating a new Partition if we haven't already
-				result = createPartitionImpl(p.maxRows, p.schema)
+				result = createPartitionImpl(p.maxRows, p.numRows, p.schema)
 				// append all rows we've successfully processed so far (up to this one)
 				for j := 0; j < i; j++ {
 					err := result.AppendRowData(p.GetRowData(j), p.GetRowMeta(j), p.GetVarRowData(j), p.GetSerializedVarRowData(j))
@@ -53,7 +53,7 @@ func (p *partitionImpl) MapRows(fn sif.MapOperation) (sif.OperablePartition, err
 func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePartition, error) {
 	var multierr *multierror.Error
 	parts := make([]sif.OperablePartition, 0, 2)
-	parts = append(parts, createPartitionImpl(p.maxRows, p.schema))
+	parts = append(parts, createPartitionImpl(p.maxRows, p.numRows, p.schema))
 	// some temp Row structs we can re-use
 	row := &rowImpl{}
 	factoryRow := &rowImpl{}
@@ -65,7 +65,7 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 		tempPartsLock.Lock()
 		defer tempPartsLock.Unlock()
 		for i := 0; i < num; i++ {
-			tempParts = append(tempParts, createPartitionImpl(p.maxRows, p.schema))
+			tempParts = append(tempParts, createPartitionImpl(p.maxRows, p.numRows, p.schema))
 		}
 	}
 	go partFactory(1)
@@ -126,7 +126,7 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 // FilterRows filters the Rows in the current Partition, creating a new one
 func (p *partitionImpl) FilterRows(fn sif.FilterOperation) (sif.OperablePartition, error) {
 	var multierr *multierror.Error
-	result := createPartitionImpl(p.maxRows, p.schema)
+	result := createPartitionImpl(p.maxRows, defaultCapacity, p.schema)
 	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
 		shouldKeep, err := fn(p.getRow(row, i))
@@ -148,7 +148,7 @@ func (p *partitionImpl) FilterRows(fn sif.FilterOperation) (sif.OperablePartitio
 // Repack repacks a Partition according to a new Schema
 func (p *partitionImpl) Repack(newSchema sif.Schema) (sif.OperablePartition, error) {
 	// create a new Partition
-	part := createPartitionImpl(p.maxRows, newSchema)
+	part := createPartitionImpl(p.maxRows, p.numRows, newSchema)
 	row := &rowImpl{}
 	for i := 0; i < p.GetNumRows(); i++ {
 		row := p.getRow(row, i).(itypes.AccessibleRow)

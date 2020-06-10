@@ -14,12 +14,12 @@ import (
 
 // CreateReduceablePartition creates a new Partition containing an empty byte array and a schema
 func CreateReduceablePartition(maxRows int, schema sif.Schema) itypes.ReduceablePartition {
-	return createPartitionImpl(maxRows, schema)
+	return createPartitionImpl(maxRows, defaultCapacity, schema)
 }
 
 // CreateKeyedReduceablePartition creates a new Partition containing an empty byte array and a schema
 func CreateKeyedReduceablePartition(maxRows int, schema sif.Schema) itypes.ReduceablePartition {
-	part := createPartitionImpl(maxRows, schema)
+	part := createPartitionImpl(maxRows, defaultCapacity, schema)
 	part.isKeyed = true
 	part.keys = make([]uint64, maxRows)
 	return part
@@ -169,8 +169,9 @@ func (p *partitionImpl) Split(pos int) (itypes.ReduceablePartition, itypes.Reduc
 	if pos >= p.numRows {
 		return nil, nil, fmt.Errorf("Split position is outside of Partition bounds")
 	}
-	left := createPartitionImpl(p.maxRows, p.schema)
-	right := createPartitionImpl(p.maxRows, p.schema)
+	// we split because things were full, so let's add some free space to these new partitions
+	left := createPartitionImpl(p.maxRows, pos+1, p.schema)
+	right := createPartitionImpl(p.maxRows, p.numRows-pos+1, p.schema)
 	if p.isKeyed {
 		left.isKeyed = true
 		left.keys = make([]uint64, p.maxRows)
@@ -290,6 +291,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 		Id:                   p.id,
 		NumRows:              uint32(p.numRows),
 		MaxRows:              uint32(p.maxRows),
+		Capacity:             uint32(p.capacity),
 		IsKeyed:              p.isKeyed,
 		RowData:              p.rows,
 		RowMeta:              p.rowMeta,
@@ -314,9 +316,10 @@ func FromBytes(data []byte, schema sif.Schema) (itypes.ReduceablePartition, erro
 		id:                   m.Id,
 		maxRows:              int(m.MaxRows),
 		numRows:              int(m.NumRows),
+		capacity:             int(m.Capacity),
 		rows:                 m.RowData,
-		varRowData:           make([]map[string]interface{}, int(m.MaxRows)),
-		serializedVarRowData: make([]map[string][]byte, int(m.MaxRows)),
+		varRowData:           make([]map[string]interface{}, int(m.Capacity)),
+		serializedVarRowData: make([]map[string][]byte, int(m.Capacity)),
 		rowMeta:              m.RowMeta,
 		schema:               schema,
 		keys:                 nil,

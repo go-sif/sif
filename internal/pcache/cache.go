@@ -118,8 +118,8 @@ func (c *lru) Resize(frac float64) bool {
 			c.plocks.Lock(cachedPart.key)
 			c.recentList.Remove(toRemove)
 			delete(c.pmap, cachedPart.key)
-			// c.toDisk <- cachedPart
-			c.writePartitionToDisk(cachedPart)
+			// c.writePartitionToDisk(cachedPart) // synchronous version
+			c.toDisk <- cachedPart // async version
 			c.pmapLock.Unlock()
 		}
 		c.recentListLock.Unlock()
@@ -162,8 +162,8 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 		c.plocks.Lock(cachedPart.key)
 		c.recentList.Remove(toRemove)
 		delete(c.pmap, cachedPart.key)
-		c.writePartitionToDisk(cachedPart)
-		// c.toDisk <- cachedPart
+		// c.writePartitionToDisk(cachedPart) // synchronous version
+		c.toDisk <- cachedPart // async version
 	}
 }
 

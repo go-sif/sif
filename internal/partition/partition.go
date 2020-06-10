@@ -12,7 +12,7 @@ import (
 	uuid "github.com/gofrs/uuid"
 )
 
-const defaultCapacity = 64
+const defaultCapacity = 16
 
 // partitionImpl is Sif's internal implementation of Partition
 type partitionImpl struct {

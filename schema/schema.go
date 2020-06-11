@@ -104,6 +104,11 @@ func (s *schema) Clone() sif.Schema {
 	return &schema{schema: newSchema, size: s.size, toRemove: newRemoved}
 }
 
+// RowWidth returns the current byte size of a Row respecting this Schema, without padding
+func (s *schema) RowWidth() int {
+	return s.size
+}
+
 // Size returns the current byte size of a Row respecting this Schema, padded so rows fit neatly into 64 bit chunks
 func (s *schema) Size() int {
 	if s.size < 16 {

@@ -102,8 +102,8 @@ func ensureDefaultNodeOptionsValues(opts *NodeOptions) {
 	}
 	if opts.CacheMemoryHighWatermark == 0 {
 		opts.CacheMemoryHighWatermark = 2 * 1024 * 1024 * 1024 // 2GiB
-	} else if opts.CacheMemoryHighWatermark < 64*1024*1024 {
-		log.Panic("NodeOptions.CacheMemoryHighWatermark must be at least 64MiB")
+	} else if opts.CacheMemoryHighWatermark < 16*1024*1024 {
+		log.Panic("NodeOptions.CacheMemoryHighWatermark must be at least 16MiB")
 	}
 }
 

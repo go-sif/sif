@@ -233,7 +233,7 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("Loaded partition %s from disk", key)
+	// log.Printf("Loaded partition %s from disk", key)
 	return part, nil
 }
 

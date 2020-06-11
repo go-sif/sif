@@ -79,7 +79,7 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 			// set widest initial schema
 			var widest sif.Schema
 			for _, f := range currentStage.frames {
-				if widest == nil || f.GetSchema().Size() > widest.Size() || (f.GetSchema().Size() == widest.Size() && f.GetSchema().NumVariableLengthColumns() > widest.NumVariableLengthColumns()) {
+				if widest == nil || f.GetSchema().RowWidth() > widest.RowWidth() || (f.GetSchema().Size() == widest.Size() && f.GetSchema().NumVariableLengthColumns() > widest.NumVariableLengthColumns()) {
 					widest = f.schema
 				}
 			}

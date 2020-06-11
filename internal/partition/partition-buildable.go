@@ -17,10 +17,10 @@ func (p *partitionImpl) growPartition() {
 	if newCapacity > p.maxRows {
 		newCapacity = p.maxRows
 	}
-	newRowData := make([]byte, newCapacity*p.schema.Size())
+	newRowData := make([]byte, len(p.rows)/p.capacity*newCapacity)
 	copy(newRowData, p.rows)
 	p.rows = newRowData
-	newRowMeta := make([]byte, newCapacity*p.schema.NumColumns())
+	newRowMeta := make([]byte, len(p.rowMeta)/p.capacity*newCapacity)
 	copy(newRowMeta, p.rowMeta)
 	p.rowMeta = newRowMeta
 	newVarRowData := make([]map[string]interface{}, newCapacity)

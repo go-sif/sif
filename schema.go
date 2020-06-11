@@ -6,7 +6,8 @@ package sif
 type Schema interface {
 	Equals(otherSchema Schema) error
 	Clone() Schema
-	Size() int
+	RowWidth() int // does not include padding - this is the size of the data which literally represents the row
+	Size() int     // includes padding - this is the size of the data actually stored for a row
 	NumColumns() int
 	NumFixedLengthColumns() int
 	NumVariableLengthColumns() int

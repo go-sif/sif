@@ -223,7 +223,7 @@ func TestSerialization(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.VarStringColumnType{})
-	part := createPartitionImpl(8, 8, schema)
+	part := createPartitionImpl(8, 2, schema)
 	// append rows
 	for i := 0; i < 8; i++ {
 		r := []byte{byte(uint8(i))}

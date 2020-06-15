@@ -411,3 +411,45 @@ func TestKeyColumns(t *testing.T) {
 		require.NotEqual(t, key1, key2)
 	}
 }
+
+func TestGrow(t *testing.T) {
+	// create partition
+	schema := createPartitionTestSchema()
+	schema.CreateColumn("col2", &sif.Float64ColumnType{})
+	schema.CreateColumn("col3", &sif.VarStringColumnType{})
+	part := createPartitionImpl(8, defaultCapacity, schema)
+	require.Equal(t, defaultCapacity, part.capacity)
+	require.Equal(t, part.capacity, len(part.varRowData))
+	require.Equal(t, part.capacity, len(part.serializedVarRowData))
+	require.Equal(t, part.capacity, len(part.rowMeta)/schema.NumColumns())
+	require.Equal(t, part.capacity, len(part.rows)/schema.Size())
+	// append rows
+	tempRow := CreateTempRow()
+	for i := 0; i < defaultCapacity+1; i++ {
+		row, err := part.AppendEmptyRowData(tempRow)
+		require.Nil(t, err)
+		row.SetInt8("col1", int8(i))
+		row.SetFloat64("col2", float64(i+1))
+		row.SetVarString("col3", "Hello World")
+	}
+	// check sizes
+	require.Equal(t, defaultCapacity+1, part.numRows)
+	require.Equal(t, defaultCapacity*2, part.capacity)
+	require.Equal(t, part.capacity, len(part.varRowData))
+	require.Equal(t, part.capacity, len(part.serializedVarRowData))
+	require.Equal(t, part.capacity, len(part.rowMeta)/schema.NumColumns())
+	require.Equal(t, part.capacity, len(part.rows)/schema.Size())
+	// check values
+	for i := 0; i < defaultCapacity+1; i++ {
+		row := part.GetRow(i)
+		col1, err := row.GetInt8("col1")
+		require.Nil(t, err)
+		require.Equal(t, int8(i), col1)
+		col2, err := row.GetFloat64("col2")
+		require.Nil(t, err)
+		require.Equal(t, float64(i+1), col2)
+		col3, err := row.GetVarString("col3")
+		require.Nil(t, err)
+		require.Equal(t, "Hello World", col3)
+	}
+}

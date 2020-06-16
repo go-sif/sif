@@ -133,14 +133,18 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 			// We deserialize later, the first time they ask for a value from a Row, since that's when
 			// we know the type they're looking for
 			m := p.GetSerializedVarRowData(int(chunk.VarDataRowNum))
-			if chunk.Append > 0 {
-				copy(m[chunk.VarDataColName][chunk.Append:], chunk.Data)
-			} else {
-				m[chunk.VarDataColName] = make([]byte, chunk.TotalSizeBytes)
-				copy(m[chunk.VarDataColName], chunk.Data)
+			if chunk.Append <= 0 {
+				m[chunk.VarDataColName] = make([]byte, 0, chunk.TotalSizeBytes)
+			} else if chunk.Append > 0 && (m[chunk.VarDataColName] == nil || len(m[chunk.VarDataColName]) == 0) {
+				return fmt.Errorf("Received chunk for column %s to be appended at %d, but there is no data to append to", chunk.VarDataColName, chunk.Append)
 			}
-			if len(m[chunk.VarDataColName]) == 0 {
-				return fmt.Errorf("Streamed 0 bytes for column %s. Expected %d", chunk.VarDataColName, chunk.TotalSizeBytes)
+			if len(chunk.Data) == 0 {
+				return fmt.Errorf("Streamed 0-length chunk for column %s. Remaining bytes: %d/%d", chunk.VarDataColName, chunk.RemainingSizeBytes, chunk.TotalSizeBytes)
+			}
+			m[chunk.VarDataColName] = append(m[chunk.VarDataColName], chunk.Data...)
+			// validate length when we've finished streaming
+			if chunk.RemainingSizeBytes == 0 && int32(len(m[chunk.VarDataColName])) != chunk.TotalSizeBytes {
+				return fmt.Errorf("Streamed %d total bytes for column %s. Expected %d. Append was: %d", int32(len(m[chunk.VarDataColName])), chunk.VarDataColName, chunk.TotalSizeBytes, chunk.Append)
 			}
 		case iutil.MetaDataType:
 			copy(p.rowMeta[metaOffset:metaOffset+len(chunk.Data)], chunk.Data)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
+	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/go-sif/sif/operations/transform"
 	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
@@ -223,13 +224,22 @@ func TestSerialization(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.VarStringColumnType{})
-	part := createPartitionImpl(8, 2, schema)
+	var part itypes.ReduceablePartition
+	part = createPartitionImpl(8, 2, schema)
 	// append rows
+	tempRow := &rowImpl{}
 	for i := 0; i < 8; i++ {
-		r := []byte{byte(uint8(i))}
-		vr := make(map[string]interface{})
-		vr["col2"] = "Hello World"
-		err := part.AppendRowData(r, []byte{0}, vr, make(map[string][]byte))
+		// serialize and deserialize
+		buff, err := part.ToBytes()
+		require.Nil(t, err)
+		part, err = FromBytes(buff, schema)
+		require.Nil(t, err)
+		// add values
+		row, err := part.AppendEmptyRowData(tempRow)
+		require.Nil(t, err)
+		err = row.SetUint8("col1", uint8(i))
+		require.Nil(t, err)
+		err = row.SetVarString("col2", "Hello World")
 		require.Nil(t, err)
 	}
 	// verify values
@@ -245,15 +255,15 @@ func TestSerialization(t *testing.T) {
 	// serialize and deserialize
 	buff, err := part.ToBytes()
 	require.Nil(t, err)
-	rpart, err := FromBytes(buff, part.schema)
+	part, err = FromBytes(buff, schema)
 	require.Nil(t, err)
 	// verify values again
-	require.Equal(t, 8, rpart.GetNumRows())
+	require.Equal(t, 8, part.GetNumRows())
 	for i := 0; i < 8; i++ {
-		val1, err := rpart.GetRow(i).GetUint8("col1")
+		val1, err := part.GetRow(i).GetUint8("col1")
 		require.Nil(t, err)
 		require.Equal(t, val1, uint8(i))
-		val2, err := rpart.GetRow(i).GetVarString("col2")
+		val2, err := part.GetRow(i).GetVarString("col2")
 		require.Nil(t, err)
 		require.Equal(t, val2, "Hello World")
 	}

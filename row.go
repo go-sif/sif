@@ -8,6 +8,7 @@ import "time"
 // offsets). In practice, users of Row will call its
 // getter and setter methods to retrieve, manipulate and store data
 type Row interface {
+	GetPartID() string                                              // Returns the ID of the containing partition (if there is one)
 	Schema() Schema                                                 // Schema returns a read-only copy of the schema for a row
 	ToString() string                                               // ToString returns a string representation of this row
 	IsNil(colName string) bool                                      // IsNil returns true iff the given column value is nil in this row. If an error occurs, this function will return false.

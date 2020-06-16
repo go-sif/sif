@@ -17,6 +17,7 @@ func (p *partitionImpl) growPartition() {
 	if newCapacity > p.maxRows {
 		newCapacity = p.maxRows
 	}
+	// log.Printf("Growing partition %s from %d to %d", p.id, p.capacity, newCapacity)
 	newRowData := make([]byte, len(p.rows)/p.capacity*newCapacity)
 	copy(newRowData, p.rows)
 	p.rows = newRowData

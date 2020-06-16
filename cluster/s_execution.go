@@ -164,6 +164,8 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 	go s.planExecutor.MergeShuffledPartitions(&mergeWg, partChan, asyncMergeErrors)
 	// round-robin request partitions
 	t := 0
+	concurrentFetchLimit := 4
+	activeFetches := 0
 	for {
 		if len(targets) == 0 {
 			break
@@ -183,6 +185,7 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 			}
 			// split off goroutine to actually transfer the data
 			fetchWg.Add(1)
+			activeFetches++
 			go s.planExecutor.ShufflePartitionData(&fetchWg, partChan, asyncFetchErrors, res.Part, stream)
 		}
 		// if the target worker has no more partitions, take it out of the rotation
@@ -196,9 +199,11 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 		}
 		// block every time we've fetched one partition from each target,
 		// so we don't create too many goroutines for ShufflePartitionData
-		if t+1 >= len(targets) {
-			// check fetch errors
+		if activeFetches >= concurrentFetchLimit {
 			fetchWg.Wait()
+			// reset counter
+			activeFetches = 0
+			// check fetch errors
 			select {
 			case fetchErr := <-asyncFetchErrors:
 				if err := s.onRowError(ctx, fetchErr); err != nil {

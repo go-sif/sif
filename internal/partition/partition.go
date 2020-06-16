@@ -12,11 +12,14 @@ import (
 	uuid "github.com/gofrs/uuid"
 )
 
+const defaultCapacity = 2
+
 // partitionImpl is Sif's internal implementation of Partition
 type partitionImpl struct {
 	id                   string
 	maxRows              int
 	numRows              int
+	capacity             int
 	rows                 []byte
 	varRowData           []map[string]interface{}
 	serializedVarRowData []map[string][]byte // for receiving serialized data from a shuffle (temporary)
@@ -27,19 +30,23 @@ type partitionImpl struct {
 }
 
 // createPartitionImpl creates a new Partition containing an empty byte array and a schema
-func createPartitionImpl(maxRows int, schema sif.Schema) *partitionImpl {
+func createPartitionImpl(maxRows int, initialCapacity int, schema sif.Schema) *partitionImpl {
 	id, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID for Partition: %v", err)
+	}
+	if initialCapacity > maxRows {
+		initialCapacity = maxRows
 	}
 	return &partitionImpl{
 		id:                   id.String(),
 		maxRows:              maxRows,
 		numRows:              0,
-		rows:                 make([]byte, maxRows*schema.Size(), maxRows*schema.Size()),
-		varRowData:           make([]map[string]interface{}, maxRows),
-		serializedVarRowData: make([]map[string][]byte, maxRows),
-		rowMeta:              make([]byte, maxRows*schema.NumColumns()),
+		capacity:             initialCapacity,
+		rows:                 make([]byte, initialCapacity*schema.Size(), initialCapacity*schema.Size()),
+		varRowData:           make([]map[string]interface{}, initialCapacity),
+		serializedVarRowData: make([]map[string][]byte, initialCapacity),
+		rowMeta:              make([]byte, initialCapacity*schema.NumColumns()),
 		schema:               schema,
 		keys:                 make([]uint64, 0),
 		isKeyed:              false,
@@ -47,8 +54,8 @@ func createPartitionImpl(maxRows int, schema sif.Schema) *partitionImpl {
 }
 
 // CreatePartition creates a new Partition containing an empty byte array and a schema
-func CreatePartition(maxRows int, schema sif.Schema) sif.Partition {
-	return createPartitionImpl(maxRows, schema)
+func CreatePartition(maxRows int, initialCapacity int, schema sif.Schema) sif.Partition {
+	return createPartitionImpl(maxRows, initialCapacity, schema)
 }
 
 // ID retrieves the ID of this Partition
@@ -95,6 +102,7 @@ func (p *partitionImpl) ToMetaMessage() *pb.MPartitionMeta {
 		Id:        p.id,
 		NumRows:   uint32(p.numRows),
 		MaxRows:   uint32(p.maxRows),
+		Capacity:  uint32(p.capacity),
 		IsKeyed:   p.isKeyed,
 		RowBytes:  uint32(len(p.rows)),
 		MetaBytes: uint32(len(p.rowMeta)),
@@ -125,14 +133,18 @@ func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_Transfer
 			// We deserialize later, the first time they ask for a value from a Row, since that's when
 			// we know the type they're looking for
 			m := p.GetSerializedVarRowData(int(chunk.VarDataRowNum))
-			if chunk.Append > 0 {
-				copy(m[chunk.VarDataColName][chunk.Append:], chunk.Data)
-			} else {
-				m[chunk.VarDataColName] = make([]byte, chunk.TotalSizeBytes)
-				copy(m[chunk.VarDataColName], chunk.Data)
+			if chunk.Append <= 0 {
+				m[chunk.VarDataColName] = make([]byte, 0, chunk.TotalSizeBytes)
+			} else if chunk.Append > 0 && (m[chunk.VarDataColName] == nil || len(m[chunk.VarDataColName]) == 0) {
+				return fmt.Errorf("Received chunk for column %s to be appended at %d, but there is no data to append to", chunk.VarDataColName, chunk.Append)
 			}
-			if len(m[chunk.VarDataColName]) == 0 {
-				return fmt.Errorf("Streamed 0 bytes for column %s. Expected %d", chunk.VarDataColName, chunk.TotalSizeBytes)
+			if len(chunk.Data) == 0 {
+				return fmt.Errorf("Streamed 0-length chunk for column %s. Remaining bytes: %d/%d", chunk.VarDataColName, chunk.RemainingSizeBytes, chunk.TotalSizeBytes)
+			}
+			m[chunk.VarDataColName] = append(m[chunk.VarDataColName], chunk.Data...)
+			// validate length when we've finished streaming
+			if chunk.RemainingSizeBytes == 0 && int32(len(m[chunk.VarDataColName])) != chunk.TotalSizeBytes {
+				return fmt.Errorf("Streamed %d total bytes for column %s. Expected %d. Append was: %d", int32(len(m[chunk.VarDataColName])), chunk.VarDataColName, chunk.TotalSizeBytes, chunk.Append)
 			}
 		case iutil.MetaDataType:
 			copy(p.rowMeta[metaOffset:metaOffset+len(chunk.Data)], chunk.Data)
@@ -157,16 +169,17 @@ func FromMetaMessage(m *pb.MPartitionMeta, currentSchema sif.Schema) itypes.Tran
 		id:                   m.Id,
 		maxRows:              int(m.MaxRows),
 		numRows:              int(m.NumRows),
+		capacity:             int(m.Capacity),
 		rows:                 make([]byte, m.GetRowBytes()),
-		varRowData:           make([]map[string]interface{}, int(m.MaxRows)),
-		serializedVarRowData: make([]map[string][]byte, int(m.MaxRows)),
+		varRowData:           make([]map[string]interface{}, int(m.Capacity)),
+		serializedVarRowData: make([]map[string][]byte, int(m.Capacity)),
 		rowMeta:              make([]byte, m.GetMetaBytes()),
 		schema:               currentSchema,
 		keys:                 nil,
 		isKeyed:              m.IsKeyed,
 	}
 	if m.IsKeyed {
-		part.keys = make([]uint64, int(m.MaxRows))
+		part.keys = make([]uint64, int(m.Capacity))
 	}
 	return part
 }

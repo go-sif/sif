@@ -7,7 +7,6 @@ import (
 	"log"
 	"math"
 	"net"
-	"strings"
 	"sync"
 
 	"github.com/go-sif/sif"
@@ -105,7 +104,8 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	// now that worker connections are open, defer shutting them down
 	defer func() {
 		// shutdown workers, since the job is done
-		if err = stopWorkers(workers, workerConns); err != nil {
+		waitCtx := context.Background()
+		if err = stopWorkers(waitCtx, workers, workerConns); err != nil {
 			log.Fatal(err)
 		}
 		closeGRPCConnections(workerConns)
@@ -120,9 +120,9 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	planExecutor := eframe.Optimize().Execute(ctx, &itypes.PlanExecutorConfig{
 		TempFilePath:             "",
 		CacheMemoryHighWatermark: c.opts.CacheMemoryHighWatermark,
-		CompressedCacheFraction:  c.opts.CompressedCacheFraction,
 		Streaming:                c.frame.GetDataSource().IsStreaming(),
 	}, statsTracker, true)
+	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()
 	// analyze and assign partitions
@@ -219,26 +219,26 @@ func computeShuffleBuckets(workers []*pb.MWorkerDescriptor) []uint64 {
 	return buckets
 }
 
-func stopWorkers(workers []*pb.MWorkerDescriptor, workerConns []*grpc.ClientConn) error {
+func stopWorkers(ctx context.Context, workers []*pb.MWorkerDescriptor, workerConns []*grpc.ClientConn) error {
 	var wg sync.WaitGroup
 	asyncErrors := iutil.CreateAsyncErrorChannel()
 	// shutdown workers
 	wg.Add(len(workers))
 	for i := range workers {
 		log.Printf("Stopping worker %s...", workers[i].Id)
-		go asyncStopWorker(workers[i], workerConns[i], &wg, asyncErrors)
+		go asyncStopWorker(ctx, workers[i], workerConns[i], &wg, asyncErrors)
 	}
-	// if something went wrong, other than the worker perhaps shutting itself down, return error
-	if err := iutil.WaitAndFetchError(&wg, asyncErrors); err != nil && !strings.Contains(err.Error(), "transport is closing") {
-		return err
-	}
+	// // if something went wrong, other than the worker perhaps shutting itself down, return error
+	// if err := iutil.WaitAndFetchError(&wg, asyncErrors); err != nil && !strings.Contains(err.Error(), "transport is closing") {
+	// 	return err
+	// }
 	return nil
 }
 
-func asyncStopWorker(w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.WaitGroup, errors chan<- error) {
+func asyncStopWorker(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 	lifecycleClient := pb.NewLifecycleServiceClient(conn)
-	_, err := lifecycleClient.Stop(context.Background(), w)
+	_, err := lifecycleClient.Stop(ctx, w)
 	if err != nil {
 		errors <- fmt.Errorf("Unable to stop worker %v\n%e", w.Id, err)
 	}

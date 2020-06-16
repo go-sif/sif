@@ -11,6 +11,8 @@ import (
 
 // LocalRunFrame runs a Dataframe on a localhost test cluster with a certain number of workers
 func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeOptions, numWorkers int) (result *cluster.Result, err error) {
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	// handle panics
 	defer func() {
 		if r := recover(); r != nil {
@@ -71,12 +73,12 @@ func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeO
 		}()
 		// test running worker as well, to make sure blocking is functional
 		go func() {
-			_, err := worker.Run(ctx)
+			_, err := worker.Run(runCtx)
 			if err != nil {
 				panic(err)
 			}
 		}()
 		defer worker.GracefulStop()
 	}
-	return coordinator.Run(ctx)
+	return coordinator.Run(runCtx)
 }

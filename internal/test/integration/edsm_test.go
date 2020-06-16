@@ -42,6 +42,8 @@ func createTestEDSMDataFrame(t *testing.T) sif.DataFrame {
 // Note: heatmap column type declared in nyc_taxi_test.go
 
 func TestEDSMHeatmap(t *testing.T) {
+	// defer goleak.VerifyNone(t)
+
 	heatmapSize := 1024
 	maxVal := uint32(150) // max threshold for numeric value at pixel (corresponds to "hottest" colour in ramp) (186 in 7-day dataset)
 	// utility functions
@@ -75,6 +77,7 @@ func TestEDSMHeatmap(t *testing.T) {
 	frame, err := frame.To(
 		// create column for heatmap reduction
 		ops.AddColumn("heatmap", &VarHeatmapColumnType{}),
+		ops.AddColumn("padding", &sif.BytesColumnType{Length: 128}),
 		// compute partial heatmaps
 		ops.Map(func(row sif.Row) error {
 			if row.IsNil("coords.x") || row.IsNil("coords.z") {
@@ -182,6 +185,6 @@ func TestEDSMHeatmap(t *testing.T) {
 	require.Nil(t, err)
 
 	// run dataframe and verify results
-	_, err = siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{CacheMemoryHighWatermark: 85 * 1024 * 1024}, 2)
+	_, err = siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{CacheMemoryHighWatermark: 16 * 1024 * 1024}, 2)
 	require.Nil(t, err)
 }

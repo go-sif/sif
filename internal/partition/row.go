@@ -40,6 +40,11 @@ func CreateTempRow() sif.Row {
 	return &rowImpl{}
 }
 
+// GetPartID returns the ID of the containing partition, if there is one
+func (r *rowImpl) GetPartID() string {
+	return r.partID
+}
+
 // Schema returns a read-only copy of the schema for a row
 func (r *rowImpl) Schema() sif.Schema {
 	return r.schema.Clone() // TODO expensive but safe?

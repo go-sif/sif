@@ -138,12 +138,13 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 							end = totalSize
 						}
 						stream.Send(&pb.MPartitionChunk{
-							Data:           sdata[j:end],
-							DataType:       iutil.RowVarDataType,
-							VarDataRowNum:  int32(i),
-							VarDataColName: k,
-							TotalSizeBytes: int32(totalSize),
-							Append:         int32(j),
+							Data:               sdata[j:end],
+							DataType:           iutil.RowVarDataType,
+							VarDataRowNum:      int32(i),
+							VarDataColName:     k,
+							TotalSizeBytes:     int32(totalSize),
+							RemainingSizeBytes: int32(totalSize - end),
+							Append:             int32(j),
 						})
 					}
 				} else {
@@ -168,11 +169,13 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 					end = totalSize
 				}
 				stream.Send(&pb.MPartitionChunk{
-					Data:           v[j:end],
-					DataType:       iutil.RowVarDataType,
-					VarDataRowNum:  int32(i),
-					VarDataColName: k,
-					TotalSizeBytes: int32(totalSize),
+					Data:               v[j:end],
+					DataType:           iutil.RowVarDataType,
+					VarDataRowNum:      int32(i),
+					VarDataColName:     k,
+					TotalSizeBytes:     int32(totalSize),
+					RemainingSizeBytes: int32(totalSize - end),
+					Append:             int32(j),
 				})
 			}
 		}

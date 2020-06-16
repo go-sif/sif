@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
+	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/go-sif/sif/operations/transform"
 	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ func createPartitionTestSchema() sif.Schema {
 
 func TestCreatePartitionImpl(t *testing.T) {
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(4, schema)
+	part := createPartitionImpl(4, 4, schema)
 	require.Equal(t, part.GetMaxRows(), 4)
 	require.Equal(t, part.GetNumRows(), 0)
 	require.Nil(t, part.CanInsertRowData(make([]byte, 1)))
@@ -29,7 +30,7 @@ func TestCreatePartitionImpl(t *testing.T) {
 func TestAppendRowData(t *testing.T) {
 	// make partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(4, schema)
+	part := createPartitionImpl(4, 4, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	r := []byte{byte(uint8(1))}
 	// append and validate row
@@ -52,7 +53,7 @@ func TestAppendRowData(t *testing.T) {
 func TestInsertRowData(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(4, schema)
+	part := createPartitionImpl(4, 4, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -75,7 +76,7 @@ func TestInsertRowData(t *testing.T) {
 func TestPartitionFullError(t *testing.T) {
 	// create partition with max 1 row
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(1, schema)
+	part := createPartitionImpl(1, 1, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -95,7 +96,7 @@ func TestPartitionFullError(t *testing.T) {
 func TestIncompatibleRowError(t *testing.T) {
 	// create partition with max 1 row
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(1, schema)
+	part := createPartitionImpl(1, 1, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append and validate row
 	r := []byte{byte(uint8(1))}
@@ -118,7 +119,7 @@ func TestIncompatibleRowError(t *testing.T) {
 func TestMapRows(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(4, schema)
+	part := createPartitionImpl(4, 4, schema)
 	require.Equal(t, part.GetNumRows(), 0)
 	// append rows
 	for i := 0; i < 4; i++ {
@@ -139,7 +140,7 @@ func TestMapRows(t *testing.T) {
 func TestKeyRows(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(8, schema)
+	part := createPartitionImpl(8, 8, schema)
 	// append rows
 	for i := 0; i < 7; i++ {
 		r := []byte{uint8(i)}
@@ -180,7 +181,7 @@ func TestKeyRows(t *testing.T) {
 func TestSplit(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
-	part := createPartitionImpl(8, schema)
+	part := createPartitionImpl(8, 8, schema)
 	// append rows
 	for i := 0; i < 8; i++ {
 		r := []byte{byte(uint8(i))}
@@ -223,13 +224,22 @@ func TestSerialization(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.VarStringColumnType{})
-	part := createPartitionImpl(8, schema)
+	var part itypes.ReduceablePartition
+	part = createPartitionImpl(8, 2, schema)
 	// append rows
+	tempRow := &rowImpl{}
 	for i := 0; i < 8; i++ {
-		r := []byte{byte(uint8(i))}
-		vr := make(map[string]interface{})
-		vr["col2"] = "Hello World"
-		err := part.AppendRowData(r, []byte{0}, vr, make(map[string][]byte))
+		// serialize and deserialize
+		buff, err := part.ToBytes()
+		require.Nil(t, err)
+		part, err = FromBytes(buff, schema)
+		require.Nil(t, err)
+		// add values
+		row, err := part.AppendEmptyRowData(tempRow)
+		require.Nil(t, err)
+		err = row.SetUint8("col1", uint8(i))
+		require.Nil(t, err)
+		err = row.SetVarString("col2", "Hello World")
 		require.Nil(t, err)
 	}
 	// verify values
@@ -245,15 +255,15 @@ func TestSerialization(t *testing.T) {
 	// serialize and deserialize
 	buff, err := part.ToBytes()
 	require.Nil(t, err)
-	rpart, err := FromBytes(buff, part.schema)
+	part, err = FromBytes(buff, schema)
 	require.Nil(t, err)
 	// verify values again
-	require.Equal(t, 8, rpart.GetNumRows())
+	require.Equal(t, 8, part.GetNumRows())
 	for i := 0; i < 8; i++ {
-		val1, err := rpart.GetRow(i).GetUint8("col1")
+		val1, err := part.GetRow(i).GetUint8("col1")
 		require.Nil(t, err)
 		require.Equal(t, val1, uint8(i))
-		val2, err := rpart.GetRow(i).GetVarString("col2")
+		val2, err := part.GetRow(i).GetVarString("col2")
 		require.Nil(t, err)
 		require.Equal(t, val2, "Hello World")
 	}
@@ -264,7 +274,7 @@ func TestRepackShrink(t *testing.T) {
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.Float64ColumnType{})
 	schema.CreateColumn("col3", &sif.VarStringColumnType{})
-	part := createPartitionImpl(8, schema)
+	part := createPartitionImpl(8, 8, schema)
 	// append rows
 	tempRow := CreateTempRow()
 	for i := 0; i < 8; i++ {
@@ -315,7 +325,7 @@ func TestRepackGrow(t *testing.T) {
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.Float64ColumnType{})
 	schema.CreateColumn("col3", &sif.VarStringColumnType{})
-	part := createPartitionImpl(8, schema)
+	part := createPartitionImpl(8, 8, schema)
 	// append rows
 	tempRow := CreateTempRow()
 	for i := 0; i < 8; i++ {
@@ -368,8 +378,8 @@ func TestKeyColumns(t *testing.T) {
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.Float64ColumnType{})
 	schema.CreateColumn("col3", &sif.VarStringColumnType{})
-	part1 := createPartitionImpl(8, schema)
-	part2 := createPartitionImpl(8, schema)
+	part1 := createPartitionImpl(8, 8, schema)
+	part2 := createPartitionImpl(8, 8, schema)
 	// append rows
 	tempRow := CreateTempRow()
 	for i := 0; i < 4; i++ {
@@ -409,5 +419,47 @@ func TestKeyColumns(t *testing.T) {
 		key2, err := transform.KeyColumns("col1", "col2", "col3")(part2.GetRow(i))
 		require.Nil(t, err)
 		require.NotEqual(t, key1, key2)
+	}
+}
+
+func TestGrow(t *testing.T) {
+	// create partition
+	schema := createPartitionTestSchema()
+	schema.CreateColumn("col2", &sif.Float64ColumnType{})
+	schema.CreateColumn("col3", &sif.VarStringColumnType{})
+	part := createPartitionImpl(8, defaultCapacity, schema)
+	require.Equal(t, defaultCapacity, part.capacity)
+	require.Equal(t, part.capacity, len(part.varRowData))
+	require.Equal(t, part.capacity, len(part.serializedVarRowData))
+	require.Equal(t, part.capacity, len(part.rowMeta)/schema.NumColumns())
+	require.Equal(t, part.capacity, len(part.rows)/schema.Size())
+	// append rows
+	tempRow := CreateTempRow()
+	for i := 0; i < defaultCapacity+1; i++ {
+		row, err := part.AppendEmptyRowData(tempRow)
+		require.Nil(t, err)
+		row.SetInt8("col1", int8(i))
+		row.SetFloat64("col2", float64(i+1))
+		row.SetVarString("col3", "Hello World")
+	}
+	// check sizes
+	require.Equal(t, defaultCapacity+1, part.numRows)
+	require.Equal(t, defaultCapacity*2, part.capacity)
+	require.Equal(t, part.capacity, len(part.varRowData))
+	require.Equal(t, part.capacity, len(part.serializedVarRowData))
+	require.Equal(t, part.capacity, len(part.rowMeta)/schema.NumColumns())
+	require.Equal(t, part.capacity, len(part.rows)/schema.Size())
+	// check values
+	for i := 0; i < defaultCapacity+1; i++ {
+		row := part.GetRow(i)
+		col1, err := row.GetInt8("col1")
+		require.Nil(t, err)
+		require.Equal(t, int8(i), col1)
+		col2, err := row.GetFloat64("col2")
+		require.Nil(t, err)
+		require.Equal(t, float64(i+1), col2)
+		col3, err := row.GetVarString("col3")
+		require.Nil(t, err)
+		require.Equal(t, "Hello World", col3)
 	}
 }

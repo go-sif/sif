@@ -26,8 +26,9 @@ message MPartitionMeta {
     uint32 numRows = 2;
     uint32 maxRows = 3;
     uint32 rowBytes = 4;
-    uint32 metaBytes = 5;
-    bool isKeyed = 6;
+    uint32 capacity = 5;
+    uint32 metaBytes = 6;
+    bool isKeyed = 7;
 }
 
 message MShufflePartitionRequest {
@@ -51,7 +52,8 @@ message MPartitionChunk {
     int32 varDataRowNum = 4;
     string varDataColName = 5;
     int32 totalSizeBytes = 6;
-    int32 append = 7;
+    int32 remainingSizeBytes = 7;
+    int32 append = 8;
 }
 
 message MShuffleAccumulatorRequest {
@@ -74,13 +76,14 @@ message DPartition {
     string id = 1;
     uint32 numRows = 2;
     uint32 maxRows = 3;
-    bool isKeyed = 4;
-    bytes rowData = 5;
-    bytes rowMeta = 6;
-    repeated uint64 keys = 7 [packed=true];
+    uint32 capacity = 4;
+    bool isKeyed = 5;
+    bytes rowData = 6;
+    bytes rowMeta = 7;
+    repeated uint64 keys = 8 [packed=true];
 
     message DVarCol {
         map<uint32, bytes> rowData = 1;
     }
-    map<string, DVarCol> serializedVarRowData = 8;
+    map<string, DVarCol> serializedVarRowData = 9;
 }

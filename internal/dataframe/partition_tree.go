@@ -2,7 +2,6 @@ package dataframe
 
 import (
 	"fmt"
-	"log"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
@@ -39,17 +38,10 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 	if conf.CacheMemoryInitialSize == 0 {
 		conf.CacheMemoryInitialSize = 32 * 1024 // pick a meaninglessly large number, as we'll use the memory high watermark to scale down
 	}
-	if conf.CompressedCacheFraction < 0 || conf.CompressedCacheFraction > 1 {
-		log.Panicf("PlanExecutorConfig.CompressedCacheFraction must be between 0 and 1")
-	}
-	if conf.CompressedCacheFraction == 0 {
-		conf.CompressedCacheFraction = 0.75
-	}
 	cache := pcache.NewLRU(&pcache.LRUConfig{
-		InitialSize:        conf.CacheMemoryInitialSize,
-		CompressedFraction: conf.CompressedCacheFraction,
-		DiskPath:           conf.TempFilePath,
-		Schema:             nextStageSchema,
+		InitialSize: conf.CacheMemoryInitialSize,
+		DiskPath:    conf.TempFilePath,
+		Schema:      nextStageSchema,
 	})
 	// create initial partition for root node
 	part := partition.CreateReduceablePartition(maxRows, nextStageSchema)
@@ -356,10 +348,18 @@ func (t *pTreeRoot) firstNode() *pTreeNode {
 	return first
 }
 
-func (t *pTreeNode) resizeCaches(frac float64) {
+func (t *pTreeNode) cacheSize() int {
 	if t.partitionCache != nil {
-		t.partitionCache.Resize(frac)
+		return t.partitionCache.CurrentSize()
 	}
+	return -1
+}
+
+func (t *pTreeNode) resizeCaches(frac float64) bool {
+	if t.partitionCache != nil {
+		return t.partitionCache.Resize(frac)
+	}
+	return false
 }
 
 func (t *pTreeNode) clearCaches() {

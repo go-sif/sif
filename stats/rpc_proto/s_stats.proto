@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package stats;
 
-option go_package = "stats";
+option go_package = "github.com/go-sif/sif/stats";
 
 // StatsSourceService provides statistics to a StatsConsumer
 service StatsSourceService {

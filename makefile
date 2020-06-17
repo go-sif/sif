@@ -29,7 +29,7 @@ fmt:
 	@go fmt ./...
 
 clean:
-	@echo "Cleaning..."	
+	@echo "Cleaning..."
 	@rm -rf ./bin
 	@rm -rf internal/test/integration/sif-worker-808*
 

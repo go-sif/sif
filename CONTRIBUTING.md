@@ -74,7 +74,7 @@ $ git config alias.cs 'commit -s'
 
 ## Developing
 
-Development environments should employ go 1.13+, with module support enabled.
+Development environments should employ go 1.14+, with module support enabled.
 
 ### Getting Started
 

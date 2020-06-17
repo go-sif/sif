@@ -4,7 +4,7 @@ import "s_cluster.proto";
 
 package rpc;
 
-option go_package = "rpc";
+option go_package = "github.com/go-sif/sif/internal/rpc";
 
 // LifecycleService manages the lifecycle of Sif cluster members
 service LifecycleService {

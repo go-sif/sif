@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package rpc;
 
-option go_package = "rpc";
+option go_package = "github.com/go-sif/sif/internal/rpc";
 
 // PartitionsService manages data across the cluster
 service PartitionsService {

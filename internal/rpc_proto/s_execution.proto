@@ -4,7 +4,7 @@ import "s_cluster.proto";
 
 package rpc;
 
-option go_package = "rpc";
+option go_package = "github.com/go-sif/sif/internal/rpc";
 
 // ExecutionService coordinates the execution of DataFrames/Plans/Stages
 service ExecutionService {

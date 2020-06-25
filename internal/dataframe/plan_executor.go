@@ -150,7 +150,8 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 		}
 	} else {
 		pe.shuffleTreesLock.Lock()
-		parts = createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true)
+		parts = createPreloadingPartitionIterator(createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true), 3)
+		// parts = createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true)
 		pe.shuffleTrees = make(map[uint64]*pTreeRoot)
 		pe.shuffleIterators = make(map[uint64]sif.PartitionIterator)
 		pe.shuffleReady = false

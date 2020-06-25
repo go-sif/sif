@@ -35,11 +35,11 @@ func createPreloadingPartitionIterator(iterator sif.PartitionIterator, preloadCo
 func (ppi *preloadingPartitionIterator) HasNextPartition() bool {
 	ppi.lock.Lock()
 	defer ppi.lock.Unlock()
-	ended := len(ppi.pchan) == 0 && !ppi.finishedLoading
+	ended := len(ppi.pchan) == 0 && ppi.finishedLoading
 	if ended {
 		ppi.doEnd()
 	}
-	return ended
+	return !ended
 }
 
 // if unlockPartition is not nil, it must be called when one is finished with the returned Partition

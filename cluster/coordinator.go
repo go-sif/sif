@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/go-sif/sif"
@@ -228,10 +229,10 @@ func stopWorkers(ctx context.Context, workers []*pb.MWorkerDescriptor, workerCon
 		log.Printf("Stopping worker %s...", workers[i].Id)
 		go asyncStopWorker(ctx, workers[i], workerConns[i], &wg, asyncErrors)
 	}
-	// // if something went wrong, other than the worker perhaps shutting itself down, return error
-	// if err := iutil.WaitAndFetchError(&wg, asyncErrors); err != nil && !strings.Contains(err.Error(), "transport is closing") {
-	// 	return err
-	// }
+	// if something went wrong, other than the worker perhaps shutting itself down, return error
+	if err := iutil.WaitAndFetchError(&wg, asyncErrors); err != nil && !strings.Contains(err.Error(), "transport is closing") {
+		return err
+	}
 	return nil
 }
 

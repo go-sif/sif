@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"log"
 	"sync"
 
 	"github.com/go-sif/sif"
@@ -68,22 +69,25 @@ func (p *partitionImpl) FlatMapRows(fn sif.FlatMapOperation) ([]sif.OperablePart
 			tempParts = append(tempParts, createPartitionImpl(p.maxRows, p.numRows, p.schema))
 		}
 	}
-	go partFactory(1)
+	partFactory(1)
 	// factory for producing new rows compatible with this Partition
 	rowFactory := func() sif.Row {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Fatalf("Unable to produce row in FlatMap %e", r)
+			}
+		}()
 		appendTarget := parts[len(parts)-1]
 		// allocate a new partition if this one is full
 		if appendTarget.GetNumRows() >= appendTarget.GetMaxRows() {
-			var makeNewPart bool
+			if len(tempParts) == 0 {
+				partFactory(1)
+			}
 			tempPartsLock.Lock()
 			tempPart := tempParts[0]
 			tempParts = tempParts[1:]
-			makeNewPart = len(tempParts) == 0
 			parts = append(parts, tempPart)
 			tempPartsLock.Unlock()
-			if makeNewPart {
-				go partFactory(1) // make a new partition in the background
-			}
 			appendTarget = parts[len(parts)-1]
 		}
 		// we have room, so allocate a new row

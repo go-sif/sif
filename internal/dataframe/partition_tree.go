@@ -319,6 +319,17 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	return t.right, nil
 }
 
+func (t *pTreeNode) fetchSerializedPartition() ([]byte, error) {
+	if len(t.partID) == 0 {
+		return nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
+	}
+	spart, err := t.shared.partitionCache.GetSerialized(t.partID)
+	if err != nil {
+		return nil, err
+	}
+	return spart, nil
+}
+
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) {
 	if len(t.partID) == 0 {
 		return nil, nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())

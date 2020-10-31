@@ -190,6 +190,37 @@ func (c *lru) Get(key string) (itypes.ReduceablePartition, error) {
 	return nil, err
 }
 
+// Get removes the serialized partition from the caches and returns it, if present. Returns an error otherwise.
+func (c *lru) GetSerialized(key string) ([]byte, error) {
+	c.globalLock.Lock()
+	defer c.globalLock.Unlock()
+	c.plocks.Lock(key)
+	defer c.plocks.Unlock(key)
+	// log.Printf("Loading serialized partition %s...", key)
+	// check the memory cache first - if we find it here, we have to serialize it
+	value, err := c.getFromCache(key)
+	if err == nil {
+		bytes, err := value.ToBytes()
+		if err != nil {
+			log.Fatalf("Unable to convert partition to buffer %s", err)
+		}
+		c.reusableReadBuffer.Reset()
+		c.compressor.Reset(c.reusableReadBuffer)
+		n, err := c.compressor.Write(bytes)
+		if err != nil || n == 0 {
+			log.Fatalf("Unable to compress data for partition: %e", err)
+		}
+		err = c.compressor.Close()
+		return c.reusableReadBuffer.Bytes(), nil
+	}
+	// otherwise, we can load the raw compressed bytes from the disk as-is
+	svalue, err := c.loadCompressedFromDisk(key)
+	if err == nil {
+		return svalue, nil
+	}
+	return nil, err
+}
+
 // getFromCache removes the partition from the uncompressed cache and returns it, if present
 func (c *lru) getFromCache(key string) (value itypes.ReduceablePartition, err error) {
 	c.pmapLock.Lock()
@@ -204,6 +235,31 @@ func (c *lru) getFromCache(key string) (value itypes.ReduceablePartition, err er
 		return ve.Value.(*cachedPartition).value, nil
 	}
 	return nil, fmt.Errorf("Partition %s is not in the cache", key)
+}
+
+// loadCompressedFromDisk loads and removes serialized partition data from the disk cache and returns it, if present. Does not decompress
+func (c *lru) loadCompressedFromDisk(key string) (value []byte, err error) {
+	tempFilePath := path.Join(c.tmpDir, key)
+	f, err := os.Open(tempFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to open disk-swapped partition %s: %e", tempFilePath, err)
+	}
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			log.Printf("Unable to close file %s", tempFilePath)
+		}
+		err = os.Remove(tempFilePath)
+		if err != nil {
+			log.Printf("Unable to remove file %s", tempFilePath)
+		}
+	}()
+	c.reusableReadBuffer.Reset()
+	_, err = c.reusableReadBuffer.ReadFrom(f)
+	if err != nil {
+		log.Panicf("Unable to read disk-swapped partition %s: %e", tempFilePath, err)
+	}
+	return c.reusableReadBuffer.Bytes(), nil
 }
 
 // getFromCache removes the partition from the disk cache and returns it, if present

@@ -32,7 +32,7 @@ type planExecutorImpl struct {
 	shuffleReady         bool
 	shuffleTrees         map[uint64]*pTreeRoot // staging area for partitions before shuffle // TODO replace with partially-disked-back map with automated paging
 	shuffleTreesLock     sync.Mutex
-	shuffleIterators     map[uint64]sif.PartitionIterator // used to serve partitions from the shuffleTree
+	shuffleIterators     map[uint64]itypes.SerializedPartitionIterator // used to serve partitions from the shuffleTree
 	shuffleIteratorsLock sync.Mutex
 	collectCache         map[string]sif.Partition // staging area used for collection when there has been no shuffle
 	collectCacheLock     sync.Mutex
@@ -53,7 +53,7 @@ func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.Plan
 		done:             func() {},
 		partitionLoaders: make([]sif.PartitionLoader, 0),
 		shuffleTrees:     make(map[uint64]*pTreeRoot),
-		shuffleIterators: make(map[uint64]sif.PartitionIterator),
+		shuffleIterators: make(map[uint64]itypes.SerializedPartitionIterator),
 		collectCache:     make(map[string]sif.Partition),
 		statsTracker:     statsTracker,
 	}
@@ -153,7 +153,7 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 		parts = createPreloadingPartitionIterator(createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true), 3)
 		// parts = createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true)
 		pe.shuffleTrees = make(map[uint64]*pTreeRoot)
-		pe.shuffleIterators = make(map[uint64]sif.PartitionIterator)
+		pe.shuffleIterators = make(map[uint64]itypes.SerializedPartitionIterator)
 		pe.shuffleReady = false
 		pe.accumulateReady = false
 		pe.shuffleTreesLock.Unlock()
@@ -328,10 +328,11 @@ func (pe *planExecutorImpl) AssignShuffleBucket(assignedBucket uint64) {
 }
 
 // GetShufflePartitionIterator serves up an iterator for partitions to shuffle
-func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (sif.PartitionIterator, error) {
+func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (itypes.SerializedPartitionIterator, error) {
 	if len(pe.collectCache) > 0 {
 		// if we're collecting, and we never reduced, then the collectCache will be used instead of a tree
-		return createPartitionCacheIterator(pe.collectCache, true), nil
+		pci := createPartitionCacheIterator(pe.collectCache, true)
+		return createPartitionSerializingIterator(pci), nil
 	}
 	// otherwise create an iterator to grab partitions from a tree
 	// Note: the tree may be null if we never encountered rows belonging to a bucket
@@ -340,7 +341,7 @@ func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (sif.Part
 	defer pe.shuffleIteratorsLock.Unlock()
 	defer pe.shuffleTreesLock.Unlock()
 	if _, ok := pe.shuffleIterators[bucket]; !ok {
-		pe.shuffleIterators[bucket] = createPTreeIterator(pe.shuffleTrees[bucket], true)
+		pe.shuffleIterators[bucket] = createPTreeSerializedIterator(pe.shuffleTrees[bucket], true)
 	}
 	return pe.shuffleIterators[bucket], nil
 }

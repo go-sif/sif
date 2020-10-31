@@ -383,7 +383,7 @@ func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerg
 		var multierr *multierror.Error
 		tempRow := partition.CreateTempRow()
 		destinationTree := pe.shuffleTrees[pe.assignedBucket]
-		areEqualSchemas := destinationTree.nextStageSchema.Equals(part.GetSchema())
+		areEqualSchemas := destinationTree.shared.nextStageSchema.Equals(part.GetSchema())
 		if areEqualSchemas != nil {
 			asyncErrors <- fmt.Errorf("Incoming shuffled partition schema does not match expected schema")
 			pe.shuffleTreesLock.Unlock()

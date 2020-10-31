@@ -12,19 +12,26 @@ import (
 	"github.com/go-sif/sif/internal/util"
 )
 
-// pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
-type pTreeNode struct {
-	k               uint64
-	left            *pTreeNode
-	right           *pTreeNode
-	center          *pTreeNode
-	partID          string
+type pTreeShared struct {
+	// configuration
 	maxRows         int
 	nextStageSchema sif.Schema
-	prev            *pTreeNode // btree-like link between leaves
-	next            *pTreeNode // btree-like link between leaves
-	parent          *pTreeNode
 	partitionCache  pcache.PartitionCache
+	// statistics
+	numParts uint64
+}
+
+// pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
+type pTreeNode struct {
+	k      uint64
+	left   *pTreeNode
+	right  *pTreeNode
+	center *pTreeNode
+	partID string
+	prev   *pTreeNode // btree-like link between leaves
+	next   *pTreeNode // btree-like link between leaves
+	parent *pTreeNode
+	shared *pTreeShared
 }
 
 // pTreeRoot is an alias for pTreeNode representing the root node of a pTree
@@ -48,13 +55,18 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 	part.KeyRows(nil)
 	partID := part.ID()
 	cache.Add(partID, part)
-	// return root node
-	return &pTreeNode{
-		k:               0,
-		partID:          partID,
+	// populate shared variables
+	shared := &pTreeShared{
 		maxRows:         part.GetMaxRows(),
 		nextStageSchema: nextStageSchema,
 		partitionCache:  cache,
+		numParts:        1,
+	}
+	// return root node
+	return &pTreeNode{
+		k:      0,
+		partID: partID,
+		shared: shared,
 	}
 }
 
@@ -178,22 +190,18 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 	// log.Printf("Splitting partition %s", t.partID)
 	t.k = avgKey
 	t.left = &pTreeNode{
-		k:               0,
-		partID:          lp.ID(),
-		prev:            t.prev,
-		parent:          t,
-		maxRows:         t.maxRows,
-		nextStageSchema: t.nextStageSchema,
-		partitionCache:  t.partitionCache,
+		k:      0,
+		partID: lp.ID(),
+		prev:   t.prev,
+		parent: t,
+		shared: t.shared,
 	}
 	t.right = &pTreeNode{
-		k:               0,
-		partID:          rp.ID(),
-		next:            t.next,
-		parent:          t,
-		maxRows:         t.maxRows,
-		nextStageSchema: t.nextStageSchema,
-		partitionCache:  t.partitionCache,
+		k:      0,
+		partID: rp.ID(),
+		next:   t.next,
+		parent: t,
+		shared: t.shared,
 	}
 	t.left.next = t.right
 	t.right.prev = t.left
@@ -207,8 +215,10 @@ func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey 
 	t.prev = nil  // non-leaf nodes don't have horizontal links
 	t.next = nil  // non-leaf nodes don't have horizontal links
 	// add left and right to front of "visited" queue
-	t.partitionCache.Add(t.left.partID, lp)
-	t.partitionCache.Add(t.right.partID, rp)
+	t.shared.partitionCache.Add(t.left.partID, lp)
+	t.shared.partitionCache.Add(t.right.partID, rp)
+	// we've increased the number of partitions in the tree by one
+	t.shared.numParts++
 	// tell the caller where to go next
 	if hashedKey < t.k {
 		return avgKey, t.left, nil
@@ -238,23 +248,22 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 		// we are now the new center tail of our parent
 		t.parent.center = t
 		// our parent has a fresh right node to insert into
-		rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStageSchema)
+		rp := partition.CreateKeyedReduceablePartition(t.shared.maxRows, t.shared.nextStageSchema)
 		t.parent.right = &pTreeNode{
-			k:               0,
-			partID:          rp.ID(),
-			next:            t.next,
-			prev:            t.parent.center,
-			parent:          t,
-			maxRows:         t.maxRows,
-			nextStageSchema: t.nextStageSchema,
-			partitionCache:  t.partitionCache,
+			k:      0,
+			partID: rp.ID(),
+			next:   t.next,
+			prev:   t.parent.center,
+			parent: t,
+			shared: t.shared,
 		}
+		t.shared.numParts++
 		t.parent.center.next = t.parent.right
 		if t.parent.right.next != nil {
 			t.parent.right.next.prev = t.parent.right
 		}
 		// add new partition to front of "visited" queue
-		t.partitionCache.Add(rp.ID(), rp)
+		t.shared.partitionCache.Add(rp.ID(), rp)
 		// we know we got into this situation by adding a row with key == avgKey. These
 		// rows now belong in t.parent.right, so return that as the "next" node to recurse on
 		return t.parent.right, nil
@@ -263,45 +272,41 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	t.k = avgKey
 	// we need to start a new center chain at this node to store data
 	t.center = &pTreeNode{
-		k:               0,
-		partID:          t.partID,
-		parent:          t,
-		maxRows:         t.maxRows,
-		nextStageSchema: t.nextStageSchema,
-		partitionCache:  t.partitionCache,
+		k:      0,
+		partID: t.partID,
+		parent: t,
+		shared: t.shared,
 	}
 	// left and right will be fresh, empty nodes, with row keys greater than or less than avgKey
-	lp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStageSchema)
+	lp := partition.CreateKeyedReduceablePartition(t.shared.maxRows, t.shared.nextStageSchema)
 	t.left = &pTreeNode{
-		k:               0,
-		partID:          lp.ID(),
-		prev:            t.prev,
-		next:            t.center,
-		parent:          t,
-		maxRows:         t.maxRows,
-		nextStageSchema: t.nextStageSchema,
-		partitionCache:  t.partitionCache,
+		k:      0,
+		partID: lp.ID(),
+		prev:   t.prev,
+		next:   t.center,
+		parent: t,
+		shared: t.shared,
 	}
+	t.shared.numParts++
 	if t.left.prev != nil {
 		t.left.prev.next = t.left
 	}
-	rp := partition.CreateKeyedReduceablePartition(t.maxRows, t.nextStageSchema)
+	rp := partition.CreateKeyedReduceablePartition(t.shared.maxRows, t.shared.nextStageSchema)
 	t.right = &pTreeNode{
-		k:               0,
-		partID:          rp.ID(),
-		prev:            t.center,
-		next:            t.next,
-		parent:          t,
-		maxRows:         t.maxRows,
-		nextStageSchema: t.nextStageSchema,
-		partitionCache:  t.partitionCache,
+		k:      0,
+		partID: rp.ID(),
+		prev:   t.center,
+		next:   t.next,
+		parent: t,
+		shared: t.shared,
 	}
+	t.shared.numParts++
 	if t.right.next != nil {
 		t.right.next.prev = t.right
 	}
 	// add new partitions to front of "visited" queue
-	t.partitionCache.Add(lp.ID(), lp)
-	t.partitionCache.Add(rp.ID(), rp)
+	t.shared.partitionCache.Add(lp.ID(), lp)
+	t.shared.partitionCache.Add(rp.ID(), rp)
 	// update links for center chain
 	t.center.next = t.right
 	t.center.prev = t.left
@@ -318,7 +323,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 	if len(t.partID) == 0 {
 		return nil, nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
 	}
-	part, err := t.partitionCache.Get(t.partID)
+	part, err := t.shared.partitionCache.Get(t.partID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -326,7 +331,7 @@ func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) 
 		// log.Printf("Returning partition %s to cache", t.partID)
 		// we only add the partition to the LRU cache when it's finished being
 		// operated on to make sure it isn't swapped to disk while it's in use
-		t.partitionCache.Add(t.partID, part)
+		t.shared.partitionCache.Add(t.partID, part)
 	}, nil
 }
 
@@ -348,20 +353,24 @@ func (t *pTreeRoot) firstNode() *pTreeNode {
 	return first
 }
 
+func (t *pTreeNode) numParts() uint64 {
+	return t.shared.numParts
+}
+
 func (t *pTreeNode) cacheSize() int {
-	if t.partitionCache != nil {
-		return t.partitionCache.CurrentSize()
+	if t.shared.partitionCache != nil {
+		return t.shared.partitionCache.CurrentSize()
 	}
 	return -1
 }
 
 func (t *pTreeNode) resizeCaches(frac float64) bool {
-	if t.partitionCache != nil {
-		return t.partitionCache.Resize(frac)
+	if t.shared.partitionCache != nil {
+		return t.shared.partitionCache.Resize(frac)
 	}
 	return false
 }
 
 func (t *pTreeNode) clearCaches() {
-	t.partitionCache.Destroy()
+	t.shared.partitionCache.Destroy()
 }

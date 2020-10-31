@@ -158,7 +158,9 @@ func TestMergeRowWithSplit(t *testing.T) {
 	require.Nil(t, root.next)
 
 	numTreeRows := 0
+	numParts := 0
 	for start := root.firstNode(); start != nil; start = start.next {
+		numParts++
 		require.NotNil(t, start.partID)
 		part, unlockPartition, err := start.loadPartition()
 		require.Nil(t, err)
@@ -166,6 +168,7 @@ func TestMergeRowWithSplit(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, 6, numTreeRows)
+	require.EqualValues(t, numParts, root.numParts())
 }
 
 func TestMergeRowWithRotate(t *testing.T) {
@@ -186,14 +189,17 @@ func TestMergeRowWithRotate(t *testing.T) {
 	require.Nil(t, root.prev)
 	require.Nil(t, root.next)
 	numTreeRows := 0
+	numParts := 0
 	for start := root.firstNode(); start != nil; start = start.next {
 		require.NotNil(t, start.partID)
 		part, unlockPartition, err := start.loadPartition()
 		require.Nil(t, err)
 		numTreeRows += part.GetNumRows()
+		numParts++
 		unlockPartition()
 	}
 	require.Equal(t, 8, numTreeRows)
+	require.EqualValues(t, numParts, root.numParts())
 	// add more rows with a different key, and check that they're sorted properly
 	for i := 0; i < 8; i++ {
 		row := partition.CreateRow("part-0", []byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
@@ -202,11 +208,13 @@ func TestMergeRowWithRotate(t *testing.T) {
 	}
 	lastKey := uint64(0)
 	numTreeRows = 0
+	numParts = 0
 	for start := root.firstNode(); start != nil; start = start.next {
 		require.NotNil(t, start.partID)
 		part, unlockPartition, err := start.loadPartition()
 		require.Nil(t, err)
 		numTreeRows += part.GetNumRows()
+		numParts++
 		for i := 0; i < part.GetNumRows(); i++ {
 			k, err := part.GetKey(i)
 			require.Nil(t, err)
@@ -216,6 +224,7 @@ func TestMergeRowWithRotate(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, 16, numTreeRows)
+	require.EqualValues(t, numParts, root.numParts())
 }
 
 func TestDiskSwap(t *testing.T) {
@@ -288,12 +297,14 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 	// make sure all rows are present, and sorted by hashed key
 	lastKey := uint64(0)
 	numTreeRows := 0
+	numParts := 0
 	firstNode := root.firstNode()
 	for start := firstNode; start != nil; start = start.next {
 		require.NotNil(t, start.partID)
 		part, unlockPartition, err := start.loadPartition()
 		require.Nil(t, err)
 		numTreeRows += part.GetNumRows()
+		numParts++
 		for i := 0; i < part.GetNumRows(); i++ {
 			k, err := part.GetKey(i)
 			require.Nil(t, err)
@@ -303,6 +314,7 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, rowCount, numTreeRows)
+	require.EqualValues(t, numParts, root.numParts())
 }
 
 func TestPartitionIterationDuringRepartition(t *testing.T) {
@@ -329,9 +341,11 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 	// make sure all rows are present, and sorted by hashed key
 	lastKey := uint64(0)
 	numTreeRows := 0
+	numTreeParts := 0
 	firstNode := root.firstNode()
 	for start := firstNode; start != nil; start = start.next {
 		require.NotNil(t, start.partID)
+		numTreeParts++
 		part, unlockPartition, err := start.loadPartition()
 		require.Nil(t, err)
 		numTreeRows += part.GetNumRows()
@@ -344,4 +358,5 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, rowCount, numTreeRows)
+	require.EqualValues(t, numTreeParts, root.numParts())
 }

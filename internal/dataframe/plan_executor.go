@@ -367,13 +367,17 @@ func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger 
 		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, pe.GetCurrentStage().TargetPartitionSize(), incomingDataSchema)
 		pe.shuffleTreesLock.Unlock()
 	}
-	part := partition.FromMetaMessage(mpart, incomingDataSchema)
-	err := part.ReceiveStreamedData(dataStream, mpart)
+	part, err := partition.FromStreamedData(dataStream, mpart, incomingDataSchema, pe.conf.PartitionSerializer)
 	if err != nil {
 		asyncErrors <- err
 		return
 	}
-	partMerger <- part
+	rpart, ok := part.(itypes.ReduceablePartition)
+	if !ok {
+		asyncErrors <- fmt.Errorf("Deserialized partition is not Reduceable")
+		return
+	}
+	partMerger <- rpart
 }
 
 func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerger <-chan itypes.ReduceablePartition, asyncErrors chan<- error) {

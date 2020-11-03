@@ -1,12 +1,14 @@
 package partition
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 
 	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
+	itypes "github.com/go-sif/sif/internal/types"
 	iutil "github.com/go-sif/sif/internal/util"
 	uuid "github.com/gofrs/uuid"
 )
@@ -95,8 +97,8 @@ func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 	}
 }
 
-// ReceiveStreamedData loads data from a protobuf stream into this Partition
-func ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta) (sif.Partition, error) {
+// FromStreamedData loads compressed data from a protobuf stream into this Partition
+func FromStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta, schema sif.Schema, serializer itypes.PartitionSerializer) (sif.Partition, error) {
 	// stream data for Partition
 	dataOffset := 0
 	buff := make([]byte, partitionMeta.GetBytes())
@@ -117,6 +119,6 @@ func ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient
 	if uint32(dataOffset) != partitionMeta.GetBytes() {
 		return nil, fmt.Errorf("Streamed %d bytes for SerializedPartition %s. Expected %d", dataOffset, partitionMeta.GetId(), partitionMeta.GetBytes())
 	}
-	// TODO deserialize
-	return part, nil
+	// deserialize
+	return serializer.Decompress(bytes.NewReader(buff), schema)
 }

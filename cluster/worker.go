@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-sif/sif"
+	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
 	istats "github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -120,6 +121,7 @@ func (w *worker) Start(frame sif.DataFrame) error {
 		CacheMemoryHighWatermark: w.opts.CacheMemoryHighWatermark,
 		Streaming:                eframe.GetParent().GetDataSource().IsStreaming(),
 		IgnoreRowErrors:          w.opts.IgnoreRowErrors,
+		PartitionSerializer:      partition.NewLZ4PartitionSerializer(),
 	}, statsTracker, false)
 	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())

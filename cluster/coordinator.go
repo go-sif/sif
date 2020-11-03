@@ -122,6 +122,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		TempFilePath:             "",
 		CacheMemoryHighWatermark: c.opts.CacheMemoryHighWatermark,
 		Streaming:                c.frame.GetDataSource().IsStreaming(),
+		PartitionSerializer:      partition.NewLZ4PartitionSerializer(),
 	}, statsTracker, true)
 	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())

@@ -118,11 +118,12 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	}
 	log.Printf("Running job...")
 	statsTracker := &stats.RunStatistics{}
+	partitionSerializer := partition.NewLZ4PartitionSerializer()
 	planExecutor := eframe.Optimize().Execute(ctx, &itypes.PlanExecutorConfig{
 		TempFilePath:             "",
 		CacheMemoryHighWatermark: c.opts.CacheMemoryHighWatermark,
 		Streaming:                c.frame.GetDataSource().IsStreaming(),
-		PartitionSerializer:      partition.NewLZ4PartitionSerializer(),
+		PartitionSerializer:      partitionSerializer,
 	}, statsTracker, true)
 	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())
@@ -195,7 +196,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
 				var collectedLock sync.Mutex
 				for i := range workers {
-					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
+					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, partitionSerializer, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err
@@ -335,7 +336,7 @@ func asyncRunAccumulate(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc
 	}
 }
 
-func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, partitionSerializer itypes.PartitionSerializer, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Collect from worker
@@ -350,14 +351,14 @@ func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 			return
 		} else if res.Part != nil {
 			if collectionLimit.TryAcquire(1) {
-				part := partition.FromMetaMessage(res.Part, incomingSchema)
+				// part := partition.FromMetaMessage(res.Part, incomingSchema)
 				transferReq := &pb.MTransferPartitionDataRequest{Id: res.Part.Id}
 				stream, err := partitionClient.TransferPartitionData(ctx, transferReq)
 				if err != nil {
 					errors <- err
 					return
 				}
-				err = part.ReceiveStreamedData(stream, res.Part)
+				part, err := partition.FromStreamedData(stream, res.Part, incomingSchema, partitionSerializer)
 				if err != nil {
 					errors <- err
 					return

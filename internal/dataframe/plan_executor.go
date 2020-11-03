@@ -367,7 +367,7 @@ func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger 
 		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, pe.GetCurrentStage().TargetPartitionSize(), incomingDataSchema)
 		pe.shuffleTreesLock.Unlock()
 	}
-	part, err := partition.FromStreamedData(dataStream, mpart, incomingDataSchema, pe.conf.PartitionSerializer)
+	part, err := partition.FromStreamedData(dataStream, mpart, incomingDataSchema, pe.conf.PartitionCompressor)
 	if err != nil {
 		asyncErrors <- err
 		return

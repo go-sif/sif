@@ -11,18 +11,18 @@ import (
 	"github.com/pierrec/lz4"
 )
 
-// LZ4PartitionSerializer is a partition compressor which uses the lz4 compression algorithm
-type LZ4PartitionSerializer struct {
+// LZ4PartitionCompressor is a partition compressor which uses the lz4 compression algorithm
+type LZ4PartitionCompressor struct {
 	compressor         *lz4.Writer
 	decompressor       *lz4.Reader
 	reusableReadBuffer *bytes.Buffer
 }
 
-// NewLZ4PartitionSerializer instantiates a new LZ4PartitionSerializer
-func NewLZ4PartitionSerializer() itypes.PartitionSerializer {
+// NewLZ4PartitionCompressor instantiates a new LZ4PartitionCompressor
+func NewLZ4PartitionCompressor() itypes.PartitionCompressor {
 	compressor := lz4.NewWriter(new(bytes.Buffer))
 	decompressor := lz4.NewReader(new(bytes.Buffer))
-	return &LZ4PartitionSerializer{
+	return &LZ4PartitionCompressor{
 		compressor:         compressor,
 		decompressor:       decompressor,
 		reusableReadBuffer: new(bytes.Buffer),
@@ -30,7 +30,7 @@ func NewLZ4PartitionSerializer() itypes.PartitionSerializer {
 }
 
 // Compress serializes and compresses partition data to a write stream
-func (lz4ps *LZ4PartitionSerializer) Compress(w io.Writer, part itypes.ReduceablePartition) error {
+func (lz4ps *LZ4PartitionCompressor) Compress(w io.Writer, part itypes.ReduceablePartition) error {
 	bytes, err := part.ToBytes()
 	if err != nil {
 		return fmt.Errorf("Unable to convert partition to buffer %w", err)
@@ -48,7 +48,7 @@ func (lz4ps *LZ4PartitionSerializer) Compress(w io.Writer, part itypes.Reduceabl
 }
 
 // Decompress decompresses and deserializes partition data from a read stream
-func (lz4ps *LZ4PartitionSerializer) Decompress(r io.Reader, schema sif.Schema) (itypes.ReduceablePartition, error) {
+func (lz4ps *LZ4PartitionCompressor) Decompress(r io.Reader, schema sif.Schema) (itypes.ReduceablePartition, error) {
 	lz4ps.decompressor.Reset(r)
 	lz4ps.reusableReadBuffer.Reset()
 	_, err := lz4ps.reusableReadBuffer.ReadFrom(lz4ps.decompressor)
@@ -58,7 +58,8 @@ func (lz4ps *LZ4PartitionSerializer) Decompress(r io.Reader, schema sif.Schema) 
 	return FromBytes(lz4ps.reusableReadBuffer.Bytes(), schema)
 }
 
-func (lz4ps *LZ4PartitionSerializer) Destroy() {
+// Destroy cleans up anything relevant when the Serializer is no longer needed
+func (lz4ps *LZ4PartitionCompressor) Destroy() {
 	lz4ps.compressor.Close()
 	lz4ps.decompressor.Reset(new(bytes.Buffer))
 }

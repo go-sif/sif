@@ -8,5 +8,5 @@ type PlanExecutorConfig struct {
 	CacheMemoryHighWatermark uint64              // soft memory limit for in-memory partition caches, in bytes
 	Streaming                bool                // whether or not this executor is operating on streaming data
 	IgnoreRowErrors          bool                // iff true, log row transformation errors instead of crashing immediately
-	PartitionSerializer      PartitionSerializer // serializer for partitions
+	PartitionCompressor      PartitionCompressor // serializer for partitions
 }

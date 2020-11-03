@@ -41,7 +41,7 @@ type cachedPartition struct {
 type LRUConfig struct {
 	InitialSize int
 	DiskPath    string
-	Serializer  itypes.PartitionSerializer
+	Serializer  itypes.PartitionCompressor
 	Schema      sif.Schema
 }
 

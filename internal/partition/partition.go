@@ -98,7 +98,7 @@ func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 }
 
 // FromStreamedData loads compressed data from a protobuf stream into this Partition
-func FromStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta, schema sif.Schema, serializer itypes.PartitionSerializer) (sif.Partition, error) {
+func FromStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta, schema sif.Schema, serializer itypes.PartitionCompressor) (sif.Partition, error) {
 	// stream data for Partition
 	dataOffset := 0
 	buff := make([]byte, partitionMeta.GetBytes())

@@ -30,10 +30,10 @@ func (psi *partitionSerializingIterator) HasNextSerializedPartition() bool {
 	return psi.iterator.HasNextPartition()
 }
 
-func (psi *partitionSerializingIterator) NextSerializedPartition() (spart []byte, err error) {
+func (psi *partitionSerializingIterator) NextSerializedPartition() (id string, spart []byte, err error) {
 	part, done, err := psi.iterator.NextPartition()
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	defer func() {
 		if done != nil {
@@ -43,7 +43,7 @@ func (psi *partitionSerializingIterator) NextSerializedPartition() (spart []byte
 	// TODO Identical compression logic to cache.go. Abstract so compressor can be swapped easily.
 	rpart, ok := part.(itypes.ReduceablePartition)
 	if !ok {
-		return nil, fmt.Errorf("Cannot serialize Partition which is not a ReduceablePartition")
+		return "", nil, fmt.Errorf("Cannot serialize Partition which is not a ReduceablePartition")
 	}
 	bytes, err := rpart.ToBytes()
 	if err != nil {
@@ -56,7 +56,7 @@ func (psi *partitionSerializingIterator) NextSerializedPartition() (spart []byte
 		log.Fatalf("Unable to compress data for partition: %e", err)
 	}
 	err = psi.compressor.Close()
-	return psi.reusableReadBuffer.Bytes(), nil
+	return rpart.ID(), psi.reusableReadBuffer.Bytes(), nil
 }
 
 func (psi *partitionSerializingIterator) OnEnd(onEnd func()) {

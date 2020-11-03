@@ -23,12 +23,7 @@ message MAssignPartitionResponse {
 
 message MPartitionMeta {
     string id = 1;
-    uint32 numRows = 2;
-    uint32 maxRows = 3;
-    uint32 rowBytes = 4;
-    uint32 capacity = 5;
-    uint32 metaBytes = 6;
-    bool isKeyed = 7;
+    uint32 bytes = 2;
 }
 
 message MShufflePartitionRequest {

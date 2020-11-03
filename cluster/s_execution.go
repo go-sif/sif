@@ -133,7 +133,7 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 	var fetchWg, mergeWg sync.WaitGroup
 	asyncFetchErrors := make(chan error, len(buckets)) // each fetch goroutine can send one error before terminating
 	asyncMergeErrors := make(chan error, 1)            // the merge goroutine can only send one error before terminating
-	partChan := make(chan itypes.TransferrablePartition, len(buckets))
+	partChan := make(chan itypes.ReduceablePartition, len(buckets))
 	// setup our cleanup in the correct order (read in reverse)
 	defer close(asyncMergeErrors)
 	// check for remaining merge errors

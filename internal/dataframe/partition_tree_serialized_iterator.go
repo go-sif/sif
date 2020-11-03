@@ -41,7 +41,7 @@ func (tpi *pTreeSerializedPartitionIterator) HasNextSerializedPartition() bool {
 	return tpi.next != nil
 }
 
-func (tpi *pTreeSerializedPartitionIterator) NextSerializedPartition() ([]byte, error) {
+func (tpi *pTreeSerializedPartitionIterator) NextSerializedPartition() (string, []byte, error) {
 	tpi.lock.Lock()
 	defer tpi.lock.Unlock()
 	if tpi.next == nil {
@@ -53,12 +53,13 @@ func (tpi *pTreeSerializedPartitionIterator) NextSerializedPartition() ([]byte, 
 			tpi.root = nil
 		}
 		tpi.endListeners = []func(){}
-		return nil, errors.NoMorePartitionsError{}
+		return "", nil, errors.NoMorePartitionsError{}
 	}
 	part, err := tpi.next.fetchSerializedPartition() // temp var for partition
+	id := tpi.next.partID
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	tpi.next = tpi.next.next // advance iterator
-	return part, nil
+	return id, part, nil
 }

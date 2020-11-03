@@ -220,7 +220,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 		}
 		// Prepare resulting partitions for transfer to next stage
 		for _, newPart := range newParts {
-			tNewPart := newPart.(itypes.TransferrablePartition)
+			tNewPart := newPart.(itypes.ReduceablePartition)
 			if req.RunShuffle {
 				if !tNewPart.GetIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
@@ -242,7 +242,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 						if err != nil {
 							return err
 						}
-						tNewPart = repackedPart.(itypes.TransferrablePartition)
+						tNewPart = repackedPart.(itypes.ReduceablePartition)
 					}
 					pe.collectCache[tNewPart.ID()] = tNewPart
 				}
@@ -260,7 +260,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 }
 
 // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
-func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, buckets []uint64) error {
+func (pe *planExecutorImpl) PrepareShuffle(part itypes.ReduceablePartition, buckets []uint64) error {
 	if part.GetNumRows() == 0 {
 		// no need to handle empty partitions
 		return nil
@@ -281,7 +281,7 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		if err != nil {
 			return err
 		}
-		part = repackedPart.(itypes.TransferrablePartition)
+		part = repackedPart.(itypes.ReduceablePartition)
 	}
 
 	// merge rows into our trees
@@ -352,7 +352,7 @@ func (pe *planExecutorImpl) GetAccumulator() sif.Accumulator {
 }
 
 // ShufflePartitionData receives a Partition that belongs on this worker and merges it into the local shuffle tree
-func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger chan<- itypes.TransferrablePartition, asyncErrors chan<- error, mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) {
+func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger chan<- itypes.ReduceablePartition, asyncErrors chan<- error, mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) {
 	defer wg.Done()
 	// if we're the last stage, then the incoming data should match our outgoing schema
 	// but if there is a following stage, the data should match that stage.
@@ -364,7 +364,7 @@ func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger 
 	}
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
 		pe.shuffleTreesLock.Lock()
-		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), incomingDataSchema)
+		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, pe.GetCurrentStage().TargetPartitionSize(), incomingDataSchema)
 		pe.shuffleTreesLock.Unlock()
 	}
 	part := partition.FromMetaMessage(mpart, incomingDataSchema)
@@ -376,7 +376,7 @@ func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger 
 	partMerger <- part
 }
 
-func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerger <-chan itypes.TransferrablePartition, asyncErrors chan<- error) {
+func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerger <-chan itypes.ReduceablePartition, asyncErrors chan<- error) {
 	defer wg.Done()
 	for part := range partMerger {
 		pe.shuffleTreesLock.Lock()

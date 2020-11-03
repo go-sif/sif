@@ -10,4 +10,5 @@ import (
 type PartitionSerializer interface {
 	Compress(w io.Writer, part ReduceablePartition) error                   // Compress serializes and compresses partition data to a write stream
 	Decompress(r io.Reader, schema sif.Schema) (ReduceablePartition, error) // Decompress decompresses and deserializes partition data from a read stream
+	Destroy()
 }

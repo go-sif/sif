@@ -12,28 +12,24 @@ import (
 
 	"github.com/docker/docker/pkg/locker"
 	"github.com/go-sif/sif"
-	"github.com/go-sif/sif/internal/partition"
 	itypes "github.com/go-sif/sif/internal/types"
-	"github.com/pierrec/lz4"
 )
 
 // lru is an LRU cache for Partitions
 type lru struct {
-	config             *LRUConfig
-	compressor         *lz4.Writer
-	decompressor       *lz4.Reader
-	globalLock         sync.Mutex
-	plocks             *locker.Locker
-	pmapLock           sync.Mutex
-	pmap               map[string]*list.Element
-	recentListLock     sync.Mutex
-	recentList         *list.List // back is oldest, front is newest
-	size               int
-	toDisk             chan *cachedPartition
-	tmpDir             string
-	reusableReadBuffer *bytes.Buffer
-	hits               uint64
-	misses             uint64
+	config         *LRUConfig
+	globalLock     sync.Mutex
+	plocks         *locker.Locker
+	pmapLock       sync.Mutex
+	pmap           map[string]*list.Element
+	recentListLock sync.Mutex
+	recentList     *list.List // back is oldest, front is newest
+	size           int
+	toDisk         chan *cachedPartition
+	tmpDir         string
+	reusableBuffer *bytes.Buffer
+	hits           uint64
+	misses         uint64
 }
 
 type cachedPartition struct {
@@ -45,6 +41,7 @@ type cachedPartition struct {
 type LRUConfig struct {
 	InitialSize int
 	DiskPath    string
+	Serializer  itypes.PartitionSerializer
 	Schema      sif.Schema
 }
 
@@ -59,20 +56,15 @@ func NewLRU(config *LRUConfig) PartitionCache {
 	}
 	// setup limits
 	transferChanSize := 10
-	// init compressor/decompressor
-	decompressor := lz4.NewReader(new(bytes.Buffer))
-	compressor := lz4.NewWriter(new(bytes.Buffer))
 	result := &lru{
-		compressor:         compressor,
-		decompressor:       decompressor,
-		config:             config,
-		plocks:             locker.New(),
-		pmap:               make(map[string]*list.Element),
-		recentList:         list.New(),
-		size:               config.InitialSize,
-		toDisk:             make(chan *cachedPartition, transferChanSize),
-		tmpDir:             config.DiskPath,
-		reusableReadBuffer: new(bytes.Buffer),
+		config:         config,
+		plocks:         locker.New(),
+		pmap:           make(map[string]*list.Element),
+		recentList:     list.New(),
+		size:           config.InitialSize,
+		toDisk:         make(chan *cachedPartition, transferChanSize),
+		tmpDir:         config.DiskPath,
+		reusableBuffer: new(bytes.Buffer),
 	}
 	go result.evictToDisk()
 	return result
@@ -82,9 +74,6 @@ func (c *lru) Destroy() {
 	c.globalLock.Lock()
 	defer c.globalLock.Unlock()
 	close(c.toDisk) // this will trigger the disk channel to be closed
-	// stop compressor and decompressor
-	c.compressor.Close()
-	c.decompressor.Reset(new(bytes.Buffer))
 }
 
 func (c *lru) CurrentSize() int {
@@ -199,19 +188,13 @@ func (c *lru) GetSerialized(key string) ([]byte, error) {
 	// log.Printf("Loading serialized partition %s...", key)
 	// check the memory cache first - if we find it here, we have to serialize it
 	value, err := c.getFromCache(key)
-	if err == nil {
-		bytes, err := value.ToBytes()
+	if err == nil { // since we found the partition uncompressed, we must compress it
+		c.reusableBuffer.Reset()
+		err = c.config.Serializer.Compress(c.reusableBuffer, value)
 		if err != nil {
-			log.Fatalf("Unable to convert partition to buffer %s", err)
+			return nil, err
 		}
-		c.reusableReadBuffer.Reset()
-		c.compressor.Reset(c.reusableReadBuffer)
-		n, err := c.compressor.Write(bytes)
-		if err != nil || n == 0 {
-			log.Fatalf("Unable to compress data for partition: %e", err)
-		}
-		err = c.compressor.Close()
-		return c.reusableReadBuffer.Bytes(), nil
+		return c.reusableBuffer.Bytes(), nil
 	}
 	// otherwise, we can load the raw compressed bytes from the disk as-is
 	svalue, err := c.loadCompressedFromDisk(key)
@@ -254,12 +237,12 @@ func (c *lru) loadCompressedFromDisk(key string) (value []byte, err error) {
 			log.Printf("Unable to remove file %s", tempFilePath)
 		}
 	}()
-	c.reusableReadBuffer.Reset()
-	_, err = c.reusableReadBuffer.ReadFrom(f)
+	c.reusableBuffer.Reset()
+	_, err = c.reusableBuffer.ReadFrom(f)
 	if err != nil {
 		log.Panicf("Unable to read disk-swapped partition %s: %e", tempFilePath, err)
 	}
-	return c.reusableReadBuffer.Bytes(), nil
+	return c.reusableBuffer.Bytes(), nil
 }
 
 // getFromCache removes the partition from the disk cache and returns it, if present
@@ -279,15 +262,9 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 			log.Printf("Unable to remove file %s", tempFilePath)
 		}
 	}()
-	c.decompressor.Reset(f)
-	c.reusableReadBuffer.Reset()
-	_, err = c.reusableReadBuffer.ReadFrom(c.decompressor)
+	part, err := c.config.Serializer.Decompress(f, c.config.Schema)
 	if err != nil {
 		log.Panicf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
-	}
-	part, err := partition.FromBytes(c.reusableReadBuffer.Bytes(), c.config.Schema)
-	if err != nil {
-		panic(err)
 	}
 	// log.Printf("Loaded partition %s from disk", key)
 	return part, nil
@@ -317,19 +294,9 @@ func (c *lru) writePartitionToDisk(msg *cachedPartition) {
 	if err != nil {
 		log.Fatalf("Unable to create temporary file for partition: %e", err)
 	}
-	bytes, err := msg.value.ToBytes()
+	err = c.config.Serializer.Compress(f, msg.value)
 	if err != nil {
-		log.Fatalf("Unable to convert partition to buffer %s", err)
-	}
-	c.compressor.Reset(f)
-	n, err := c.compressor.Write(bytes)
-	if err != nil || n == 0 {
 		log.Fatalf("Unable to write temporary file for partition: %e", err)
-	}
-	err = c.compressor.Close()
-	if err != nil {
-		log.Fatalf("Unable to close compressor for file %s: %e", tempFilePath, err)
-		return
 	}
 	err = f.Close()
 	if err != nil {

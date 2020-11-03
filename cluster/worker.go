@@ -115,17 +115,19 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	statsTracker := &istats.RunStatistics{}
 	ctx := context.Background()
 	defer ctx.Done()
+	partitionSerializer := partition.NewLZ4PartitionSerializer()
 	planExecutor := eframe.Optimize().Execute(ctx, &itypes.PlanExecutorConfig{
 		NumWorkers:               w.opts.NumWorkers,
 		TempFilePath:             tmpDir,
 		CacheMemoryHighWatermark: w.opts.CacheMemoryHighWatermark,
 		Streaming:                eframe.GetParent().GetDataSource().IsStreaming(),
 		IgnoreRowErrors:          w.opts.IgnoreRowErrors,
-		PartitionSerializer:      partition.NewLZ4PartitionSerializer(),
+		PartitionSerializer:      partitionSerializer,
 	}, statsTracker, false)
 	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()
+	defer partitionSerializer.Destroy()
 	// register rpc handlers for frame execution
 	pb.RegisterLifecycleServiceServer(w.server, createLifecycleServer(w))
 	pb.RegisterExecutionServiceServer(w.server, createExecutionServer(w.logClient, planExecutor, statsTracker))

@@ -48,6 +48,7 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 	cache := pcache.NewLRU(&pcache.LRUConfig{
 		InitialSize: conf.CacheMemoryInitialSize,
 		DiskPath:    conf.TempFilePath,
+		Serializer:  conf.PartitionSerializer,
 		Schema:      nextStageSchema,
 	})
 	// create initial partition for root node

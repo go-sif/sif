@@ -128,6 +128,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()
+	defer partitionSerializer.Destroy()
 	// analyze and assign partitions
 	partitionMap, err := eframe.AnalyzeSource()
 	if err != nil {

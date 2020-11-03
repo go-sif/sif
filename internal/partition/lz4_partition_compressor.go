@@ -57,3 +57,8 @@ func (lz4ps *LZ4PartitionSerializer) Decompress(r io.Reader, schema sif.Schema) 
 	}
 	return FromBytes(lz4ps.reusableReadBuffer.Bytes(), schema)
 }
+
+func (lz4ps *LZ4PartitionSerializer) Destroy() {
+	lz4ps.compressor.Close()
+	lz4ps.decompressor.Reset(new(bytes.Buffer))
+}

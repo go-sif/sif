@@ -1,4 +1,4 @@
-package integration
+package heatmap
 
 import (
 	"bufio"
@@ -48,7 +48,7 @@ func createTestNYCTaxiDataFrame(t *testing.T) sif.DataFrame {
 	parser := dsv.CreateParser(&dsv.ParserConf{
 		NilValue: "null",
 	})
-	conf := &file.DataSourceConf{Glob: path.Join(cwd, "../../../testenv/*.csv")}
+	conf := &file.DataSourceConf{Glob: path.Join(cwd, "../../../../testenv/*.csv")}
 	dataframe := file.CreateDataFrame(conf, parser, schema)
 	return dataframe
 }
@@ -215,7 +215,7 @@ func TestNYCTaxi(t *testing.T) {
 		}
 		cwd, err := os.Getwd()
 		require.Nil(t, err)
-		f, err := os.OpenFile(path.Join(cwd, "../../../testenv/nyc_taxi.png"), os.O_WRONLY|os.O_CREATE, 0600)
+		f, err := os.OpenFile(path.Join(cwd, "../../../../testenv/nyc_taxi.png"), os.O_WRONLY|os.O_CREATE, 0600)
 		require.Nil(t, err)
 		defer f.Close()
 		writer := bufio.NewWriter(f)

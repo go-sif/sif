@@ -1,7 +1,8 @@
-package integration
+package flatmap
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/go-sif/sif"
@@ -15,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestReduceDataFrame(t *testing.T, numRows int) sif.DataFrame {
+func createTestFlatMapDataFrame(t *testing.T, numRows int) sif.DataFrame {
 	row := []byte("{\"col1\": \"abc\"}")
 	data := make([][]byte, numRows)
 	for i := 0; i < len(data); i++ {
@@ -32,47 +33,39 @@ func createTestReduceDataFrame(t *testing.T, numRows int) sif.DataFrame {
 	return dataframe
 }
 
-func TestReduce(t *testing.T) {
+func TestFlatMap(t *testing.T) {
 	// create dataframe
-	numRows := 100
-	frame, err := createTestReduceDataFrame(t, numRows).To(
-		ops.AddColumn("count", &sif.Uint32ColumnType{}),
-		ops.Map(func(row sif.Row) error {
-			err := row.SetInt32("count", int32(1))
+	frame, err := createTestFlatMapDataFrame(t, 10).To(
+		ops.AddColumn("res", &sif.StringColumnType{Length: 1}),
+		ops.FlatMap(func(row sif.Row, factory sif.RowFactory) error {
+			col1, err := row.GetString("col1")
 			if err != nil {
 				return err
+			}
+			for _, c := range col1 {
+				r := factory()
+				err = r.SetString("res", strings.ToUpper(string(c)))
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 		}),
 		ops.RemoveColumn("col1"),
-		ops.Reduce(func(row sif.Row) ([]byte, error) {
-			return []byte{byte(1)}, nil
-		}, func(lrow sif.Row, rrow sif.Row) error {
-			lval, err := lrow.GetInt32("count")
-			if err != nil {
-				return err
-			}
-			rval, err := rrow.GetInt32("count")
-			if err != nil {
-				return err
-			}
-			return lrow.SetInt32("count", lval+rval)
-		}),
-		util.Collect(10), // should be 1 partitions because we are summing to a single row, but collect extra as a test
+		util.Collect(6),
 	)
 	require.Nil(t, err)
 
-	// run dataframe and verify results
+	// run dataframe
 	res, err := siftest.LocalRunFrame(context.Background(), frame, &cluster.NodeOptions{}, 2)
 	require.Nil(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 1, len(res.Collected))
 	for _, part := range res.Collected {
-		require.Equal(t, 1, part.GetNumRows())
-		row := part.GetRow(0)
-		count, err := row.GetInt32("count")
-		require.Nil(t, err)
-		require.EqualValues(t, numRows, count)
-		break
+		part.ForEachRow(func(row sif.Row) error {
+			val, err := row.GetString("res")
+			require.Nil(t, err)
+			require.True(t, val == "A" || val == "B" || val == "C")
+			return nil
+		})
 	}
+	require.Nil(t, err)
 }

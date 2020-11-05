@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 
 	"github.com/go-sif/sif"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -13,9 +14,10 @@ import (
 
 // LZ4PartitionCompressor is a partition compressor which uses the lz4 compression algorithm
 type LZ4PartitionCompressor struct {
-	compressor         *lz4.Writer
-	decompressor       *lz4.Reader
-	reusableReadBuffer *bytes.Buffer
+	compressor             *lz4.Writer
+	decompressor           *lz4.Reader
+	reusableReadBuffer     *bytes.Buffer
+	reusableReadBufferLock sync.Mutex
 }
 
 // NewLZ4PartitionCompressor instantiates a new LZ4PartitionCompressor
@@ -49,6 +51,8 @@ func (lz4ps *LZ4PartitionCompressor) Compress(w io.Writer, part itypes.Reduceabl
 
 // Decompress decompresses and deserializes partition data from a read stream
 func (lz4ps *LZ4PartitionCompressor) Decompress(r io.Reader, schema sif.Schema) (itypes.ReduceablePartition, error) {
+	lz4ps.reusableReadBufferLock.Lock()
+	defer lz4ps.reusableReadBufferLock.Unlock()
 	lz4ps.decompressor.Reset(r)
 	lz4ps.reusableReadBuffer.Reset()
 	_, err := lz4ps.reusableReadBuffer.ReadFrom(lz4ps.decompressor)
@@ -60,6 +64,8 @@ func (lz4ps *LZ4PartitionCompressor) Decompress(r io.Reader, schema sif.Schema) 
 
 // Destroy cleans up anything relevant when the Serializer is no longer needed
 func (lz4ps *LZ4PartitionCompressor) Destroy() {
+	lz4ps.reusableReadBufferLock.Lock()
+	defer lz4ps.reusableReadBufferLock.Unlock()
 	lz4ps.compressor.Close()
 	lz4ps.decompressor.Reset(new(bytes.Buffer))
 }

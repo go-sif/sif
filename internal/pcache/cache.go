@@ -41,7 +41,7 @@ type cachedPartition struct {
 type LRUConfig struct {
 	InitialSize int
 	DiskPath    string
-	Serializer  itypes.PartitionCompressor
+	Compressor  itypes.PartitionCompressor
 	Schema      sif.Schema
 }
 
@@ -52,7 +52,10 @@ func NewLRU(config *LRUConfig) PartitionCache {
 		log.Panicf("LRUConfig.InitialSize %d must be greater than 5", config.InitialSize)
 	}
 	if config.Schema == nil {
-		log.Panicf("Next stage schema was nil")
+		log.Panicf("Next stage schema is nil")
+	}
+	if config.Compressor == nil {
+		log.Panicf("Compressor is nil")
 	}
 	// setup limits
 	transferChanSize := 10
@@ -190,7 +193,7 @@ func (c *lru) GetSerialized(key string) ([]byte, error) {
 	value, err := c.getFromCache(key)
 	if err == nil { // since we found the partition uncompressed, we must compress it
 		c.reusableBuffer.Reset()
-		err = c.config.Serializer.Compress(c.reusableBuffer, value)
+		err = c.config.Compressor.Compress(c.reusableBuffer, value)
 		if err != nil {
 			return nil, err
 		}
@@ -262,7 +265,7 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 			log.Printf("Unable to remove file %s", tempFilePath)
 		}
 	}()
-	part, err := c.config.Serializer.Decompress(f, c.config.Schema)
+	part, err := c.config.Compressor.Decompress(f, c.config.Schema)
 	if err != nil {
 		log.Panicf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
 	}
@@ -294,7 +297,7 @@ func (c *lru) writePartitionToDisk(msg *cachedPartition) {
 	if err != nil {
 		log.Fatalf("Unable to create temporary file for partition: %e", err)
 	}
-	err = c.config.Serializer.Compress(f, msg.value)
+	err = c.config.Compressor.Compress(f, msg.value)
 	if err != nil {
 		log.Fatalf("Unable to write temporary file for partition: %e", err)
 	}

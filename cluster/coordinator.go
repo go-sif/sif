@@ -164,7 +164,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 			shuffleBuckets := computeShuffleBuckets(workers)
 			wg.Add(len(workers))
 			for i := range workers {
-				go asyncRunStage(ctx, stage, workers[i], workerConns[i], runShuffle, prepAccumulate, prepCollect, shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
+				go asyncRunStage(ctx, stage, workers[i], workerConns[i], runShuffle, prepAccumulate, stage.GetCollectionLimit(), shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
 			}
 			// wait for all the workers to finish the stage
 			if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
@@ -194,7 +194,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 				log.Printf("Starting collect for stage %d...", stage.ID())
 				wg.Add(len(workers))
 				collected := make(map[string]sif.CollectedPartition)
-				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
+				collectionLimit := semaphore.NewWeighted(int64(stage.GetCollectionLimit()))
 				var collectedLock sync.Mutex
 				for i := range workers {
 					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, partitionCompressor, &wg, asyncErrors)
@@ -269,7 +269,7 @@ func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.M
 	// TODO do something with response
 }
 
-func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepAccumulate bool, prepCollect bool, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepAccumulate bool, prepCollect int32, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Trigger remote stage execution
@@ -278,7 +278,7 @@ func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor,
 	req := &pb.MRunStageRequest{
 		StageId:        int32(s.ID()),
 		RunShuffle:     runShuffle,
-		PrepCollect:    prepCollect,
+		PrepCollect:    prepCollect, // how many partitions we intend to collect
 		PrepAccumulate: prepAccumulate,
 		AssignedBucket: assignedBucket,
 		Buckets:        shuffleBuckets,

@@ -229,12 +229,13 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 				if err := onRowError(err); err != nil {
 					return err
 				}
-			} else if req.PrepCollect {
+			} else if req.PrepCollect > 0 {
 				if pe.collectCache[tNewPart.ID()] != nil {
 					return fmt.Errorf("Partition ID collision")
 				}
 				// only collect partitions that have rows
-				if tNewPart.GetNumRows() > 0 {
+				// only collect if we haven't already collected enough partitions
+				if tNewPart.GetNumRows() > 0 && len(pe.collectCache) < int(req.PrepCollect) {
 					// repack if any columns have been removed
 					if tNewPart.GetSchema().NumRemovedColumns() > 0 {
 						repackedSchema := tNewPart.GetSchema().Repack()
@@ -250,7 +251,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 		}
 		pe.statsTracker.EndPartition(currentStageID, part.GetNumRows())
 	}
-	if req.RunShuffle || req.PrepCollect {
+	if req.RunShuffle || int(req.PrepCollect) > 0 {
 		// We're only ready to shuffle if none of our trees are currently swapping to disk
 		pe.shuffleReady = true
 	} else if req.PrepAccumulate {

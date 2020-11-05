@@ -15,7 +15,7 @@ type shuffleTask interface {
 // A collectionTask is a task that represents collecting data to the coordinator
 type collectionTask interface {
 	sif.Task
-	GetCollectionLimit() int64
+	GetCollectionLimit() int32
 }
 
 // A accumulationTask is a task that represents a user-defined aggregation

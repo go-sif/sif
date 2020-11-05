@@ -95,7 +95,7 @@ func (s *stageImpl) EndsInCollect() bool {
 }
 
 // GetCollectionLimit returns the maximum number of Partitions to collect
-func (s *stageImpl) GetCollectionLimit() int64 {
+func (s *stageImpl) GetCollectionLimit() int32 {
 	if !s.EndsInCollect() {
 		return 0
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 type collectTask struct {
-	collectionLimit int64
+	collectionLimit int32
 }
 
 func (s *collectTask) Name() string {
@@ -19,14 +19,14 @@ func (s *collectTask) RunWorker(previous sif.OperablePartition) ([]sif.OperableP
 	return []sif.OperablePartition{previous}, nil
 }
 
-func (s *collectTask) GetCollectionLimit() int64 {
+func (s *collectTask) GetCollectionLimit() int32 {
 	return s.collectionLimit
 }
 
 // Collect declares that data should be shufled to the Coordinator
 // upon completion of the previous stage. This also signals
 // the end of a Dataframe's tasks.
-func Collect(collectionLimit int64) *sif.DataFrameOperation {
+func Collect(collectionLimit int32) *sif.DataFrameOperation {
 	return &sif.DataFrameOperation{
 		TaskType: sif.CollectTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {

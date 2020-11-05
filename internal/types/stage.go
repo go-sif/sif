@@ -14,7 +14,7 @@ type Stage interface {
 	EndsInAccumulate() bool                                                    // EndsInAccumulate returns true iff this Stage ends with an accumulation task
 	EndsInShuffle() bool                                                       // EndsInShuffle returns true iff this Stage ends with a reduction task
 	EndsInCollect() bool                                                       // EndsInCollect returns true iff this Stage represents a collect task
-	GetCollectionLimit() int64                                                 // GetCollectionLimit returns the maximum number of Partitions to collect
+	GetCollectionLimit() int32                                                 // GetCollectionLimit returns the maximum number of Partitions to collect
 	KeyingOperation() sif.KeyingOperation                                      // KeyingOperation retrieves the KeyingOperation for this Stage (if it exists)
 	SetKeyingOperation(keyFn sif.KeyingOperation)                              // Configure the keying operation for the end of this stage
 	ReductionOperation() sif.ReductionOperation                                // ReductionOperation retrieves the ReductionOperation for this Stage (if it exists)

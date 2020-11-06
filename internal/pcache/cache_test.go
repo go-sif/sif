@@ -20,6 +20,7 @@ func TestCacheResize(t *testing.T) {
 		InitialSize: 10,
 		DiskPath:    os.TempDir(),
 		Schema:      schema,
+		Compressor:  partition.NewLZ4PartitionCompressor(),
 	})
 	defer cache.Destroy()
 

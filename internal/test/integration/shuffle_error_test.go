@@ -7,15 +7,34 @@ import (
 
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/cluster"
+	"github.com/go-sif/sif/datasource/memory"
+	"github.com/go-sif/sif/datasource/parser/jsonl"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
+	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
 )
 
+func createTestShuffleErrorDataFrame(t *testing.T, numRows int) sif.DataFrame {
+	data := make([][]byte, numRows)
+	for i := 0; i < len(data); i++ {
+		data[i] = []byte(fmt.Sprintf("{\"col1\": %d}", i))
+	}
+
+	// Create a dataframe for the data
+	schema := schema.CreateSchema()
+	schema.CreateColumn("col1", &sif.Int32ColumnType{})
+	parser := jsonl.CreateParser(&jsonl.ParserConf{
+		PartitionSize: 5,
+	})
+	dataframe := memory.CreateDataFrame(data, parser, schema)
+	return dataframe
+}
+
 func TestShuffleErrors(t *testing.T) {
 	// create dataframe, summing all even numbers and erroring for all odd
-	frame, err := createTestMapErrorDataFrame(t, 10).To(
+	frame, err := createTestShuffleErrorDataFrame(t, 10).To(
 		ops.AddColumn("res", &sif.Int32ColumnType{}),
 		ops.Reduce(func(row sif.Row) ([]byte, error) {
 			col1, err := row.GetInt32("col1")

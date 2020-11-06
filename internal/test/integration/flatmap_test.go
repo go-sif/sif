@@ -7,15 +7,35 @@ import (
 
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/cluster"
+	memory "github.com/go-sif/sif/datasource/memory"
+	jsonl "github.com/go-sif/sif/datasource/parser/jsonl"
 	ops "github.com/go-sif/sif/operations/transform"
 	util "github.com/go-sif/sif/operations/util"
+	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
 )
 
+func createTestFlatMapDataFrame(t *testing.T, numRows int) sif.DataFrame {
+	row := []byte("{\"col1\": \"abc\"}")
+	data := make([][]byte, numRows)
+	for i := 0; i < len(data); i++ {
+		data[i] = row
+	}
+
+	// Create a dataframe for the data
+	schema := schema.CreateSchema()
+	schema.CreateColumn("col1", &sif.StringColumnType{Length: 3})
+	parser := jsonl.CreateParser(&jsonl.ParserConf{
+		PartitionSize: 5,
+	})
+	dataframe := memory.CreateDataFrame(data, parser, schema)
+	return dataframe
+}
+
 func TestFlatMap(t *testing.T) {
 	// create dataframe
-	frame, err := createTestCollectDataFrame(t, 10).To(
+	frame, err := createTestFlatMapDataFrame(t, 10).To(
 		ops.AddColumn("res", &sif.StringColumnType{Length: 1}),
 		ops.FlatMap(func(row sif.Row, factory sif.RowFactory) error {
 			col1, err := row.GetString("col1")

@@ -118,14 +118,17 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	}
 	log.Printf("Running job...")
 	statsTracker := &stats.RunStatistics{}
+	partitionCompressor := partition.NewLZ4PartitionCompressor()
 	planExecutor := eframe.Optimize().Execute(ctx, &itypes.PlanExecutorConfig{
 		TempFilePath:             "",
 		CacheMemoryHighWatermark: c.opts.CacheMemoryHighWatermark,
 		Streaming:                c.frame.GetDataSource().IsStreaming(),
+		PartitionCompressor:      partitionCompressor,
 	}, statsTracker, true)
 	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()
+	defer partitionCompressor.Destroy()
 	// analyze and assign partitions
 	partitionMap, err := eframe.AnalyzeSource()
 	if err != nil {
@@ -161,7 +164,7 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 			shuffleBuckets := computeShuffleBuckets(workers)
 			wg.Add(len(workers))
 			for i := range workers {
-				go asyncRunStage(ctx, stage, workers[i], workerConns[i], runShuffle, prepAccumulate, prepCollect, shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
+				go asyncRunStage(ctx, stage, workers[i], workerConns[i], runShuffle, prepAccumulate, stage.GetCollectionLimit(), shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
 			}
 			// wait for all the workers to finish the stage
 			if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
@@ -191,10 +194,10 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 				log.Printf("Starting collect for stage %d...", stage.ID())
 				wg.Add(len(workers))
 				collected := make(map[string]sif.CollectedPartition)
-				collectionLimit := semaphore.NewWeighted(stage.GetCollectionLimit())
+				collectionLimit := semaphore.NewWeighted(int64(stage.GetCollectionLimit()))
 				var collectedLock sync.Mutex
 				for i := range workers {
-					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, &wg, asyncErrors)
+					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, partitionCompressor, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err
@@ -266,7 +269,7 @@ func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.M
 	// TODO do something with response
 }
 
-func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepAccumulate bool, prepCollect bool, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepAccumulate bool, prepCollect int32, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Trigger remote stage execution
@@ -275,7 +278,7 @@ func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor,
 	req := &pb.MRunStageRequest{
 		StageId:        int32(s.ID()),
 		RunShuffle:     runShuffle,
-		PrepCollect:    prepCollect,
+		PrepCollect:    prepCollect, // how many partitions we intend to collect
 		PrepAccumulate: prepAccumulate,
 		AssignedBucket: assignedBucket,
 		Buckets:        shuffleBuckets,
@@ -334,7 +337,7 @@ func asyncRunAccumulate(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc
 	}
 }
 
-func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, incomingSchema sif.Schema, collected map[string]sif.CollectedPartition, collectedLock *sync.Mutex, collectionLimit *semaphore.Weighted, partitionCompressor itypes.PartitionCompressor, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
 
 	// Collect from worker
@@ -349,14 +352,14 @@ func asyncRunCollect(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 			return
 		} else if res.Part != nil {
 			if collectionLimit.TryAcquire(1) {
-				part := partition.FromMetaMessage(res.Part, incomingSchema)
+				// part := partition.FromMetaMessage(res.Part, incomingSchema)
 				transferReq := &pb.MTransferPartitionDataRequest{Id: res.Part.Id}
 				stream, err := partitionClient.TransferPartitionData(ctx, transferReq)
 				if err != nil {
 					errors <- err
 					return
 				}
-				err = part.ReceiveStreamedData(stream, res.Part)
+				part, err := partition.FromStreamedData(stream, res.Part, incomingSchema, partitionCompressor)
 				if err != nil {
 					errors <- err
 					return

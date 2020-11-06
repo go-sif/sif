@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-sif/sif"
+	"github.com/go-sif/sif/internal/partition"
 	pb "github.com/go-sif/sif/internal/rpc"
 	istats "github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -114,16 +115,19 @@ func (w *worker) Start(frame sif.DataFrame) error {
 	statsTracker := &istats.RunStatistics{}
 	ctx := context.Background()
 	defer ctx.Done()
+	partitionCompressor := partition.NewLZ4PartitionCompressor()
 	planExecutor := eframe.Optimize().Execute(ctx, &itypes.PlanExecutorConfig{
 		NumWorkers:               w.opts.NumWorkers,
 		TempFilePath:             tmpDir,
 		CacheMemoryHighWatermark: w.opts.CacheMemoryHighWatermark,
 		Streaming:                eframe.GetParent().GetDataSource().IsStreaming(),
 		IgnoreRowErrors:          w.opts.IgnoreRowErrors,
+		PartitionCompressor:      partitionCompressor,
 	}, statsTracker, false)
 	defer planExecutor.Stop()
 	statsTracker.Start(planExecutor.GetNumStages())
 	defer statsTracker.Finish()
+	defer partitionCompressor.Destroy()
 	// register rpc handlers for frame execution
 	pb.RegisterLifecycleServiceServer(w.server, createLifecycleServer(w))
 	pb.RegisterExecutionServiceServer(w.server, createExecutionServer(w.logClient, planExecutor, statsTracker))

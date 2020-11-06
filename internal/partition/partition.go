@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -96,90 +97,28 @@ func (p *partitionImpl) GetRow(rowNum int) sif.Row {
 	}
 }
 
-// ToMetaMessage serializes metadata about this Partition to a protobuf message
-func (p *partitionImpl) ToMetaMessage() *pb.MPartitionMeta {
-	return &pb.MPartitionMeta{
-		Id:        p.id,
-		NumRows:   uint32(p.numRows),
-		MaxRows:   uint32(p.maxRows),
-		Capacity:  uint32(p.capacity),
-		IsKeyed:   p.isKeyed,
-		RowBytes:  uint32(len(p.rows)),
-		MetaBytes: uint32(len(p.rowMeta)),
-	}
-}
-
-// ReceiveStreamedData loads data from a protobuf stream into this Partition
-func (p *partitionImpl) ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta) error {
+// FromStreamedData loads compressed data from a protobuf stream into this Partition
+func FromStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta, schema sif.Schema, serializer itypes.PartitionCompressor) (sif.Partition, error) {
 	// stream data for Partition
-	rowOffset := 0
-	metaOffset := 0
-	keyOffset := 0
+	dataOffset := 0
+	buff := make([]byte, partitionMeta.GetBytes())
 	for chunk, err := stream.Recv(); err != io.EOF; chunk, err = stream.Recv() {
 		if err != nil {
 			// not an EOF, but something else
-			return err
+			return nil, err
 		}
 		switch chunk.DataType {
-		case iutil.RowDataType:
-			copy(p.rows[rowOffset:rowOffset+len(chunk.Data)], chunk.Data)
-			rowOffset += len(chunk.Data)
-		case iutil.RowVarDataType:
-			// Stream one key at a time, basically. Not efficient if people are
-			// using var data to store small data, but better if they're storing
-			// large data there. Data is streamed in chunks, especially if it's
-			// bigger than the grpc max message size
-			// When Partition is transferred over a network, all variable-length data is Gob-encoded.
-			// We deserialize later, the first time they ask for a value from a Row, since that's when
-			// we know the type they're looking for
-			m := p.GetSerializedVarRowData(int(chunk.VarDataRowNum))
-			if chunk.Append <= 0 {
-				m[chunk.VarDataColName] = make([]byte, 0, chunk.TotalSizeBytes)
-			} else if chunk.Append > 0 && (m[chunk.VarDataColName] == nil || len(m[chunk.VarDataColName]) == 0) {
-				return fmt.Errorf("Received chunk for column %s to be appended at %d, but there is no data to append to", chunk.VarDataColName, chunk.Append)
-			}
-			if len(chunk.Data) == 0 {
-				return fmt.Errorf("Streamed 0-length chunk for column %s. Remaining bytes: %d/%d", chunk.VarDataColName, chunk.RemainingSizeBytes, chunk.TotalSizeBytes)
-			}
-			m[chunk.VarDataColName] = append(m[chunk.VarDataColName], chunk.Data...)
-			// validate length when we've finished streaming
-			if chunk.RemainingSizeBytes == 0 && int32(len(m[chunk.VarDataColName])) != chunk.TotalSizeBytes {
-				return fmt.Errorf("Streamed %d total bytes for column %s. Expected %d. Append was: %d", int32(len(m[chunk.VarDataColName])), chunk.VarDataColName, chunk.TotalSizeBytes, chunk.Append)
-			}
-		case iutil.MetaDataType:
-			copy(p.rowMeta[metaOffset:metaOffset+len(chunk.Data)], chunk.Data)
-			metaOffset += len(chunk.Data)
-		case iutil.KeyDataType:
-			copy(p.keys[keyOffset:keyOffset+len(chunk.KeyData)], chunk.KeyData)
-			keyOffset += len(chunk.KeyData)
+		case iutil.SerializedPartitionDataType:
+			copy(buff[dataOffset:dataOffset+len(chunk.Data)], chunk.Data)
+			dataOffset += len(chunk.Data)
+		default:
+			return nil, fmt.Errorf("Unknown chunk data type encountered: %d", chunk.DataType)
 		}
 	}
 	// confirm we received the correct amount of data
-	if uint32(len(p.rows)) != partitionMeta.GetRowBytes() {
-		return fmt.Errorf("Streamed %d bytes for fixed-width data in Partition %s. Expected %d", rowOffset, p.id, partitionMeta.GetRowBytes())
-	} else if uint32(len(p.rowMeta)) != partitionMeta.GetMetaBytes() {
-		return fmt.Errorf("Streamed %d bytes for metadata in Partition %s. Expected %d", metaOffset, p.id, partitionMeta.GetMetaBytes())
+	if uint32(dataOffset) != partitionMeta.GetBytes() {
+		return nil, fmt.Errorf("Streamed %d bytes for SerializedPartition %s. Expected %d", dataOffset, partitionMeta.GetId(), partitionMeta.GetBytes())
 	}
-	return nil
-}
-
-// FromMetaMessage deserializes a Partition from a protobuf message
-func FromMetaMessage(m *pb.MPartitionMeta, currentSchema sif.Schema) itypes.TransferrablePartition {
-	part := &partitionImpl{
-		id:                   m.Id,
-		maxRows:              int(m.MaxRows),
-		numRows:              int(m.NumRows),
-		capacity:             int(m.Capacity),
-		rows:                 make([]byte, m.GetRowBytes()),
-		varRowData:           make([]map[string]interface{}, int(m.Capacity)),
-		serializedVarRowData: make([]map[string][]byte, int(m.Capacity)),
-		rowMeta:              make([]byte, m.GetMetaBytes()),
-		schema:               currentSchema,
-		keys:                 nil,
-		isKeyed:              m.IsKeyed,
-	}
-	if m.IsKeyed {
-		part.keys = make([]uint64, int(m.Capacity))
-	}
-	return part
+	// deserialize
+	return serializer.Decompress(bytes.NewReader(buff), schema)
 }

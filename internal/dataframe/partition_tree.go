@@ -1,6 +1,7 @@
 package dataframe
 
 import (
+	"bytes"
 	"fmt"
 
 	xxhash "github.com/cespare/xxhash/v2"
@@ -48,6 +49,7 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 	cache := pcache.NewLRU(&pcache.LRUConfig{
 		InitialSize: conf.CacheMemoryInitialSize,
 		DiskPath:    conf.TempFilePath,
+		Compressor:  conf.PartitionCompressor,
 		Schema:      nextStageSchema,
 	})
 	// create initial partition for root node
@@ -317,6 +319,17 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	// we know we got into this situation by adding a row with key == avgKey. These
 	// rows now belong in t.right, so return that as the "next" node to recurse on
 	return t.right, nil
+}
+
+func (t *pTreeNode) fetchSerializedPartition(result *bytes.Buffer) error {
+	if len(t.partID) == 0 {
+		return fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
+	}
+	err := t.shared.partitionCache.GetSerialized(t.partID, result)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) {

@@ -32,7 +32,7 @@ type planExecutorImpl struct {
 	shuffleReady         bool
 	shuffleTrees         map[uint64]*pTreeRoot // staging area for partitions before shuffle // TODO replace with partially-disked-back map with automated paging
 	shuffleTreesLock     sync.Mutex
-	shuffleIterators     map[uint64]sif.PartitionIterator // used to serve partitions from the shuffleTree
+	shuffleIterators     map[uint64]itypes.SerializedPartitionIterator // used to serve partitions from the shuffleTree
 	shuffleIteratorsLock sync.Mutex
 	collectCache         map[string]sif.Partition // staging area used for collection when there has been no shuffle
 	collectCacheLock     sync.Mutex
@@ -53,7 +53,7 @@ func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.Plan
 		done:             func() {},
 		partitionLoaders: make([]sif.PartitionLoader, 0),
 		shuffleTrees:     make(map[uint64]*pTreeRoot),
-		shuffleIterators: make(map[uint64]sif.PartitionIterator),
+		shuffleIterators: make(map[uint64]itypes.SerializedPartitionIterator),
 		collectCache:     make(map[string]sif.Partition),
 		statsTracker:     statsTracker,
 	}
@@ -153,7 +153,7 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 		parts = createPreloadingPartitionIterator(createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true), 3)
 		// parts = createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true)
 		pe.shuffleTrees = make(map[uint64]*pTreeRoot)
-		pe.shuffleIterators = make(map[uint64]sif.PartitionIterator)
+		pe.shuffleIterators = make(map[uint64]itypes.SerializedPartitionIterator)
 		pe.shuffleReady = false
 		pe.accumulateReady = false
 		pe.shuffleTreesLock.Unlock()
@@ -220,7 +220,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 		}
 		// Prepare resulting partitions for transfer to next stage
 		for _, newPart := range newParts {
-			tNewPart := newPart.(itypes.TransferrablePartition)
+			tNewPart := newPart.(itypes.ReduceablePartition)
 			if req.RunShuffle {
 				if !tNewPart.GetIsKeyed() {
 					return fmt.Errorf("Cannot prepare a shuffle for non-keyed partitions")
@@ -229,12 +229,13 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 				if err := onRowError(err); err != nil {
 					return err
 				}
-			} else if req.PrepCollect {
+			} else if req.PrepCollect > 0 {
 				if pe.collectCache[tNewPart.ID()] != nil {
 					return fmt.Errorf("Partition ID collision")
 				}
 				// only collect partitions that have rows
-				if tNewPart.GetNumRows() > 0 {
+				// only collect if we haven't already collected enough partitions
+				if tNewPart.GetNumRows() > 0 && len(pe.collectCache) < int(req.PrepCollect) {
 					// repack if any columns have been removed
 					if tNewPart.GetSchema().NumRemovedColumns() > 0 {
 						repackedSchema := tNewPart.GetSchema().Repack()
@@ -242,7 +243,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 						if err != nil {
 							return err
 						}
-						tNewPart = repackedPart.(itypes.TransferrablePartition)
+						tNewPart = repackedPart.(itypes.ReduceablePartition)
 					}
 					pe.collectCache[tNewPart.ID()] = tNewPart
 				}
@@ -250,7 +251,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 		}
 		pe.statsTracker.EndPartition(currentStageID, part.GetNumRows())
 	}
-	if req.RunShuffle || req.PrepCollect {
+	if req.RunShuffle || int(req.PrepCollect) > 0 {
 		// We're only ready to shuffle if none of our trees are currently swapping to disk
 		pe.shuffleReady = true
 	} else if req.PrepAccumulate {
@@ -260,7 +261,7 @@ func (pe *planExecutorImpl) FlatMapPartitions(fn func(sif.OperablePartition) ([]
 }
 
 // PrepareShuffle appropriately caches and sorts a Partition before making it available for shuffling
-func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, buckets []uint64) error {
+func (pe *planExecutorImpl) PrepareShuffle(part itypes.ReduceablePartition, buckets []uint64) error {
 	if part.GetNumRows() == 0 {
 		// no need to handle empty partitions
 		return nil
@@ -281,7 +282,7 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.TransferrablePartition, b
 		if err != nil {
 			return err
 		}
-		part = repackedPart.(itypes.TransferrablePartition)
+		part = repackedPart.(itypes.ReduceablePartition)
 	}
 
 	// merge rows into our trees
@@ -328,10 +329,11 @@ func (pe *planExecutorImpl) AssignShuffleBucket(assignedBucket uint64) {
 }
 
 // GetShufflePartitionIterator serves up an iterator for partitions to shuffle
-func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (sif.PartitionIterator, error) {
+func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (itypes.SerializedPartitionIterator, error) {
 	if len(pe.collectCache) > 0 {
 		// if we're collecting, and we never reduced, then the collectCache will be used instead of a tree
-		return createPartitionCacheIterator(pe.collectCache, true), nil
+		pci := createPartitionCacheIterator(pe.collectCache, true)
+		return createPartitionSerializingIterator(pci), nil
 	}
 	// otherwise create an iterator to grab partitions from a tree
 	// Note: the tree may be null if we never encountered rows belonging to a bucket
@@ -340,7 +342,7 @@ func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (sif.Part
 	defer pe.shuffleIteratorsLock.Unlock()
 	defer pe.shuffleTreesLock.Unlock()
 	if _, ok := pe.shuffleIterators[bucket]; !ok {
-		pe.shuffleIterators[bucket] = createPTreeIterator(pe.shuffleTrees[bucket], true)
+		pe.shuffleIterators[bucket] = createPTreeSerializedIterator(pe.shuffleTrees[bucket], true)
 	}
 	return pe.shuffleIterators[bucket], nil
 }
@@ -351,7 +353,7 @@ func (pe *planExecutorImpl) GetAccumulator() sif.Accumulator {
 }
 
 // ShufflePartitionData receives a Partition that belongs on this worker and merges it into the local shuffle tree
-func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger chan<- itypes.TransferrablePartition, asyncErrors chan<- error, mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) {
+func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger chan<- itypes.ReduceablePartition, asyncErrors chan<- error, mpart *pb.MPartitionMeta, dataStream pb.PartitionsService_TransferPartitionDataClient) {
 	defer wg.Done()
 	// if we're the last stage, then the incoming data should match our outgoing schema
 	// but if there is a following stage, the data should match that stage.
@@ -363,19 +365,23 @@ func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger 
 	}
 	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
 		pe.shuffleTreesLock.Lock()
-		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, int(mpart.GetMaxRows()), incomingDataSchema)
+		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, pe.GetCurrentStage().TargetPartitionSize(), incomingDataSchema)
 		pe.shuffleTreesLock.Unlock()
 	}
-	part := partition.FromMetaMessage(mpart, incomingDataSchema)
-	err := part.ReceiveStreamedData(dataStream, mpart)
+	part, err := partition.FromStreamedData(dataStream, mpart, incomingDataSchema, pe.conf.PartitionCompressor)
 	if err != nil {
 		asyncErrors <- err
 		return
 	}
-	partMerger <- part
+	rpart, ok := part.(itypes.ReduceablePartition)
+	if !ok {
+		asyncErrors <- fmt.Errorf("Deserialized partition is not Reduceable")
+		return
+	}
+	partMerger <- rpart
 }
 
-func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerger <-chan itypes.TransferrablePartition, asyncErrors chan<- error) {
+func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerger <-chan itypes.ReduceablePartition, asyncErrors chan<- error) {
 	defer wg.Done()
 	for part := range partMerger {
 		pe.shuffleTreesLock.Lock()

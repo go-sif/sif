@@ -2,7 +2,6 @@ package types
 
 import (
 	"github.com/go-sif/sif"
-	pb "github.com/go-sif/sif/internal/rpc"
 )
 
 // An InternalBuildablePartition is a sif-internal version of a BuildablePartition
@@ -40,12 +39,4 @@ type ReduceablePartition interface {
 	Split(pos int) (ReduceablePartition, ReduceablePartition, error)                   // Split splits a Partition into two Partitions. Split position ends up in right Partition.
 	BalancedSplit() (uint64, ReduceablePartition, ReduceablePartition, error)          // Split position ends up in right Partition.
 	ToBytes() ([]byte, error)                                                          // ToBytes serializes a Partition to a byte array suitable for persistence to disk
-}
-
-// An TransferrablePartition can be transferred and cloned. Used in the implementation of Partition shuffling
-type TransferrablePartition interface {
-	CloneablePartition
-	sif.BuildablePartition
-	ToMetaMessage() *pb.MPartitionMeta                                                                                   // ToMetaMessage serializes metadata about this Partition to a protobuf message
-	ReceiveStreamedData(stream pb.PartitionsService_TransferPartitionDataClient, partitionMeta *pb.MPartitionMeta) error // ReceiveStreamedData loads data from a protobuf stream into this Partition
 }

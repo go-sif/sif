@@ -27,7 +27,6 @@ type lru struct {
 	size           int
 	toDisk         chan *cachedPartition
 	tmpDir         string
-	reusableBuffer *bytes.Buffer
 	hits           uint64
 	misses         uint64
 }
@@ -60,14 +59,13 @@ func NewLRU(config *LRUConfig) PartitionCache {
 	// setup limits
 	transferChanSize := 10
 	result := &lru{
-		config:         config,
-		plocks:         locker.New(),
-		pmap:           make(map[string]*list.Element),
-		recentList:     list.New(),
-		size:           config.InitialSize,
-		toDisk:         make(chan *cachedPartition, transferChanSize),
-		tmpDir:         config.DiskPath,
-		reusableBuffer: new(bytes.Buffer),
+		config:     config,
+		plocks:     locker.New(),
+		pmap:       make(map[string]*list.Element),
+		recentList: list.New(),
+		size:       config.InitialSize,
+		toDisk:     make(chan *cachedPartition, transferChanSize),
+		tmpDir:     config.DiskPath,
 	}
 	go result.evictToDisk()
 	return result
@@ -183,7 +181,7 @@ func (c *lru) Get(key string) (itypes.ReduceablePartition, error) {
 }
 
 // Get removes the serialized partition from the caches and returns it, if present. Returns an error otherwise.
-func (c *lru) GetSerialized(key string) ([]byte, error) {
+func (c *lru) GetSerialized(key string, result *bytes.Buffer) error {
 	c.globalLock.Lock()
 	defer c.globalLock.Unlock()
 	c.plocks.Lock(key)
@@ -192,19 +190,19 @@ func (c *lru) GetSerialized(key string) ([]byte, error) {
 	// check the memory cache first - if we find it here, we have to serialize it
 	value, err := c.getFromCache(key)
 	if err == nil { // since we found the partition uncompressed, we must compress it
-		c.reusableBuffer.Reset()
-		err = c.config.Compressor.Compress(c.reusableBuffer, value)
+		result.Reset()
+		err = c.config.Compressor.Compress(result, value)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return c.reusableBuffer.Bytes(), nil
+		return nil
 	}
 	// otherwise, we can load the raw compressed bytes from the disk as-is
-	svalue, err := c.loadCompressedFromDisk(key)
-	if err == nil {
-		return svalue, nil
+	err = c.loadCompressedFromDisk(key, result)
+	if err != nil {
+		return err
 	}
-	return nil, err
+	return nil
 }
 
 // getFromCache removes the partition from the uncompressed cache and returns it, if present
@@ -224,11 +222,11 @@ func (c *lru) getFromCache(key string) (value itypes.ReduceablePartition, err er
 }
 
 // loadCompressedFromDisk loads and removes serialized partition data from the disk cache and returns it, if present. Does not decompress
-func (c *lru) loadCompressedFromDisk(key string) (value []byte, err error) {
+func (c *lru) loadCompressedFromDisk(key string, result *bytes.Buffer) error {
 	tempFilePath := path.Join(c.tmpDir, key)
 	f, err := os.Open(tempFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to open disk-swapped partition %s: %e", tempFilePath, err)
+		return fmt.Errorf("Unable to open disk-swapped partition %s: %e", tempFilePath, err)
 	}
 	defer func() {
 		err := f.Close()
@@ -240,12 +238,12 @@ func (c *lru) loadCompressedFromDisk(key string) (value []byte, err error) {
 			log.Printf("Unable to remove file %s", tempFilePath)
 		}
 	}()
-	c.reusableBuffer.Reset()
-	_, err = c.reusableBuffer.ReadFrom(f)
+	result.Reset()
+	_, err = result.ReadFrom(f)
 	if err != nil {
 		log.Panicf("Unable to read disk-swapped partition %s: %e", tempFilePath, err)
 	}
-	return c.reusableBuffer.Bytes(), nil
+	return nil
 }
 
 // getFromCache removes the partition from the disk cache and returns it, if present

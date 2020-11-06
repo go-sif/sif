@@ -1,6 +1,7 @@
 package dataframe
 
 import (
+	"bytes"
 	"sync"
 
 	errors "github.com/go-sif/sif/errors"
@@ -12,6 +13,7 @@ import (
 type pTreeSerializedPartitionIterator struct {
 	root         *pTreeNode
 	next         *pTreeNode
+	lastByteSize int
 	destructive  bool
 	lock         sync.Mutex
 	endListeners []func()
@@ -55,11 +57,23 @@ func (tpi *pTreeSerializedPartitionIterator) NextSerializedPartition() (string, 
 		tpi.endListeners = []func(){}
 		return "", nil, errors.NoMorePartitionsError{}
 	}
-	part, err := tpi.next.fetchSerializedPartition() // temp var for partition
+	// try to allocate a buffer based on how big things were last time
+	var buff *bytes.Buffer
+	if tpi.lastByteSize > 0 {
+		buff = bytes.NewBuffer(make([]byte, 0, tpi.lastByteSize))
+	} else {
+		buff = new(bytes.Buffer)
+	}
+	err := tpi.next.fetchSerializedPartition(buff) // temp var for partition
 	id := tpi.next.partID
 	if err != nil {
 		return "", nil, err
 	}
+	// try to allocate a buffer based on how big things were last time
+	spart := buff.Bytes()
+	if len(spart) > tpi.lastByteSize {
+		tpi.lastByteSize = len(spart)
+	}
 	tpi.next = tpi.next.next // advance iterator
-	return id, part, nil
+	return id, spart, nil
 }

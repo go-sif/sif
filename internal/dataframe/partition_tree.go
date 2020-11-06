@@ -1,6 +1,7 @@
 package dataframe
 
 import (
+	"bytes"
 	"fmt"
 
 	xxhash "github.com/cespare/xxhash/v2"
@@ -320,15 +321,15 @@ func (t *pTreeNode) rotateToCenter(avgKey uint64) (*pTreeNode, error) {
 	return t.right, nil
 }
 
-func (t *pTreeNode) fetchSerializedPartition() ([]byte, error) {
+func (t *pTreeNode) fetchSerializedPartition(result *bytes.Buffer) error {
 	if len(t.partID) == 0 {
-		return nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
+		return fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
 	}
-	spart, err := t.shared.partitionCache.GetSerialized(t.partID)
+	err := t.shared.partitionCache.GetSerialized(t.partID, result)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return spart, nil
+	return nil
 }
 
 func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) {

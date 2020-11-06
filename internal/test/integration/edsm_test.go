@@ -1,4 +1,4 @@
-package heatmap
+package integration
 
 import (
 	"bufio"
@@ -34,7 +34,7 @@ func createTestEDSMDataFrame(t *testing.T) sif.DataFrame {
 	})
 	cwd, err := os.Getwd()
 	require.Nil(t, err)
-	conf := &file.DataSourceConf{Glob: path.Join(cwd, "../../../../testenv/*.jsonl")}
+	conf := &file.DataSourceConf{Glob: path.Join(cwd, "../../../testenv/*.jsonl")}
 	dataframe := file.CreateDataFrame(conf, parser, schema)
 	return dataframe
 }
@@ -171,7 +171,7 @@ func TestEDSMHeatmap(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			f, err := os.OpenFile(path.Join(cwd, fmt.Sprintf("../../../../testenv/edsm-%s.png", dateOfImage)), os.O_WRONLY|os.O_CREATE, 0600)
+			f, err := os.OpenFile(path.Join(cwd, fmt.Sprintf("../../../testenv/edsm-%s.png", dateOfImage)), os.O_WRONLY|os.O_CREATE, 0600)
 			if err != nil {
 				return err
 			}

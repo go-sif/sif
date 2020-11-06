@@ -1,4 +1,4 @@
-package repartition
+package integration
 
 import (
 	"context"

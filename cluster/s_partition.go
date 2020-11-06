@@ -12,14 +12,19 @@ import (
 
 type partitionServer struct {
 	planExecutor          itypes.PlanExecutor
-	cache                 map[string][]byte
+	cache                 map[string]*shuffleablePartition
 	cacheLock             sync.Mutex
 	serializedAccumulator []byte
 }
 
+type shuffleablePartition struct {
+	buff []byte
+	done func()
+}
+
 // createPartitionServer creates a new partitionServer
 func createPartitionServer(planExecutor itypes.PlanExecutor) *partitionServer {
-	return &partitionServer{planExecutor: planExecutor, cache: make(map[string][]byte)}
+	return &partitionServer{planExecutor: planExecutor, cache: make(map[string]*shuffleablePartition)}
 }
 
 // AssignPartition assigns a partition to a Worker
@@ -43,12 +48,15 @@ func (s *partitionServer) ShufflePartition(ctx context.Context, req *pb.MShuffle
 	if !pi.HasNextSerializedPartition() {
 		return &pb.MShufflePartitionResponse{Ready: true, HasNext: false, Part: nil}, nil
 	}
-	partID, spart, err := pi.NextSerializedPartition() // we don't need unlockPartition, because ShufflePartitionIterators remove the partition from the internal lru cache
+	partID, spart, done, err := pi.NextSerializedPartition() // we don't need unlockPartition, because ShufflePartitionIterators remove the partition from the internal lru cache
 	if err != nil {
 		return nil, err
 	}
 	s.cacheLock.Lock()
-	s.cache[partID] = spart
+	s.cache[partID] = &shuffleablePartition{
+		buff: spart,
+		done: done,
+	}
 	s.cacheLock.Unlock()
 	return &pb.MShufflePartitionResponse{
 		Ready:   true,
@@ -89,17 +97,18 @@ func (s *partitionServer) TransferPartitionData(req *pb.MTransferPartitionDataRe
 		return fmt.Errorf("Partition id %s was not in the transfer cache", req.Id)
 	}
 	delete(s.cache, req.Id)
+	defer spart.done()
 	s.cacheLock.Unlock()
 	// 16-64kb is the ideal stream chunk size according to https://jbrandhorst.com/post/grpc-binary-blob-stream/
 	maxChunkBytes := 63 * 1024 // leave room for 1kb of other things
 	// transfer row data
-	sPartitionBytes := len(spart)
+	sPartitionBytes := len(spart.buff)
 	for i := 0; i < sPartitionBytes; i += maxChunkBytes {
 		end := i + maxChunkBytes
 		if end > sPartitionBytes {
 			end = sPartitionBytes
 		}
-		rowData := spart[i:end]
+		rowData := spart.buff[i:end]
 		if len(rowData) == 0 {
 			break
 		}

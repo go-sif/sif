@@ -1,4 +1,4 @@
-package flatmap
+package integration
 
 import (
 	"context"

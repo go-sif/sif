@@ -1,4 +1,4 @@
-package reduce
+package integration
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package shuffle
+package integration
 
 import (
 	"context"

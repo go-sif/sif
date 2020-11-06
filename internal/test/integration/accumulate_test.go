@@ -1,4 +1,4 @@
-package accumulate
+package integration
 
 import (
 	"context"

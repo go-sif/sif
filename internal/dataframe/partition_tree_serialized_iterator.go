@@ -11,26 +11,47 @@ import (
 // pTreeSerializedPartitionIterator iterates over Partitions in a pTree, starting at the bottom left.
 // It optionally destroys the tree as it does this.
 type pTreeSerializedPartitionIterator struct {
-	root         *pTreeNode
-	next         *pTreeNode
-	lastByteSize int
-	destructive  bool
-	lock         sync.Mutex
-	endListeners []func()
+	root             *pTreeNode
+	next             *pTreeNode
+	destructive      bool
+	lock             sync.Mutex
+	endListeners     []func()
+	reusableBuffPool *sync.Pool
 }
 
 func createPTreeSerializedIterator(tree *pTreeRoot, destructive bool) itypes.SerializedPartitionIterator {
-	if tree == nil {
-		return &pTreeSerializedPartitionIterator{root: nil, next: nil, destructive: destructive, endListeners: []func(){}}
+	var pool = &sync.Pool{
+		New: func() interface{} {
+			// The Pool's New function should generally only return pointer
+			// types, since a pointer can be put into the return interface
+			// value without an allocation:
+			return new(bytes.Buffer)
+		},
 	}
-	return &pTreeSerializedPartitionIterator{root: tree, next: tree.firstNode(), destructive: destructive, endListeners: []func(){}}
+	if tree == nil {
+		return &pTreeSerializedPartitionIterator{
+			root:             nil,
+			next:             nil,
+			destructive:      destructive,
+			endListeners:     []func(){},
+			reusableBuffPool: pool,
+		}
+	}
+	return &pTreeSerializedPartitionIterator{
+		root:             tree,
+		next:             tree.firstNode(),
+		destructive:      destructive,
+		endListeners:     []func(){},
+		reusableBuffPool: pool,
+	}
 }
 
 // OnEnd registers a listener which fires when this iterator runs out of Partitions
 func (tpi *pTreeSerializedPartitionIterator) OnEnd(onEnd func()) {
 	tpi.lock.Lock()
 	defer tpi.lock.Unlock()
-	tpi.endListeners = append(tpi.endListeners, onEnd)
+	tpi.endListeners = append(tpi.endListeners,
+		onEnd)
 }
 
 func (tpi *pTreeSerializedPartitionIterator) HasNextSerializedPartition() bool {
@@ -43,7 +64,7 @@ func (tpi *pTreeSerializedPartitionIterator) HasNextSerializedPartition() bool {
 	return tpi.next != nil
 }
 
-func (tpi *pTreeSerializedPartitionIterator) NextSerializedPartition() (string, []byte, error) {
+func (tpi *pTreeSerializedPartitionIterator) NextSerializedPartition() (string, []byte, func(), error) {
 	tpi.lock.Lock()
 	defer tpi.lock.Unlock()
 	if tpi.next == nil {
@@ -55,25 +76,19 @@ func (tpi *pTreeSerializedPartitionIterator) NextSerializedPartition() (string, 
 			tpi.root = nil
 		}
 		tpi.endListeners = []func(){}
-		return "", nil, errors.NoMorePartitionsError{}
+		return "", nil, func() {}, errors.NoMorePartitionsError{}
 	}
 	// try to allocate a buffer based on how big things were last time
-	var buff *bytes.Buffer
-	if tpi.lastByteSize > 0 {
-		buff = bytes.NewBuffer(make([]byte, 0, tpi.lastByteSize))
-	} else {
-		buff = new(bytes.Buffer)
-	}
+	buff := tpi.reusableBuffPool.Get().(*bytes.Buffer)
 	err := tpi.next.fetchSerializedPartition(buff) // temp var for partition
 	id := tpi.next.partID
 	if err != nil {
-		return "", nil, err
+		tpi.reusableBuffPool.Put(buff)
+		return "", nil, func() {}, err
 	}
-	// try to allocate a buffer based on how big things were last time
-	spart := buff.Bytes()
-	if len(spart) > tpi.lastByteSize {
-		tpi.lastByteSize = len(spart)
+	done := func() {
+		tpi.reusableBuffPool.Put(buff)
 	}
 	tpi.next = tpi.next.next // advance iterator
-	return id, spart, nil
+	return id, buff.Bytes(), done, nil
 }

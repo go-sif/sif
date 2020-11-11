@@ -17,6 +17,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestStreamDataFrame(t *testing.T, numGenerators int) sif.DataFrame {
@@ -40,6 +41,8 @@ func createTestStreamDataFrame(t *testing.T, numGenerators int) sif.DataFrame {
 }
 
 func TestStream(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	var processedRowsLock sync.Mutex // multiple workers will record their processed rows via this lock
 	var processedRows []string       // multiple workers will record their processed rows here
 	// create dataframe

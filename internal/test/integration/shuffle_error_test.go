@@ -14,6 +14,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestShuffleErrorDataFrame(t *testing.T, numRows int) sif.DataFrame {
@@ -33,6 +34,8 @@ func createTestShuffleErrorDataFrame(t *testing.T, numRows int) sif.DataFrame {
 }
 
 func TestShuffleErrors(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	// create dataframe, summing all even numbers and erroring for all odd
 	frame, err := createTestShuffleErrorDataFrame(t, 10).To(
 		ops.AddColumn("res", &sif.Int32ColumnType{}),

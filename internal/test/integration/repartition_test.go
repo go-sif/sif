@@ -13,6 +13,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestRepartitionDataFrame(t *testing.T, numFiles int) sif.DataFrame {
@@ -36,6 +37,8 @@ func createTestRepartitionDataFrame(t *testing.T, numFiles int) sif.DataFrame {
 }
 
 func TestRepartition(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	// create dataframe
 	numFiles := 2
 	frame, err := createTestRepartitionDataFrame(t, numFiles).To(

@@ -24,6 +24,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestNYCTaxiDataFrame(t *testing.T) sif.DataFrame {
@@ -91,7 +92,7 @@ func (b *VarHeatmapColumnType) Deserialize(ser []byte) (interface{}, error) {
 }
 
 func TestNYCTaxi(t *testing.T) {
-	// defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 
 	heatmapSize := 2048
 	// utility functions

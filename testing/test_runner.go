@@ -78,7 +78,6 @@ func LocalRunFrame(ctx context.Context, frame sif.DataFrame, opts *cluster.NodeO
 				panic(err)
 			}
 		}()
-		defer worker.GracefulStop()
 	}
 	return coordinator.Run(runCtx)
 }

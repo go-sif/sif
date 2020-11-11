@@ -16,10 +16,12 @@ func CreateAsyncErrorChannel() chan error {
 // WaitAndFetchError attempts to fetch an error from an async goroutine
 func WaitAndFetchError(wg *sync.WaitGroup, errors chan error) error {
 	// use reading from the errors channel to block, rather than
-	// the WaitGroup directly.
+	// the WaitGroup directly. when the wg is done, we know there
+	// aren't any more errors. Closing the channel breaks us out
+	// of the infinite loop.
 	go func() {
-		defer close(errors)
 		wg.Wait()
+		close(errors)
 	}()
 	for {
 		select {

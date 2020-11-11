@@ -21,6 +21,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestEDSMDataFrame(t *testing.T) sif.DataFrame {
@@ -42,7 +43,7 @@ func createTestEDSMDataFrame(t *testing.T) sif.DataFrame {
 // Note: heatmap column type declared in nyc_taxi_test.go
 
 func TestEDSMHeatmap(t *testing.T) {
-	// defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 
 	heatmapSize := 1024
 	maxVal := uint32(150) // max threshold for numeric value at pixel (corresponds to "hottest" colour in ramp) (186 in 7-day dataset)

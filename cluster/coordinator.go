@@ -18,6 +18,7 @@ import (
 	iutil "github.com/go-sif/sif/internal/util"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
 )
 
 // coordinator is a Coordinator node which has lifecycle methods
@@ -243,7 +244,11 @@ func asyncStopWorker(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.Cl
 	defer wg.Done()
 	lifecycleClient := pb.NewLifecycleServiceClient(conn)
 	_, err := lifecycleClient.Stop(ctx, w)
-	if err != nil {
+	status, ok := status.FromError(err)
+	// we want to examine this error if it is either:
+	// - not a GRPC status code
+	// - is a GRPC status code, but not "transport is closing" (which is expected, since we're shutting workers down)
+	if err != nil && (!ok || status.Message() != "transport is closing") {
 		errors <- fmt.Errorf("Unable to stop worker %v\n%e", w.Id, err)
 	}
 }

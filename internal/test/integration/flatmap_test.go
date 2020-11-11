@@ -14,6 +14,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestFlatMapDataFrame(t *testing.T, numRows int) sif.DataFrame {
@@ -34,6 +35,8 @@ func createTestFlatMapDataFrame(t *testing.T, numRows int) sif.DataFrame {
 }
 
 func TestFlatMap(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	// create dataframe
 	frame, err := createTestFlatMapDataFrame(t, 10).To(
 		ops.AddColumn("res", &sif.StringColumnType{Length: 1}),

@@ -15,6 +15,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestCollectDataFrame(t *testing.T, numRows int) sif.DataFrame {
@@ -35,6 +36,8 @@ func createTestCollectDataFrame(t *testing.T, numRows int) sif.DataFrame {
 }
 
 func TestCollect(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	// create dataframe
 	frame, err := createTestCollectDataFrame(t, 10).To(
 		ops.AddColumn("res", &sif.VarStringColumnType{}),

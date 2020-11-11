@@ -13,6 +13,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestReduceDataFrame(t *testing.T, numRows int) sif.DataFrame {
@@ -33,6 +34,8 @@ func createTestReduceDataFrame(t *testing.T, numRows int) sif.DataFrame {
 }
 
 func TestReduce(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	// create dataframe
 	numRows := 100
 	frame, err := createTestReduceDataFrame(t, numRows).To(

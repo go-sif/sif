@@ -14,6 +14,7 @@ import (
 	"github.com/go-sif/sif/schema"
 	siftest "github.com/go-sif/sif/testing"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func createTestAccumulateDataFrame(t *testing.T, numRows int) sif.DataFrame {
@@ -33,6 +34,8 @@ func createTestAccumulateDataFrame(t *testing.T, numRows int) sif.DataFrame {
 }
 
 func TestAccumulate(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	// create dataframe
 	numRows := 100
 	sum := 0

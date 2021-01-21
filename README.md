@@ -46,7 +46,7 @@
 
 ## Installation
 
-**Note:** `Sif` is developed and tested against Go 1.13, leveraging module support:
+**Note:** `Sif` is developed and tested against Go 1.15, leveraging module support:
 
 ```go
 module example.com/sif_test
@@ -55,7 +55,7 @@ require(
 	github.com/go-sif/sif v0.1.0
 )
 
-go 1.14
+go 1.15
 ```
 
 ## Getting Started

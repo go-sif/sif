@@ -30,8 +30,8 @@ type planExecutorImpl struct {
 	partitionLoadersLock sync.Mutex
 	assignedBucket       uint64
 	shuffleReady         bool
-	shuffleTrees         map[uint64]*pTreeRoot // staging area for partitions before shuffle // TODO replace with partially-disked-back map with automated paging
-	shuffleTreesLock     sync.Mutex
+	shuffleIndexes       map[uint64]itypes.PartitionIndex // staging area for partitions before shuffle
+	shuffleIndexesLock   sync.Mutex
 	shuffleIterators     map[uint64]itypes.SerializedPartitionIterator // used to serve partitions from the shuffleTree
 	shuffleIteratorsLock sync.Mutex
 	collectCache         map[string]sif.Partition // staging area used for collection when there has been no shuffle
@@ -52,7 +52,7 @@ func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.Plan
 		conf:             conf,
 		done:             func() {},
 		partitionLoaders: make([]sif.PartitionLoader, 0),
-		shuffleTrees:     make(map[uint64]*pTreeRoot),
+		shuffleIndexes:   make(map[uint64]itypes.PartitionIndex),
 		shuffleIterators: make(map[uint64]itypes.SerializedPartitionIterator),
 		collectCache:     make(map[string]sif.Partition),
 		statsTracker:     statsTracker,
@@ -77,11 +77,11 @@ func (pe *planExecutorImpl) GetConf() *itypes.PlanExecutorConfig {
 
 func (pe *planExecutorImpl) Stop() {
 	pe.done()
-	pe.shuffleTreesLock.Lock()
-	for _, tree := range pe.shuffleTrees {
-		tree.clearCaches()
+	pe.shuffleIndexesLock.Lock()
+	for _, index := range pe.shuffleIndexes {
+		index.Destroy()
 	}
-	pe.shuffleTreesLock.Unlock()
+	pe.shuffleIndexesLock.Unlock()
 }
 
 // HasNextStage forms an iterator for planExecutor Stages
@@ -149,14 +149,14 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 			pe.partitionLoadersLock.Unlock()
 		}
 	} else {
-		pe.shuffleTreesLock.Lock()
-		parts = createPreloadingPartitionIterator(createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true), 3)
-		// parts = createPTreeIterator(pe.shuffleTrees[pe.assignedBucket], true)
-		pe.shuffleTrees = make(map[uint64]*pTreeRoot)
+		pe.shuffleIndexesLock.Lock()
+		parts = createPreloadingPartitionIterator(pe.shuffleIndexes[pe.assignedBucket].GetPartitionIterator(true), 3)
+		// parts = createPTreeIterator(pe.shuffleIndexes[pe.assignedBucket], true)
+		pe.shuffleIndexes = make(map[uint64]itypes.PartitionIndex)
 		pe.shuffleIterators = make(map[uint64]itypes.SerializedPartitionIterator)
 		pe.shuffleReady = false
 		pe.accumulateReady = false
-		pe.shuffleTreesLock.Unlock()
+		pe.shuffleIndexesLock.Unlock()
 	}
 	return parts
 }
@@ -294,12 +294,12 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.ReduceablePartition, buck
 			return err
 		}
 		bucket := pe.keyToBuckets(key, buckets)
-		pe.shuffleTreesLock.Lock()
-		if _, ok := pe.shuffleTrees[buckets[bucket]]; !ok {
-			pe.shuffleTrees[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialSchema())
+		pe.shuffleIndexesLock.Lock()
+		if _, ok := pe.shuffleIndexes[buckets[bucket]]; !ok {
+			pe.shuffleIndexes[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialSchema())
 		}
-		pe.shuffleTreesLock.Unlock()
-		err = pe.shuffleTrees[buckets[bucket]].mergeRow(tempRow, row, currentStage.KeyingOperation(), currentStage.ReductionOperation())
+		pe.shuffleIndexesLock.Unlock()
+		err = pe.shuffleIndexes[buckets[bucket]].MergeRow(tempRow, row, currentStage.KeyingOperation(), currentStage.ReductionOperation())
 		if err != nil {
 			multierr = multierror.Append(multierr, err)
 		}
@@ -338,11 +338,11 @@ func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (itypes.S
 	// otherwise create an iterator to grab partitions from a tree
 	// Note: the tree may be null if we never encountered rows belonging to a bucket
 	pe.shuffleIteratorsLock.Lock()
-	pe.shuffleTreesLock.Lock()
+	pe.shuffleIndexesLock.Lock()
 	defer pe.shuffleIteratorsLock.Unlock()
-	defer pe.shuffleTreesLock.Unlock()
+	defer pe.shuffleIndexesLock.Unlock()
 	if _, ok := pe.shuffleIterators[bucket]; !ok {
-		pe.shuffleIterators[bucket] = createPTreeSerializedIterator(pe.shuffleTrees[bucket], true)
+		pe.shuffleIterators[bucket] = pe.shuffleIndexes[bucket].GetSerializedPartitionIterator(true)
 	}
 	return pe.shuffleIterators[bucket], nil
 }
@@ -363,10 +363,10 @@ func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger 
 	} else {
 		incomingDataSchema = pe.GetCurrentStage().OutgoingSchema()
 	}
-	if _, ok := pe.shuffleTrees[pe.assignedBucket]; !ok {
-		pe.shuffleTreesLock.Lock()
-		pe.shuffleTrees[pe.assignedBucket] = createPTreeNode(pe.conf, pe.GetCurrentStage().TargetPartitionSize(), incomingDataSchema)
-		pe.shuffleTreesLock.Unlock()
+	if _, ok := pe.shuffleIndexes[pe.assignedBucket]; !ok {
+		pe.shuffleIndexesLock.Lock()
+		pe.shuffleIndexes[pe.assignedBucket] = createPTreeNode(pe.conf, pe.GetCurrentStage().TargetPartitionSize(), incomingDataSchema)
+		pe.shuffleIndexesLock.Unlock()
 	}
 	part, err := partition.FromStreamedData(dataStream, mpart, incomingDataSchema, pe.conf.PartitionCompressor)
 	if err != nil {
@@ -384,19 +384,19 @@ func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger 
 func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerger <-chan itypes.ReduceablePartition, asyncErrors chan<- error) {
 	defer wg.Done()
 	for part := range partMerger {
-		pe.shuffleTreesLock.Lock()
+		pe.shuffleIndexesLock.Lock()
 		// merge partition into appropriate shuffle tree
 		var multierr *multierror.Error
 		tempRow := partition.CreateTempRow()
-		destinationTree := pe.shuffleTrees[pe.assignedBucket]
-		areEqualSchemas := destinationTree.shared.nextStageSchema.Equals(part.GetSchema())
+		destinationIndex := pe.shuffleIndexes[pe.assignedBucket]
+		areEqualSchemas := destinationIndex.GetNextStageSchema().Equals(part.GetSchema())
 		if areEqualSchemas != nil {
 			asyncErrors <- fmt.Errorf("Incoming shuffled partition schema does not match expected schema")
-			pe.shuffleTreesLock.Unlock()
+			pe.shuffleIndexesLock.Unlock()
 			break
 		}
 		part.ForEachRow(func(row sif.Row) error {
-			err := destinationTree.mergeRow(tempRow, row, pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
+			err := destinationIndex.MergeRow(tempRow, row, pe.plan.GetStage(pe.nextStage-1).KeyingOperation(), pe.plan.GetStage(pe.nextStage-1).ReductionOperation())
 			if err != nil {
 				multierr = multierror.Append(multierr, err)
 			}
@@ -405,10 +405,10 @@ func (pe *planExecutorImpl) MergeShuffledPartitions(wg *sync.WaitGroup, partMerg
 		errors := multierr.ErrorOrNil()
 		if errors != nil {
 			asyncErrors <- errors
-			pe.shuffleTreesLock.Unlock()
+			pe.shuffleIndexesLock.Unlock()
 			break
 		}
-		pe.shuffleTreesLock.Unlock()
+		pe.shuffleIndexesLock.Unlock()
 	}
 }
 
@@ -437,17 +437,17 @@ func (pe *planExecutorImpl) monitorMemoryUsage(ctx context.Context) {
 				avg += v
 			}
 			// check watermarks
-			if avg > pe.conf.CacheMemoryHighWatermark && len(pe.shuffleTrees) > 0 {
+			if avg > pe.conf.CacheMemoryHighWatermark && len(pe.shuffleIndexes) > 0 {
 				shrinkFac := (float64(pe.conf.CacheMemoryHighWatermark) / float64(avg)) - 0.05
-				// pe.shuffleTreesLock.Lock() // we won't be modifying the map at this point
+				// pe.shuffleIndexesLock.Lock() // we won't be modifying the map at this point
 				resized := true
-				for _, tree := range pe.shuffleTrees {
-					resized = resized && tree.resizeCaches(shrinkFac)
+				for _, index := range pe.shuffleIndexes {
+					resized = resized && index.ResizeCache(shrinkFac)
 				}
 				if resized {
 					log.Printf("Memory usage %d is greater than high watermark %d. Shrunk partition caches by %f", avg, pe.conf.CacheMemoryHighWatermark, shrinkFac)
 				}
-				// pe.shuffleTreesLock.Unlock()
+				// pe.shuffleIndexesLock.Unlock()
 			}
 		}
 	}

@@ -35,7 +35,7 @@ func (tpi *pTreePartitionIterator) HasNextPartition() bool {
 	tpi.lock.Lock()
 	defer tpi.lock.Unlock()
 	if tpi.next == nil && tpi.root != nil {
-		tpi.root.clearCaches()
+		tpi.root.Destroy()
 		tpi.root = nil
 	}
 	return tpi.next != nil
@@ -49,7 +49,7 @@ func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, func(), error
 			l()
 		}
 		if tpi.next == nil && tpi.root != nil {
-			tpi.root.clearCaches()
+			tpi.root.Destroy()
 			tpi.root = nil
 		}
 		tpi.endListeners = []func(){}
@@ -62,4 +62,3 @@ func (tpi *pTreePartitionIterator) NextPartition() (sif.Partition, func(), error
 	tpi.next = tpi.next.next // advance iterator
 	return part, unlockPartition, nil
 }
-

@@ -72,21 +72,25 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 	}
 }
 
-// mergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
-func (t *pTreeRoot) mergePartition(part itypes.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
+func (t *pTreeRoot) GetNextStageSchema() sif.Schema {
+	return t.shared.nextStageSchema
+}
+
+// MergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
+func (t *pTreeRoot) MergePartition(part itypes.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	tempRow := partition.CreateTempRow()
 	return part.ForEachRow(func(row sif.Row) error {
-		if err := t.mergeRow(tempRow, row, keyfn, reducefn); err != nil {
+		if err := t.MergeRow(tempRow, row, keyfn, reducefn); err != nil {
 			return err
 		}
 		return nil
 	})
 }
 
-// mergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation
+// MergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation
 // and a ReductionOperation, inserting if necessary. if the ReductionOperation is nil,
 // then the row is simply inserted
-func (t *pTreeRoot) mergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
+func (t *pTreeRoot) MergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	// compute key for row
 	keyBuf, err := keyfn(row)
 	if err != nil {
@@ -366,24 +370,32 @@ func (t *pTreeRoot) firstNode() *pTreeNode {
 	return first
 }
 
-func (t *pTreeNode) numParts() uint64 {
+func (t *pTreeNode) NumPartitions() uint64 {
 	return t.shared.numParts
 }
 
-func (t *pTreeNode) cacheSize() int {
+func (t *pTreeNode) CacheSize() int {
 	if t.shared.partitionCache != nil {
 		return t.shared.partitionCache.CurrentSize()
 	}
 	return -1
 }
 
-func (t *pTreeNode) resizeCaches(frac float64) bool {
+func (t *pTreeNode) ResizeCache(frac float64) bool {
 	if t.shared.partitionCache != nil {
 		return t.shared.partitionCache.Resize(frac)
 	}
 	return false
 }
 
-func (t *pTreeNode) clearCaches() {
+func (t *pTreeNode) Destroy() {
 	t.shared.partitionCache.Destroy()
+}
+
+func (t *pTreeNode) GetPartitionIterator(destructive bool) sif.PartitionIterator {
+	return createPTreeIterator(t, destructive)
+}
+
+func (t *pTreeNode) GetSerializedPartitionIterator(destructive bool) itypes.SerializedPartitionIterator {
+	return createPTreeSerializedIterator(t, destructive)
 }

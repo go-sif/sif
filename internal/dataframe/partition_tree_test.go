@@ -47,7 +47,7 @@ func TestCreatePartitionTree(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 20, PartitionCompressor: partition.NewLZ4PartitionCompressor()}
 	root := createPTreeNode(conf, 3, schema)
-	defer root.clearCaches()
+	defer root.Destroy()
 
 	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
@@ -66,11 +66,11 @@ func TestMergeRow(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 20, PartitionCompressor: partition.NewLZ4PartitionCompressor()}
 	root := createPTreeNode(conf, 3, schema)
-	defer root.clearCaches()
+	defer root.Destroy()
 
 	// add the first row
 	row := partition.CreateRow("part-0", []byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-	err := root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
+	err := root.MergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
@@ -86,7 +86,7 @@ func TestMergeRow(t *testing.T) {
 
 	// add another distinct row
 	row = partition.CreateRow("part-0", []byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-	err = root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
+	err = root.MergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
@@ -102,7 +102,7 @@ func TestMergeRow(t *testing.T) {
 
 	// add a merge row
 	row = partition.CreateRow("part-0", []byte{0, 0}, []byte{1, 2}, make(map[string]interface{}), make(map[string][]byte), schema)
-	err = root.mergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
+	err = root.MergeRow(partition.CreateTempRow(), row, pTreeTestKeyer, pTreeTestReducer)
 	require.Nil(t, err)
 	require.Greater(t, len(root.partID), 0)
 	require.Nil(t, root.parent)
@@ -143,12 +143,12 @@ func TestMergeRowWithSplit(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 20, PartitionCompressor: partition.NewLZ4PartitionCompressor()}
 	root := createPTreeNode(conf, 3, schema)
-	defer root.clearCaches()
+	defer root.Destroy()
 
 	tempRow := partition.CreateTempRow()
 	for i := byte(0); i < byte(6); i++ {
 		row := partition.CreateRow("part-0", []byte{0, 0}, []byte{i, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-		err := root.mergeRow(tempRow, row, pTreeTestKeyer, pTreeTestReducer)
+		err := root.MergeRow(tempRow, row, pTreeTestKeyer, pTreeTestReducer)
 		require.Nil(t, err)
 	}
 	require.Equal(t, len(root.partID), 0)
@@ -168,18 +168,18 @@ func TestMergeRowWithSplit(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, 6, numTreeRows)
-	require.EqualValues(t, numParts, root.numParts())
+	require.EqualValues(t, numParts, root.NumPartitions())
 }
 
 func TestMergeRowWithRotate(t *testing.T) {
 	schema := createPTreeTestSchema()
 	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 20, PartitionCompressor: partition.NewLZ4PartitionCompressor()}
 	root := createPTreeNode(conf, 3, schema)
-	defer root.clearCaches()
+	defer root.Destroy()
 	tempRow := partition.CreateTempRow()
 	for i := 0; i < 8; i++ {
 		row := partition.CreateRow("part-0", []byte{0, 0}, []byte{1, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-		err := root.mergeRow(tempRow, row, pTreeTestKeyer, nil)
+		err := root.MergeRow(tempRow, row, pTreeTestKeyer, nil)
 		require.Nil(t, err)
 	}
 	require.Equal(t, len(root.partID), 0)
@@ -199,11 +199,11 @@ func TestMergeRowWithRotate(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, 8, numTreeRows)
-	require.EqualValues(t, numParts, root.numParts())
+	require.EqualValues(t, numParts, root.NumPartitions())
 	// add more rows with a different key, and check that they're sorted properly
 	for i := 0; i < 8; i++ {
 		row := partition.CreateRow("part-0", []byte{0, 0}, []byte{2, 1}, make(map[string]interface{}), make(map[string][]byte), schema)
-		err := root.mergeRow(tempRow, row, pTreeTestKeyer, nil)
+		err := root.MergeRow(tempRow, row, pTreeTestKeyer, nil)
 		require.Nil(t, err)
 	}
 	lastKey := uint64(0)
@@ -224,7 +224,7 @@ func TestMergeRowWithRotate(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, 16, numTreeRows)
-	require.EqualValues(t, numParts, root.numParts())
+	require.EqualValues(t, numParts, root.NumPartitions())
 }
 
 func TestDiskSwap(t *testing.T) {
@@ -245,14 +245,14 @@ func TestDiskSwap(t *testing.T) {
 	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 5, PartitionCompressor: partition.NewLZ4PartitionCompressor()}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
-	defer root.clearCaches()
+	defer root.Destroy()
 	tempRow := partition.CreateTempRow()
 	// store enough rows that we have 20 partitions, so some get swapped to disk
 	for i := uint32(0); i < 40; i++ {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
 		require.Nil(t, row.SetUint32("key", i))
 		require.Nil(t, row.SetUint32("val", i))
-		err := root.mergeRow(tempRow, row, transform.KeyColumns("key"), reduceFn)
+		err := root.MergeRow(tempRow, row, transform.KeyColumns("key"), reduceFn)
 		require.Nil(t, err)
 	}
 	// Now do it again, forcing those partitions to be reloaded
@@ -260,7 +260,7 @@ func TestDiskSwap(t *testing.T) {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
 		require.Nil(t, row.SetUint32("key", i))
 		require.Nil(t, row.SetUint32("val", i))
-		err := root.mergeRow(tempRow, row, transform.KeyColumns("key"), reduceFn)
+		err := root.MergeRow(tempRow, row, transform.KeyColumns("key"), reduceFn)
 		require.Nil(t, err)
 	}
 }
@@ -283,7 +283,7 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 5, PartitionCompressor: partition.NewLZ4PartitionCompressor()}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
-	defer root.clearCaches()
+	defer root.Destroy()
 	tempRow := partition.CreateTempRow()
 	rowCount := 25
 	// store a bunch of random rows, so some partitions get swapped to disk
@@ -291,7 +291,7 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
 		require.Nil(t, row.SetUint32("key", uint32(i)))
 		require.Nil(t, row.SetUint32("val", rand.Uint32()))
-		err := root.mergeRow(tempRow, row, transform.KeyColumns("key"), reduceFn)
+		err := root.MergeRow(tempRow, row, transform.KeyColumns("key"), reduceFn)
 		require.Nil(t, err)
 	}
 	// make sure all rows are present, and sorted by hashed key
@@ -314,7 +314,7 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, rowCount, numTreeRows)
-	require.EqualValues(t, numParts, root.numParts())
+	require.EqualValues(t, numParts, root.NumPartitions())
 }
 
 func TestPartitionIterationDuringRepartition(t *testing.T) {
@@ -327,7 +327,7 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 	conf := &itypes.PlanExecutorConfig{TempFilePath: os.TempDir(), CacheMemoryInitialSize: 10, PartitionCompressor: partition.NewLZ4PartitionCompressor()}
 	// each partition can store 2 rows
 	root := createPTreeNode(conf, 2, schema)
-	defer root.clearCaches()
+	defer root.Destroy()
 	tempRow := partition.CreateTempRow()
 	rowCount := 200
 	// store a bunch of random rows, so some partitions get swapped to disk
@@ -335,7 +335,7 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
 		require.Nil(t, row.SetUint32("key", uint32(i/5))) // make sure we have duplicate keys
 		require.Nil(t, row.SetUint32("val", rand.Uint32()))
-		err := root.mergeRow(tempRow, row, transform.KeyColumns("key"), nil)
+		err := root.MergeRow(tempRow, row, transform.KeyColumns("key"), nil)
 		require.Nil(t, err)
 	}
 	// make sure all rows are present, and sorted by hashed key
@@ -358,5 +358,5 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 		unlockPartition()
 	}
 	require.Equal(t, rowCount, numTreeRows)
-	require.EqualValues(t, numTreeParts, root.numParts())
+	require.EqualValues(t, numTreeParts, root.NumPartitions())
 }

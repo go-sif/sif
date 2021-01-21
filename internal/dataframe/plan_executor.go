@@ -150,7 +150,11 @@ func (pe *planExecutorImpl) GetPartitionSource() sif.PartitionIterator {
 		}
 	} else {
 		pe.shuffleIndexesLock.Lock()
-		parts = createPreloadingPartitionIterator(pe.shuffleIndexes[pe.assignedBucket].GetPartitionIterator(true), 3)
+		if index, ok := pe.shuffleIndexes[pe.assignedBucket]; ok {
+			parts = createPreloadingPartitionIterator(index.GetPartitionIterator(true), 3)
+		} else {
+			parts = createEmptyPartitionIterator()
+		}
 		// parts = createPTreeIterator(pe.shuffleIndexes[pe.assignedBucket], true)
 		pe.shuffleIndexes = make(map[uint64]itypes.PartitionIndex)
 		pe.shuffleIterators = make(map[uint64]itypes.SerializedPartitionIterator)
@@ -342,7 +346,11 @@ func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (itypes.S
 	defer pe.shuffleIteratorsLock.Unlock()
 	defer pe.shuffleIndexesLock.Unlock()
 	if _, ok := pe.shuffleIterators[bucket]; !ok {
-		pe.shuffleIterators[bucket] = pe.shuffleIndexes[bucket].GetSerializedPartitionIterator(true)
+		if _, indexExists := pe.shuffleIndexes[bucket]; indexExists {
+			pe.shuffleIterators[bucket] = pe.shuffleIndexes[bucket].GetSerializedPartitionIterator(true)
+		} else {
+			pe.shuffleIterators[bucket] = createEmptySerializedIterator()
+		}
 	}
 	return pe.shuffleIterators[bucket], nil
 }

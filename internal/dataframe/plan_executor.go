@@ -11,6 +11,7 @@ import (
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/partition"
+	"github.com/go-sif/sif/internal/pindex/tree"
 	pb "github.com/go-sif/sif/internal/rpc"
 	"github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -300,7 +301,7 @@ func (pe *planExecutorImpl) PrepareShuffle(part itypes.ReduceablePartition, buck
 		bucket := pe.keyToBuckets(key, buckets)
 		pe.shuffleIndexesLock.Lock()
 		if _, ok := pe.shuffleIndexes[buckets[bucket]]; !ok {
-			pe.shuffleIndexes[buckets[bucket]] = createPTreeNode(pe.conf, targetPartitionSize, nextStage.WidestInitialSchema())
+			pe.shuffleIndexes[buckets[bucket]] = tree.CreateTreePartitionIndex(pe.conf, targetPartitionSize, nextStage.WidestInitialSchema())
 		}
 		pe.shuffleIndexesLock.Unlock()
 		err = pe.shuffleIndexes[buckets[bucket]].MergeRow(tempRow, row, currentStage.KeyingOperation(), currentStage.ReductionOperation())
@@ -373,7 +374,7 @@ func (pe *planExecutorImpl) ShufflePartitionData(wg *sync.WaitGroup, partMerger 
 	}
 	if _, ok := pe.shuffleIndexes[pe.assignedBucket]; !ok {
 		pe.shuffleIndexesLock.Lock()
-		pe.shuffleIndexes[pe.assignedBucket] = createPTreeNode(pe.conf, pe.GetCurrentStage().TargetPartitionSize(), incomingDataSchema)
+		pe.shuffleIndexes[pe.assignedBucket] = tree.CreateTreePartitionIndex(pe.conf, pe.GetCurrentStage().TargetPartitionSize(), incomingDataSchema)
 		pe.shuffleIndexesLock.Unlock()
 	}
 	part, err := partition.FromStreamedData(dataStream, mpart, incomingDataSchema, pe.conf.PartitionCompressor)

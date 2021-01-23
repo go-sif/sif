@@ -5,6 +5,9 @@ import (
 )
 
 // A PartitionIndex is an index for Partitions, useful for shuffling, sorting and/or reducing.
+// An implementation of PartitionIndex permits the indexing of Partitions as well as individual rows,
+// and provides a PartitionIterator/SerializedPartitionIterator to iterate over the indexed partitions
+// in a particular order unique to the implementation (e.g. sorted order for an index which sorts Rows).
 // Leverages an underlying PartitionCache for Partition storage, rather than storing Partition data itself.
 type PartitionIndex interface {
 	GetNextStageSchema() sif.Schema                                                                            // Returns the Schema for the Stage which will *read* from this index

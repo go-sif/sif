@@ -1,4 +1,4 @@
-package dataframe
+package tree
 
 import (
 	"bytes"
@@ -37,6 +37,11 @@ type pTreeNode struct {
 
 // pTreeRoot is an alias for pTreeNode representing the root node of a pTree
 type pTreeRoot = pTreeNode
+
+// CreateTreePartitionIndex creates a new tree-based PartitionIndex suitable for reduction
+func CreateTreePartitionIndex(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) itypes.PartitionIndex {
+	return createPTreeNode(conf, maxRows, nextStageSchema)
+}
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
 func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) *pTreeNode {

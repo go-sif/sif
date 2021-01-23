@@ -1,4 +1,4 @@
-package dataframe
+package tree
 
 import (
 	"bytes"
@@ -58,7 +58,7 @@ func (tpi *pTreeSerializedPartitionIterator) HasNextSerializedPartition() bool {
 	tpi.lock.Lock()
 	defer tpi.lock.Unlock()
 	if tpi.next == nil && tpi.root != nil {
-		tpi.root.clearCaches()
+		tpi.root.Destroy()
 		tpi.root = nil
 	}
 	return tpi.next != nil
@@ -72,7 +72,7 @@ func (tpi *pTreeSerializedPartitionIterator) NextSerializedPartition() (string, 
 			l()
 		}
 		if tpi.next == nil && tpi.root != nil {
-			tpi.root.clearCaches()
+			tpi.root.Destroy()
 			tpi.root = nil
 		}
 		tpi.endListeners = []func(){}

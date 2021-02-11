@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/go-sif/sif"
-	"github.com/go-sif/sif/internal/partition"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -52,7 +51,7 @@ func (b *bucketed) ReducePartition(part sif.ReduceablePartition, keyfn sif.Keyin
 	var multierr *multierror.Error
 	// merge rows into our trees
 	i := 0
-	tempRow := partition.CreateTempRow()
+	tempRow := part.CreateTempRow()
 	err := part.ForEachRow(func(row sif.Row) error {
 		key, err := part.GetKey(i)
 		if err != nil {

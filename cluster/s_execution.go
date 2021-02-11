@@ -73,7 +73,7 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 	if req.RunShuffle {
 		log.Printf("Shuffling partitions in stage %d...", req.StageId)
 		s.statsTracker.StartShuffle()
-		err = s.runShuffle(ctx, req)
+		err = s.runShuffle(sctx, req)
 		if err != nil {
 			s.statsTracker.EndShuffle(stage.ID())
 			log.Printf("Failed to shuffle in stage %d: %e", req.StageId, err)
@@ -174,7 +174,7 @@ func (s *executionServer) runShuffle(sctx sif.StageContext, req *pb.MRunStageReq
 	defer close(partChan) // then, close the partition channel
 	defer fetchWg.Wait()  // first, wait for all fetches to finish
 	mergeWg.Add(1)
-	go s.planExecutor.MergeShuffledPartitions(&mergeWg, partChan, asyncMergeErrors)
+	go s.planExecutor.MergeShuffledPartitions(sctx, &mergeWg, partChan, asyncMergeErrors)
 	// round-robin request partitions
 	t := 0
 	concurrentFetchLimit := 4
@@ -184,7 +184,7 @@ func (s *executionServer) runShuffle(sctx sif.StageContext, req *pb.MRunStageReq
 			break
 		}
 		shuffleReq := &pb.MShufflePartitionRequest{Bucket: req.AssignedBucket}
-		res, err := targets[t].ShufflePartition(ctx, shuffleReq)
+		res, err := targets[t].ShufflePartition(sctx, shuffleReq)
 		if err != nil {
 			return err
 		} else if !res.Ready {
@@ -192,7 +192,7 @@ func (s *executionServer) runShuffle(sctx sif.StageContext, req *pb.MRunStageReq
 		} else if res.Part != nil {
 			transferReq := &pb.MTransferPartitionDataRequest{Id: res.Part.Id}
 			// initiate request to shuffle partition data
-			stream, err := targets[t].TransferPartitionData(ctx, transferReq)
+			stream, err := targets[t].TransferPartitionData(sctx, transferReq)
 			if err != nil {
 				return err
 			}
@@ -219,7 +219,7 @@ func (s *executionServer) runShuffle(sctx sif.StageContext, req *pb.MRunStageReq
 			// check fetch errors
 			select {
 			case fetchErr := <-asyncFetchErrors:
-				if err := s.onRowError(ctx, fetchErr); err != nil {
+				if err := s.onRowError(sctx, fetchErr); err != nil {
 					return err
 				}
 			default:

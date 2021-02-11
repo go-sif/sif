@@ -9,7 +9,7 @@ import (
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/internal/partition"
 	"github.com/go-sif/sif/internal/pcache"
-	itypes "github.com/go-sif/sif/internal/types"
+	iutil "github.com/go-sif/sif/internal/util"
 	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -41,21 +41,6 @@ func pTreeTestKeyer(row sif.Row) ([]byte, error) {
 		return nil, err
 	}
 	return []byte{val}, nil
-}
-
-func keyColumns(colNames ...string) sif.KeyingOperation {
-	return func(row sif.Row) ([]byte, error) {
-		irow := row.(itypes.AccessibleRow) // access row internals
-		hasher := xxhash.New()
-		for _, cname := range colNames {
-			data, err := irow.GetColData(cname)
-			if err != nil {
-				return nil, err
-			}
-			hasher.Write(data)
-		}
-		return hasher.Sum(nil), nil
-	}
 }
 
 func createCache(schema sif.Schema, initialSize int) sif.PartitionCache {
@@ -276,7 +261,7 @@ func TestDiskSwap(t *testing.T) {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
 		require.Nil(t, row.SetUint32("key", i))
 		require.Nil(t, row.SetUint32("val", i))
-		err := root.MergeRow(tempRow, row, keyColumns("key"), reduceFn)
+		err := root.MergeRow(tempRow, row, iutil.KeyColumns("key"), reduceFn)
 		require.Nil(t, err)
 	}
 	// Now do it again, forcing those partitions to be reloaded
@@ -284,7 +269,7 @@ func TestDiskSwap(t *testing.T) {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
 		require.Nil(t, row.SetUint32("key", i))
 		require.Nil(t, row.SetUint32("val", i))
-		err := root.MergeRow(tempRow, row, keyColumns("key"), reduceFn)
+		err := root.MergeRow(tempRow, row, iutil.KeyColumns("key"), reduceFn)
 		require.Nil(t, err)
 	}
 }
@@ -315,7 +300,7 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
 		require.Nil(t, row.SetUint32("key", uint32(i)))
 		require.Nil(t, row.SetUint32("val", rand.Uint32()))
-		err := root.MergeRow(tempRow, row, keyColumns("key"), reduceFn)
+		err := root.MergeRow(tempRow, row, iutil.KeyColumns("key"), reduceFn)
 		require.Nil(t, err)
 	}
 	// make sure all rows are present, and sorted by hashed key
@@ -359,7 +344,7 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 		row := partition.CreateRow("part-0", []byte{0, 0}, make([]byte, 8), make(map[string]interface{}), make(map[string][]byte), schema)
 		require.Nil(t, row.SetUint32("key", uint32(i/5))) // make sure we have duplicate keys
 		require.Nil(t, row.SetUint32("val", rand.Uint32()))
-		err := root.MergeRow(tempRow, row, keyColumns("key"), nil)
+		err := root.MergeRow(tempRow, row, iutil.KeyColumns("key"), nil)
 		require.Nil(t, err)
 	}
 	// make sure all rows are present, and sorted by hashed key

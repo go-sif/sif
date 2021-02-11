@@ -154,3 +154,9 @@ func (p *partitionImpl) TruncateRowData(numRows int) {
 		}
 	}
 }
+
+// CreateTempRow creates a temporary Row struct which is not backed by the underlying data model
+// of this Partition, for use with other methods as an allocation efficiency booster
+func (p *partitionImpl) CreateTempRow() sif.Row {
+	return CreateTempRow()
+}

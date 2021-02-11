@@ -19,6 +19,7 @@ const pIncoming stageContextKey = "sif.cluster.stageContextImpl.pIncoming"
 const keyFn stageContextKey = "sif.cluster.stageContextImpl.keyingFn"
 const reduceFn stageContextKey = "sif.cluster.stageContextImpl.reduceFn"
 const accumulator stageContextKey = "sif.cluster.stageContextImpl.accumulator"
+const collectionLimit stageContextKey = "sif.cluster.stageContextImpl.collectionLimit"
 const targetPartitionSize stageContextKey = "sif.cluster.stageContextImpl.targetPartitionSize"
 
 type stageContextImpl struct {
@@ -173,6 +174,23 @@ func (s *stageContextImpl) SetAccumulator(val sif.Accumulator) error {
 		return fmt.Errorf("Cannot overwrite Accumulator for Stage (already set)")
 	}
 	s.ctx = context.WithValue(s.ctx, accumulator, val)
+	return nil
+}
+
+// CollectionLimit retrieves the CollectionLimit for this Stage (or -1, if unset)
+func (s *stageContextImpl) CollectionLimit() int {
+	if a := s.ctx.Value(collectionLimit); a != nil {
+		return a.(int)
+	}
+	return -1
+}
+
+// SetCollectionLimit configures the CollectionLimit for the end of this stage
+func (s *stageContextImpl) SetCollectionLimit(limit int) error {
+	if s.CollectionLimit() > 0 {
+		return fmt.Errorf("Cannot overwrite CollectionLimit for Stage (already set)")
+	}
+	s.ctx = context.WithValue(s.ctx, collectionLimit, limit)
 	return nil
 }
 

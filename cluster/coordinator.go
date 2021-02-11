@@ -157,15 +157,15 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		default:
 			// run stage on each worker, blocking until stage is complete across the cluster
 			stage := planExecutor.GetNextStage()
+			sctx := createStageContext(ctx, stage)
 			log.Println("------------------------------")
 			log.Printf("Starting stage %d...", stage.ID())
-			runShuffle := stage.EndsInShuffle()
 			prepCollect := stage.EndsInCollect()
 			prepAccumulate := stage.EndsInAccumulate()
 			shuffleBuckets := computeShuffleBuckets(workers)
 			wg.Add(len(workers))
 			for i := range workers {
-				go asyncRunStage(ctx, stage, workers[i], workerConns[i], runShuffle, prepAccumulate, stage.GetCollectionLimit(), shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
+				go asyncRunStage(sctx, stage, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)
 			}
 			// wait for all the workers to finish the stage
 			if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
@@ -180,25 +180,24 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 				// run accumulate
 				log.Printf("Starting accumulation for stage %d...", stage.ID())
 				wg.Add(len(workers))
-				accumulated := stage.Accumulator()
 				var accumulatedLock sync.Mutex
 				for i := range workers {
-					go asyncRunAccumulate(ctx, workers[i], workerConns[i], accumulated, &accumulatedLock, &wg, asyncErrors)
+					go asyncRunAccumulate(sctx, workers[i], workerConns[i], &accumulatedLock, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err
 				}
-				return &Result{Accumulated: accumulated}, nil
+				return &Result{Accumulated: sctx.Accumulator()}, nil
 			} else if prepCollect { // If we need to run a collect, then trigger that
 				asyncErrors = iutil.CreateAsyncErrorChannel()
 				// run collect
 				log.Printf("Starting collect for stage %d...", stage.ID())
 				wg.Add(len(workers))
 				collected := make(map[string]sif.CollectedPartition)
-				collectionLimit := semaphore.NewWeighted(int64(stage.GetCollectionLimit()))
+				collectionLimit := semaphore.NewWeighted(int64(sctx.CollectionLimit()))
 				var collectedLock sync.Mutex
 				for i := range workers {
-					go asyncRunCollect(ctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, partitionCompressor, &wg, asyncErrors)
+					go asyncRunCollect(sctx, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, stage.OutgoingSchema(), collected, &collectedLock, collectionLimit, partitionCompressor, &wg, asyncErrors)
 				}
 				if err = iutil.WaitAndFetchError(&wg, asyncErrors); err != nil {
 					return nil, err
@@ -274,22 +273,26 @@ func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.M
 	// TODO do something with response
 }
 
-func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, runShuffle bool, prepAccumulate bool, prepCollect int32, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunStage(sctx sif.StageContext, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
-
+	err := s.WorkerInitialize(sctx)
+	if err != nil {
+		log.Printf("Something went wrong while running stage %d on worker %s: %e", s.ID(), w.Id, err)
+		errors <- err
+	}
 	// Trigger remote stage execution
 	log.Printf("Asking worker %s to run stage %d", w.Id, s.ID())
 	executionClient := pb.NewExecutionServiceClient(conn)
 	req := &pb.MRunStageRequest{
 		StageId:        int32(s.ID()),
-		RunShuffle:     runShuffle,
-		PrepCollect:    prepCollect, // how many partitions we intend to collect
-		PrepAccumulate: prepAccumulate,
+		RunShuffle:     s.EndsInShuffle(),
+		PrepCollect:    int32(sctx.CollectionLimit()), // how many partitions we intend to collect
+		PrepAccumulate: s.EndsInAccumulate(),
 		AssignedBucket: assignedBucket,
 		Buckets:        shuffleBuckets,
 		Workers:        workers,
 	}
-	_, err := executionClient.RunStage(ctx, req)
+	_, err = executionClient.RunStage(sctx, req)
 	if err != nil {
 		log.Printf("Something went wrong while running stage %d on worker %s: %e", s.ID(), w.Id, err)
 		errors <- err
@@ -299,14 +302,15 @@ func asyncRunStage(ctx context.Context, s itypes.Stage, w *pb.MWorkerDescriptor,
 	// TODO do something with response
 }
 
-func asyncRunAccumulate(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, accumulator sif.Accumulator, accumulatedLock *sync.Mutex, wg *sync.WaitGroup, errors chan<- error) {
+func asyncRunAccumulate(sctx sif.StageContext, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, accumulatedLock *sync.Mutex, wg *sync.WaitGroup, errors chan<- error) {
+	accumulator := sctx.Accumulator()
 	defer wg.Done()
 	// Grab accumulators from workers
 	log.Printf("Asking worker %s to supply prepared accumulator", w.Id)
 	partitionClient := pb.NewPartitionsServiceClient(conn)
 	for {
 		req := &pb.MShuffleAccumulatorRequest{}
-		res, err := partitionClient.ShuffleAccumulator(ctx, req)
+		res, err := partitionClient.ShuffleAccumulator(sctx, req)
 		if err != nil {
 			log.Printf("Something went wrong while running shuffling accumulator from worker %s: %e", w.Id, err)
 			errors <- err
@@ -314,7 +318,7 @@ func asyncRunAccumulate(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc
 		} else if res.GetReady() {
 			transferReq := &pb.MTransferAccumulatorDataRequest{}
 			buf := make([]byte, 0, res.GetTotalSizeBytes())
-			stream, err := partitionClient.TransferAccumulatorData(ctx, transferReq)
+			stream, err := partitionClient.TransferAccumulatorData(sctx, transferReq)
 			if err != nil {
 				errors <- err
 				return
@@ -336,7 +340,7 @@ func asyncRunAccumulate(ctx context.Context, w *pb.MWorkerDescriptor, conn *grpc
 			}
 			return
 		}
-		if ctx.Err() != nil {
+		if sctx.Err() != nil {
 			break
 		}
 	}

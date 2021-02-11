@@ -8,7 +8,7 @@ import (
 )
 
 type collectTask struct {
-	collectionLimit int32
+	collectionLimit int
 }
 
 func (s *collectTask) Name() string {
@@ -20,8 +20,13 @@ func (s *collectTask) RunInitialize(sctx sif.StageContext) error {
 	if cache == nil {
 		return fmt.Errorf("Cannot initialize reduceTask: StageContext does not contain a PartitionCache")
 	}
+	// populate StageContext with important configuration params
+	err := sctx.SetCollectionLimit(s.collectionLimit)
+	if err != nil {
+		return err
+	}
 	// initialize Map-based PartitionIndex for collection
-	err := sctx.SetPartitionIndex(hashmap.CreateMapPartitionIndex(cache, sctx.NextStageWidestInitialSchema()))
+	err = sctx.SetPartitionIndex(hashmap.CreateMapPartitionIndex(cache, sctx.NextStageWidestInitialSchema()))
 	if err != nil {
 		return err
 	}
@@ -52,7 +57,7 @@ func (s *collectTask) RunWorker(sctx sif.StageContext, previous sif.OperablePart
 // Collect declares that data should be shuffled to the Coordinator
 // upon completion of the previous stage. This also signals
 // the end of a Dataframe's tasks.
-func Collect(collectionLimit int32) *sif.DataFrameOperation {
+func Collect(collectionLimit int) *sif.DataFrameOperation {
 	return &sif.DataFrameOperation{
 		TaskType: sif.CollectTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {

@@ -21,6 +21,8 @@ type StageContext interface {
 	SetReductionOperation(reduceFn ReductionOperation) error // Configure the reduction operation for the end of this stage
 	Accumulator() Accumulator                                // Accumulator retrieves the Accumulator for this Stage (if it exists)
 	SetAccumulator(acc Accumulator) error                    // Configure the accumulator for the end of this stage
+	CollectionLimit() int                                    // CollectionLimit retrieves the CollectionLimit for this Stage (or -1 if unset)
+	SetCollectionLimit(limit int) error                      // Configure the CollectionLimit for the end of this stage
 	TargetPartitionSize() int                                // TargetPartitionSize returns the intended Partition maxSize for outgoing Partitions
 	SetTargetPartitionSize(TargetPartitionSize int) error    // SetTargetPartitionSize configures the intended Partition maxSize for outgoing Partitions
 }

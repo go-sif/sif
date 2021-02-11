@@ -4,11 +4,10 @@ import (
 	"fmt"
 
 	"github.com/go-sif/sif"
-	itypes "github.com/go-sif/sif/internal/types"
 )
 
 // createCloneablePartition creates a new Partition containing an empty byte array and a schema
-func createCloneablePartition(maxRows int, schema sif.Schema) itypes.CloneablePartition {
+func createCloneablePartition(maxRows int, schema sif.Schema) sif.CloneablePartition {
 	return createPartitionImpl(maxRows, defaultCapacity, schema)
 }
 

@@ -6,6 +6,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/go-sif/sif"
 	pb "github.com/go-sif/sif/internal/rpc"
 	"github.com/go-sif/sif/internal/stats"
 	itypes "github.com/go-sif/sif/internal/types"
@@ -37,6 +38,18 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 	if stage.ID() != int(req.StageId) {
 		return nil, fmt.Errorf("Next stage on worker (%d) does not match expected (%d)", stage.ID(), req.StageId)
 	}
+	// create a stage context
+	sctx := createStageContext(ctx, stage)
+	// populate stage context with info from request
+	if req.Buckets != nil {
+		sctx.SetShuffleBuckets(req.Buckets)
+	}
+	// initialize stage context in planExecutor to set up other important stuff like partition caches
+	err := s.planExecutor.InitStageContext(sctx, stage)
+	if err != nil {
+		return nil, err
+	}
+	// execute stage
 	log.Println("------------------------------")
 	log.Printf("Running stage %d...", req.StageId)
 	defer func() {
@@ -46,7 +59,7 @@ func (s *executionServer) RunStage(ctx context.Context, req *pb.MRunStageRequest
 	s.statsTracker.StartStage()
 	s.statsTracker.StartTransform()
 	log.Printf("Mapping partitions in stage %d...", req.StageId)
-	err := s.planExecutor.FlatMapPartitions(stage.WorkerExecute, req, onRowErrorWithContext)
+	err = s.planExecutor.TransformPartitions(sctx, stage.WorkerExecute, onRowErrorWithContext)
 	if err != nil {
 		if _, ok := err.(*multierror.Error); !s.planExecutor.GetConf().IgnoreRowErrors || !ok {
 			// either this isn't a multierr or we're supposed to fail immediately
@@ -111,7 +124,7 @@ func (s *executionServer) onRowError(ctx context.Context, err error) (outgoingEr
 }
 
 // runShuffle executes a prepared shuffle on a Worker
-func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageRequest) (err error) {
+func (s *executionServer) runShuffle(sctx sif.StageContext, req *pb.MRunStageRequest) (err error) {
 	// build list of workers to communicate with
 	buckets := make([]uint64, 0)
 	targets := make([]pb.PartitionsServiceClient, 0)
@@ -133,14 +146,14 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 	var fetchWg, mergeWg sync.WaitGroup
 	asyncFetchErrors := make(chan error, len(buckets)) // each fetch goroutine can send one error before terminating
 	asyncMergeErrors := make(chan error, 1)            // the merge goroutine can only send one error before terminating
-	partChan := make(chan itypes.ReduceablePartition, len(buckets))
+	partChan := make(chan sif.ReduceablePartition, len(buckets))
 	// setup our cleanup in the correct order (read in reverse)
 	defer close(asyncMergeErrors)
 	// check for remaining merge errors
 	defer func() {
 		select {
 		case mergeErr := <-asyncMergeErrors:
-			if err := s.onRowError(ctx, mergeErr); err != nil {
+			if err := s.onRowError(sctx, mergeErr); err != nil {
 				err = mergeErr
 			}
 		default:
@@ -151,7 +164,7 @@ func (s *executionServer) runShuffle(ctx context.Context, req *pb.MRunStageReque
 	defer func() {
 		select {
 		case fetchErr := <-asyncFetchErrors:
-			if err := s.onRowError(ctx, fetchErr); err != nil {
+			if err := s.onRowError(sctx, fetchErr); err != nil {
 				err = fetchErr
 			}
 		default:

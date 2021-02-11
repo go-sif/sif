@@ -9,7 +9,11 @@ type flatMapTask struct {
 	fn sif.FlatMapOperation
 }
 
-func (s *flatMapTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+func (s *flatMapTask) RunInitialize(sctx sif.StageContext) error {
+	return nil
+}
+
+func (s *flatMapTask) RunWorker(sctx sif.StageContext, previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	results, err := previous.FlatMapRows(s.fn)
 	if err != nil {
 		return nil, err

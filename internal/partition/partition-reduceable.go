@@ -8,17 +8,16 @@ import (
 	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
 	pb "github.com/go-sif/sif/internal/rpc"
-	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/golang/protobuf/proto"
 )
 
 // CreateReduceablePartition creates a new Partition containing an empty byte array and a schema
-func CreateReduceablePartition(maxRows int, schema sif.Schema) itypes.ReduceablePartition {
+func CreateReduceablePartition(maxRows int, schema sif.Schema) sif.ReduceablePartition {
 	return createPartitionImpl(maxRows, defaultCapacity, schema)
 }
 
 // CreateKeyedReduceablePartition creates a new Partition containing an empty byte array and a schema
-func CreateKeyedReduceablePartition(maxRows int, schema sif.Schema) itypes.ReduceablePartition {
+func CreateKeyedReduceablePartition(maxRows int, schema sif.Schema) sif.ReduceablePartition {
 	part := createPartitionImpl(maxRows, defaultCapacity, schema)
 	part.isKeyed = true
 	part.keys = make([]uint64, maxRows)
@@ -165,7 +164,7 @@ func (p *partitionImpl) AverageKeyValue() (uint64, error) {
 }
 
 // Split splits a Partition into two Partitions. Split position ends up in right Partition.
-func (p *partitionImpl) Split(pos int) (itypes.ReduceablePartition, itypes.ReduceablePartition, error) {
+func (p *partitionImpl) Split(pos int) (sif.ReduceablePartition, sif.ReduceablePartition, error) {
 	if pos >= p.numRows {
 		return nil, nil, fmt.Errorf("Split position is outside of Partition bounds")
 	}
@@ -213,7 +212,7 @@ func (p *partitionImpl) Split(pos int) (itypes.ReduceablePartition, itypes.Reduc
 // that identical keys end up in the same Partition.
 // Identical keys can occur due to hash collisions, or if the containing
 // tree is not reducing. Split position ends up in right Partition.
-func (p *partitionImpl) BalancedSplit() (uint64, itypes.ReduceablePartition, itypes.ReduceablePartition, error) {
+func (p *partitionImpl) BalancedSplit() (uint64, sif.ReduceablePartition, sif.ReduceablePartition, error) {
 	if !p.isKeyed {
 		return 0, nil, nil, fmt.Errorf("Partition is not keyed")
 	}
@@ -306,7 +305,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 }
 
 // FromBytes converts serialized bytes into a Partition
-func FromBytes(data []byte, schema sif.Schema) (itypes.ReduceablePartition, error) {
+func FromBytes(data []byte, schema sif.Schema) (sif.ReduceablePartition, error) {
 	m := &pb.DPartition{}
 	err := proto.Unmarshal(data, m)
 	if err != nil {

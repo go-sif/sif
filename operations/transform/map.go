@@ -9,7 +9,11 @@ type mapTask struct {
 	fn sif.MapOperation
 }
 
-func (s *mapTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+func (s *mapTask) RunInitialize(sctx sif.StageContext) error {
+	return nil
+}
+
+func (s *mapTask) RunWorker(sctx sif.StageContext, previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	next, err := previous.MapRows(s.fn)
 	if err != nil {
 		return nil, err

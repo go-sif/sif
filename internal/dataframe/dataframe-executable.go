@@ -11,10 +11,11 @@ import (
 // An executableDataFrame adds methods specific to cluster execution of DataFrames
 type executableDataFrame interface {
 	sif.DataFrame
-	getParent() sif.DataFrame                                                          // getParent returns the parent DataFrame of a DataFrame
-	optimize() itypes.Plan                                                             // optimize splits the DataFrame chain into stages which each share a schema. Each stage's execution will be blocked until the completion of the previous stage
-	analyzeSource() (sif.PartitionMap, error)                                          // analyzeSource returns a PartitionMap for the source data for this DataFrame
-	workerExecuteTask(previous sif.OperablePartition) ([]sif.OperablePartition, error) // workerExecuteTask runs this DataFrame's task against the previous Partition, returning the modified Partition (or a new one(s) if necessary). The previous Partition may be nil.
+	getParent() sif.DataFrame                                                                                 // getParent returns the parent DataFrame of a DataFrame
+	optimize() itypes.Plan                                                                                    // optimize splits the DataFrame chain into stages which each share a schema. Each stage's execution will be blocked until the completion of the previous stage
+	analyzeSource() (sif.PartitionMap, error)                                                                 // analyzeSource returns a PartitionMap for the source data for this DataFrame
+	workerInitialize(sctx sif.StageContext) error                                                             // workerInitialize runs this DataFrame's initializer against the StageContext
+	workerExecuteTask(sctx sif.StageContext, previous sif.OperablePartition) ([]sif.OperablePartition, error) // workerExecuteTask runs this DataFrame's task against the previous Partition, returning the modified Partition (or a new one(s) if necessary). The previous Partition may be nil.
 }
 
 // getParent returns the parent DataFrame of a DataFrame
@@ -110,21 +111,9 @@ func (df *dataFrameImpl) Optimize() itypes.Plan {
 		// if this is a reduce, this is the end of the Stage
 		if f.taskType == sif.ShuffleTaskType {
 			endStage()
-			sTask, ok := f.task.(shuffleTask)
-			if !ok {
-				log.Panicf("taskType is ShuffleTaskType but Task is not a shuffleTask. Task is misdefined.")
-			}
-			currentStage.SetKeyingOperation(sTask.GetKeyingOperation())
-			currentStage.SetReductionOperation(sTask.GetReductionOperation())
-			currentStage.SetTargetPartitionSize(sTask.GetTargetPartitionSize())
 			newStage()
 		} else if f.taskType == sif.AccumulateTaskType {
 			endStage()
-			aTask, ok := f.task.(accumulationTask)
-			if !ok {
-				log.Panicf("taskType is AccumulateTaskType but Task is not an accumulationTask. Task is misdefined.")
-			}
-			currentStage.SetAccumulator(aTask.GetAccumulator())
 			if i+1 < len(frames) {
 				log.Panicf("No tasks can follow an Accumulate()")
 			}
@@ -150,11 +139,20 @@ func (df *dataFrameImpl) AnalyzeSource() (sif.PartitionMap, error) {
 	return df.source.Analyze()
 }
 
+// workerInitialize runs this DataFrame's initializer against the StageContext
+func (df *dataFrameImpl) workerInitialize(sctx sif.StageContext) error {
+	err := df.task.RunInitialize(sctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // workerExecuteTask runs this DataFrame's task against the previous Partition,
 // returning the modified Partition (or a new one(s) if necessary).
 // The previous Partition may be nil.
-func (df *dataFrameImpl) workerExecuteTask(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
-	res, err := df.task.RunWorker(previous)
+func (df *dataFrameImpl) workerExecuteTask(sctx sif.StageContext, previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+	res, err := df.task.RunWorker(sctx, previous)
 	if err != nil {
 		return nil, err
 	}

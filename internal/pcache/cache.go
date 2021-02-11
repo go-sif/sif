@@ -33,7 +33,7 @@ type lru struct {
 
 type cachedPartition struct {
 	key   string
-	value itypes.ReduceablePartition
+	value sif.ReduceablePartition
 }
 
 // LRUConfig configures an LRU PartitionCache
@@ -45,7 +45,7 @@ type LRUConfig struct {
 }
 
 // NewLRU produces an LRU PartitionCache
-func NewLRU(config *LRUConfig) PartitionCache {
+func NewLRU(config *LRUConfig) sif.PartitionCache {
 	// validate parameters
 	if config.InitialSize < 5 {
 		log.Panicf("LRUConfig.InitialSize %d must be greater than 5", config.InitialSize)
@@ -124,7 +124,7 @@ func (c *lru) Resize(frac float64) bool {
 	return true
 }
 
-func (c *lru) Add(key string, value itypes.ReduceablePartition) {
+func (c *lru) Add(key string, value sif.ReduceablePartition) {
 	c.globalLock.Lock()
 	defer c.globalLock.Unlock()
 	c.plocks.Lock(key)
@@ -158,7 +158,7 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 }
 
 // Get removes the partition from the caches and returns it, if present. Returns an error otherwise.
-func (c *lru) Get(key string) (itypes.ReduceablePartition, error) {
+func (c *lru) Get(key string) (sif.ReduceablePartition, error) {
 	// defer func() {
 	// 	log.Printf("Hits: %d | Misses: %d", c.hits, c.misses)
 	// }()
@@ -206,7 +206,7 @@ func (c *lru) GetSerialized(key string, result *bytes.Buffer) error {
 }
 
 // getFromCache removes the partition from the uncompressed cache and returns it, if present
-func (c *lru) getFromCache(key string) (value itypes.ReduceablePartition, err error) {
+func (c *lru) getFromCache(key string) (value sif.ReduceablePartition, err error) {
 	c.pmapLock.Lock()
 	defer c.pmapLock.Unlock()
 	ve, ok := c.pmap[key]
@@ -247,7 +247,7 @@ func (c *lru) loadCompressedFromDisk(key string, result *bytes.Buffer) error {
 }
 
 // getFromCache removes the partition from the disk cache and returns it, if present
-func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err error) {
+func (c *lru) getFromDisk(key string) (value sif.ReduceablePartition, err error) {
 	tempFilePath := path.Join(c.tmpDir, key)
 	f, err := os.Open(tempFilePath)
 	if err != nil {

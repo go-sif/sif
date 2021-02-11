@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"sync"
 
+	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	itypes "github.com/go-sif/sif/internal/types"
 )
 
 // pTreeSerializedPartitionIterator iterates over Partitions in a pTree, starting at the bottom left.
@@ -19,7 +19,7 @@ type pTreeSerializedPartitionIterator struct {
 	reusableBuffPool *sync.Pool
 }
 
-func createPTreeSerializedIterator(tree *pTreeRoot, destructive bool) itypes.SerializedPartitionIterator {
+func createPTreeSerializedIterator(tree *pTreeRoot, destructive bool) sif.SerializedPartitionIterator {
 	var pool = &sync.Pool{
 		New: func() interface{} {
 			// The Pool's New function should generally only return pointer

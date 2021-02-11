@@ -7,8 +7,12 @@ import (
 // renameColumnTask is a task that does nothing
 type renameColumnTask struct{}
 
+func (s *renameColumnTask) RunInitialize(sctx sif.StageContext) error {
+	return nil
+}
+
 // RunWorker for renameColumnTask does nothing
-func (s *renameColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+func (s *renameColumnTask) RunWorker(sctx sif.StageContext, previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	return []sif.OperablePartition{previous}, nil
 }
 

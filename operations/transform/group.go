@@ -11,8 +11,9 @@ func Group(kfn sif.KeyingOperation) *sif.DataFrameOperation {
 		TaskType: sif.ShuffleTaskType,
 		Do: func(d sif.DataFrame) (*sif.DataFrameOperationResult, error) {
 			return &sif.DataFrameOperationResult{
-				Task: &repartitionTask{
+				Task: &reduceTask{
 					kfn:                 iutil.SafeKeyingOperation(kfn),
+					fn:                  nil,
 					targetPartitionSize: -1,
 				},
 				DataSchema: d.GetSchema().Clone(),

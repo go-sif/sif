@@ -3,8 +3,8 @@ package dataframe
 import (
 	"sync"
 
+	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	itypes "github.com/go-sif/sif/internal/types"
 )
 
 type emptySerializedIterator struct {
@@ -13,7 +13,7 @@ type emptySerializedIterator struct {
 }
 
 // createEmptySerializedIterator returns an empty SerializedPartitionIterator
-func createEmptySerializedIterator() itypes.SerializedPartitionIterator {
+func createEmptySerializedIterator() sif.SerializedPartitionIterator {
 	return &emptySerializedIterator{
 		endListeners: []func(){},
 	}

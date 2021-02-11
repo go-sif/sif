@@ -9,7 +9,11 @@ type filterTask struct {
 	fn sif.FilterOperation
 }
 
-func (s *filterTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+func (s *filterTask) RunInitialize(sctx sif.StageContext) error {
+	return nil
+}
+
+func (s *filterTask) RunWorker(sctx sif.StageContext, previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	result, err := previous.FilterRows(s.fn)
 	if err != nil {
 		return nil, err

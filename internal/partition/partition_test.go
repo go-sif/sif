@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/go-sif/sif/operations/transform"
 	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
@@ -224,7 +223,7 @@ func TestSerialization(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.VarStringColumnType{})
-	var part itypes.ReduceablePartition
+	var part sif.ReduceablePartition
 	part = createPartitionImpl(8, 2, schema)
 	// append rows
 	tempRow := &rowImpl{}

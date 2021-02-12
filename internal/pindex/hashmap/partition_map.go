@@ -8,6 +8,7 @@ type pMap struct {
 	ids             []string
 	cache           sif.PartitionCache
 	nextStageSchema sif.Schema
+	spi             sif.SerializedPartitionIterator
 }
 
 // CreateMapPartitionIndex creates a new Map-based PartitionIndex suitable for reduction
@@ -42,7 +43,10 @@ func (m *pMap) GetPartitionIterator(destructive bool) sif.PartitionIterator {
 }
 
 func (m *pMap) GetSerializedPartitionIterator(destructive bool) sif.SerializedPartitionIterator {
-	return createPartitionMapSerializedIterator(m.ids, m.cache, true)
+	if m.spi == nil {
+		m.spi = createPartitionMapSerializedIterator(m.ids, m.cache, true)
+	}
+	return m.spi
 }
 
 func (m *pMap) NumPartitions() uint64 {

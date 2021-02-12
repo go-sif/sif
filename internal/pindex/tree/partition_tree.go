@@ -19,6 +19,9 @@ type pTreeShared struct {
 	partitionCache  sif.PartitionCache
 	// statistics
 	numParts uint64
+	// iterators
+	pi  sif.PartitionIterator
+	spi sif.SerializedPartitionIterator
 }
 
 // pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
@@ -398,9 +401,15 @@ func (t *pTreeNode) Destroy() {
 }
 
 func (t *pTreeNode) GetPartitionIterator(destructive bool) sif.PartitionIterator {
-	return createPTreeIterator(t.rootNode(), destructive)
+	if t.shared.pi == nil {
+		t.shared.pi = createPTreeIterator(t.rootNode(), destructive)
+	}
+	return t.shared.pi
 }
 
 func (t *pTreeNode) GetSerializedPartitionIterator(destructive bool) sif.SerializedPartitionIterator {
-	return createPTreeSerializedIterator(t.rootNode(), destructive)
+	if t.shared.spi == nil {
+		t.shared.spi = createPTreeSerializedIterator(t.rootNode(), destructive)
+	}
+	return t.shared.spi
 }

@@ -90,6 +90,7 @@ func (c *coordinator) Stop() error {
 func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	c.bootstrappingLock.Lock()
 	defer c.bootstrappingLock.Unlock()
+	var sctx sif.StageContext
 
 	var wg sync.WaitGroup
 	waitCtx, cancel := context.WithTimeout(ctx, c.opts.WorkerJoinTimeout)
@@ -105,6 +106,9 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 	}
 	// now that worker connections are open, defer shutting them down
 	defer func() {
+		if sctx != nil {
+			sctx.Destroy()
+		}
 		// shutdown workers, since the job is done
 		waitCtx := context.Background()
 		if err = stopWorkers(waitCtx, workers, workerConns); err != nil {
@@ -155,9 +159,14 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			// run stage on each worker, blocking until stage is complete across the cluster
+			// create StageContext for coordinator
 			stage := planExecutor.GetNextStage()
-			sctx := createStageContext(ctx, stage)
+			sctx = createStageContext(ctx, stage)
+			err := planExecutor.InitStageContext(sctx, stage)
+			if err != nil {
+				return nil, err
+			}
+			// run stage on each worker, blocking until stage is complete across the cluster
 			log.Println("------------------------------")
 			log.Printf("Starting stage %d...", stage.ID())
 			prepCollect := stage.EndsInCollect()
@@ -275,11 +284,6 @@ func asyncAssignPartition(ctx context.Context, part sif.PartitionLoader, w *pb.M
 
 func asyncRunStage(sctx sif.StageContext, s itypes.Stage, w *pb.MWorkerDescriptor, conn *grpc.ClientConn, assignedBucket uint64, shuffleBuckets []uint64, workers []*pb.MWorkerDescriptor, wg *sync.WaitGroup, errors chan<- error) {
 	defer wg.Done()
-	err := s.WorkerInitialize(sctx)
-	if err != nil {
-		log.Printf("Something went wrong while running stage %d on worker %s: %e", s.ID(), w.Id, err)
-		errors <- err
-	}
 	// Trigger remote stage execution
 	log.Printf("Asking worker %s to run stage %d", w.Id, s.ID())
 	executionClient := pb.NewExecutionServiceClient(conn)
@@ -292,7 +296,7 @@ func asyncRunStage(sctx sif.StageContext, s itypes.Stage, w *pb.MWorkerDescripto
 		Buckets:        shuffleBuckets,
 		Workers:        workers,
 	}
-	_, err = executionClient.RunStage(sctx, req)
+	_, err := executionClient.RunStage(sctx, req)
 	if err != nil {
 		log.Printf("Something went wrong while running stage %d on worker %s: %e", s.ID(), w.Id, err)
 		errors <- err

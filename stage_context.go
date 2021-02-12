@@ -25,4 +25,5 @@ type StageContext interface {
 	SetCollectionLimit(limit int) error                      // Configure the CollectionLimit for the end of this stage
 	TargetPartitionSize() int                                // TargetPartitionSize returns the intended Partition maxSize for outgoing Partitions
 	SetTargetPartitionSize(TargetPartitionSize int) error    // SetTargetPartitionSize configures the intended Partition maxSize for outgoing Partitions
+	Destroy() error                                          // Destroys anything using a lot of memory or goroutines within this StageContext
 }

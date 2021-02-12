@@ -18,7 +18,7 @@ func (s *collectTask) Name() string {
 func (s *collectTask) RunInitialize(sctx sif.StageContext) error {
 	cache := sctx.PartitionCache()
 	if cache == nil {
-		return fmt.Errorf("Cannot initialize reduceTask: StageContext does not contain a PartitionCache")
+		return fmt.Errorf("Cannot initialize collectTask: StageContext does not contain a PartitionCache")
 	}
 	// populate StageContext with important configuration params
 	err := sctx.SetCollectionLimit(s.collectionLimit)

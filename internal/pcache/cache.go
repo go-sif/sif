@@ -74,7 +74,10 @@ func NewLRU(config *LRUConfig) sif.PartitionCache {
 func (c *lru) Destroy() {
 	c.globalLock.Lock()
 	defer c.globalLock.Unlock()
-	close(c.toDisk) // this will trigger the disk channel to be closed
+	if c.toDisk != nil {
+		close(c.toDisk) // this will trigger the disk channel to be closed
+		c.toDisk = nil
+	}
 }
 
 func (c *lru) CurrentSize() int {

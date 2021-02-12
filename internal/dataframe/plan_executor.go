@@ -36,6 +36,7 @@ type planExecutorImpl struct {
 	shuffleReady         sif.PartitionIndex
 	accumulateReady      sif.Accumulator
 	statsTracker         *stats.RunStatistics
+	pCache               sif.PartitionCache
 }
 
 // CreatePlanExecutor is a factory for planExecutors
@@ -77,6 +78,8 @@ func (pe *planExecutorImpl) Stop() {
 	defer pe.shuffleLock.Unlock()
 	if pe.shuffleReady != nil {
 		pe.shuffleReady.Destroy()
+	} else if pe.pCache != nil {
+		pe.pCache.Destroy()
 	}
 }
 
@@ -173,13 +176,13 @@ func (pe *planExecutorImpl) InitStageContext(sctx sif.StageContext, stage itypes
 	if pe.conf.CacheMemoryInitialSize == 0 {
 		pe.conf.CacheMemoryInitialSize = 32 * 1024 // pick a meaninglessly large number, as we'll use the memory high watermark to scale down
 	}
-	cache := pcache.NewLRU(&pcache.LRUConfig{
+	pe.pCache = pcache.NewLRU(&pcache.LRUConfig{
 		InitialSize: pe.conf.CacheMemoryInitialSize,
 		DiskPath:    pe.conf.TempFilePath,
 		Compressor:  pe.conf.PartitionCompressor,
 		Schema:      nextStageWidestInitialSchema,
 	})
-	sctx.SetPartitionCache(cache)
+	sctx.SetPartitionCache(pe.pCache)
 	// set up partition loaders for this stage, if it's the first stage
 	if pe.onFirstStage() && pe.hasPartitionLoaders() {
 		it := createPartitionLoaderIterator(pe.partitionLoaders, pe.plan.Parser(), pe.plan.GetStage(0).WidestInitialSchema())

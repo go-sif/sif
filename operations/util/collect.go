@@ -9,6 +9,7 @@ import (
 
 type collectTask struct {
 	collectionLimit int
+	collected       int
 }
 
 func (s *collectTask) Name() string {
@@ -26,6 +27,12 @@ func (s *collectTask) RunInitialize(sctx sif.StageContext) error {
 		return err
 	}
 	// initialize Map-based PartitionIndex for collection
+	// bucketFactory := func() sif.PartitionIndex {
+	// 	return hashmap.CreateMapPartitionIndex(cache, sctx.NextStageWidestInitialSchema())
+	// }
+	// buckets := sctx.ShuffleBuckets()
+	// bpi := bucketed.CreateBucketedPartitionIndex(buckets, bucketFactory, sctx.NextStageWidestInitialSchema())
+	// err = sctx.SetPartitionIndex(bpi)
 	err = sctx.SetPartitionIndex(hashmap.CreateMapPartitionIndex(cache, sctx.NextStageWidestInitialSchema()))
 	if err != nil {
 		return err
@@ -39,7 +46,7 @@ func (s *collectTask) RunWorker(sctx sif.StageContext, previous sif.OperablePart
 	if !ok {
 		return nil, fmt.Errorf("Partition is not reduceable")
 	}
-	if rpart.GetNumRows() > 0 && idx.CacheSize() < int(s.collectionLimit) {
+	if rpart.GetNumRows() > 0 && s.collected < s.collectionLimit {
 		// repack if any columns have been removed
 		if rpart.GetSchema().NumRemovedColumns() > 0 {
 			repackedSchema := rpart.GetSchema().Repack()
@@ -50,6 +57,7 @@ func (s *collectTask) RunWorker(sctx sif.StageContext, previous sif.OperablePart
 			rpart = repackedPart.(sif.ReduceablePartition)
 		}
 		idx.MergePartition(rpart, nil, nil)
+		s.collected++
 	}
 	return nil, nil
 }
@@ -65,7 +73,7 @@ func Collect(collectionLimit int) *sif.DataFrameOperation {
 				return nil, fmt.Errorf("Cannot collect() from a streaming DataSource")
 			}
 			return &sif.DataFrameOperationResult{
-				Task:       &collectTask{collectionLimit},
+				Task:       &collectTask{collectionLimit: collectionLimit},
 				DataSchema: d.GetSchema().Clone(),
 			}, nil
 		},

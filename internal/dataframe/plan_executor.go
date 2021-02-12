@@ -98,9 +98,6 @@ func (pe *planExecutorImpl) GetNextStage() itypes.Stage {
 	if pe.conf.Streaming {
 		pe.nextStage = pe.nextStage % pe.plan.Size()
 	}
-	pe.shuffleLock.Lock()
-	defer pe.shuffleLock.Unlock()
-	pe.shuffleReady = nil
 	return s
 }
 
@@ -203,7 +200,8 @@ func (pe *planExecutorImpl) InitStageContext(sctx sif.StageContext, stage itypes
 		if !ok {
 			return fmt.Errorf("PartitionIndex available as source for next Stage is not a BucketedPartitionIndex")
 		}
-		it := createPreloadingPartitionIterator(bpi.GetBucket(pe.assignedBucket).GetPartitionIterator(true), 3)
+		idx := bpi.GetBucket(pe.assignedBucket)
+		it := createPreloadingPartitionIterator(idx.GetPartitionIterator(true), 3)
 		if err := sctx.SetIncomingPartitionIterator(it); err != nil {
 			return err
 		}
@@ -270,20 +268,25 @@ func (pe *planExecutorImpl) AssignShuffleBucket(assignedBucket uint64) {
 
 // GetShufflePartitionIterator serves up an iterator for partitions to shuffle
 func (pe *planExecutorImpl) GetShufflePartitionIterator(bucket uint64) (sif.SerializedPartitionIterator, error) {
+	var idx sif.PartitionIndex
 	pe.shuffleLock.Lock()
 	defer pe.shuffleLock.Unlock()
 	if pe.shuffleReady == nil {
 		return nil, fmt.Errorf("No PartitionIndex available for shuffle")
 	}
+	// check if our index is a BucketedPartitionIndex
 	bpi, ok := pe.shuffleReady.(sif.BucketedPartitionIndex)
-	if !ok {
-		return nil, fmt.Errorf("PartitionIndex available for shuffle is not a BucketedPartitionIndex")
+	if ok {
+		// PartitionIndex available for shuffle is a BucketedPartitionIndex, so we must be reducing
+		idx = bpi.GetBucket(bucket)
+		if idx == nil {
+			return nil, fmt.Errorf("No PartitionIterator available for bucket %d", bucket)
+		}
+	} else {
+		// otherwise, we're collecting (there's just a single index with no buckets)
+		idx = pe.shuffleReady
 	}
-	pi := bpi.GetBucket(bucket)
-	if pi == nil {
-		return nil, fmt.Errorf("No PartitionIterator available for bucket %d", bucket)
-	}
-	return pi.GetSerializedPartitionIterator(true), nil
+	return idx.GetSerializedPartitionIterator(true), nil
 }
 
 // GetAccumulator returns this plan executor's Accumulator, if any

@@ -18,7 +18,7 @@ type BuildablePartition interface {
 	AppendRowData(row []byte, meta []byte, varData map[string]interface{}, serializedVarRowData map[string][]byte) error             // AppendRowData adds a Row to the end of this Partition, if it isn't full and if the Row fits within the schema
 	InsertRowData(row []byte, meta []byte, varRowData map[string]interface{}, serializedVarRowData map[string][]byte, pos int) error // InsertRowData inserts a Row at a specific position within this Partition, if it isn't full and if the Row fits within the schema. Other Rows are shifted as necessary.
 	TruncateRowData(numRows int)                                                                                                     // TruncateRowData zeroes out rows from the current last row towards the beginning of the Partition
-	CreateTempRow() Row                                                                                                              // Creates a temporary Row struct which is not backed by the underlying data model of this Partition, for use with other methods as an allocation efficiency booster
+	CreateTempRow() Row
 }
 
 // A KeyablePartition can be keyed. Used in the implementation of Partition shuffling and reduction

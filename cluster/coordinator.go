@@ -161,7 +161,11 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 		default:
 			// create StageContext for coordinator
 			stage := planExecutor.GetNextStage()
+			prepCollect := stage.EndsInCollect()
+			prepAccumulate := stage.EndsInAccumulate()
+			shuffleBuckets := computeShuffleBuckets(workers)
 			sctx = createStageContext(ctx, stage)
+			sctx.SetShuffleBuckets(shuffleBuckets)
 			err := planExecutor.InitStageContext(sctx, stage)
 			if err != nil {
 				return nil, err
@@ -169,9 +173,6 @@ func (c *coordinator) Run(ctx context.Context) (*Result, error) {
 			// run stage on each worker, blocking until stage is complete across the cluster
 			log.Println("------------------------------")
 			log.Printf("Starting stage %d...", stage.ID())
-			prepCollect := stage.EndsInCollect()
-			prepAccumulate := stage.EndsInAccumulate()
-			shuffleBuckets := computeShuffleBuckets(workers)
 			wg.Add(len(workers))
 			for i := range workers {
 				go asyncRunStage(sctx, stage, workers[i], workerConns[i], shuffleBuckets[i], shuffleBuckets, workers, &wg, asyncErrors)

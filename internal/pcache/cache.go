@@ -67,7 +67,7 @@ func NewLRU(config *LRUConfig) sif.PartitionCache {
 		toDisk:     make(chan *cachedPartition, transferChanSize),
 		tmpDir:     config.DiskPath,
 	}
-	go result.evictToDisk()
+	// go result.evictToDisk()
 	return result
 }
 

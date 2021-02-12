@@ -200,8 +200,8 @@ func (pe *planExecutorImpl) InitStageContext(sctx sif.StageContext, stage itypes
 		// we read from our assigned bucket, because that's the bucket which received partitions during
 		// the previous shuffle, and should be the only one with data in it
 		idx := bpi.GetBucket(pe.assignedBucket)
-		// it := createPreloadingPartitionIterator(idx.GetPartitionIterator(true), 3)
-		it := idx.GetPartitionIterator(true)
+		it := createPreloadingPartitionIterator(idx.GetPartitionIterator(true), 3)
+		// it := idx.GetPartitionIterator(true)
 		if err := sctx.SetIncomingPartitionIterator(it); err != nil {
 			return err
 		}

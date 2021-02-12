@@ -52,8 +52,10 @@ func createCache(schema sif.Schema, initialSize int) sif.PartitionCache {
 }
 
 func TestCreatePartitionTree(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	schema := createPTreeTestSchema()
 	cache := createCache(schema, 20)
+	cache.Destroy()
 	root := createPTreeNode(cache, 3, schema)
 	defer root.Destroy()
 
@@ -71,8 +73,10 @@ func TestCreatePartitionTree(t *testing.T) {
 }
 
 func TestMergeRow(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	schema := createPTreeTestSchema()
 	cache := createCache(schema, 20)
+	defer cache.Destroy()
 	root := createPTreeNode(cache, 3, schema)
 	defer root.Destroy()
 
@@ -148,8 +152,10 @@ func TestMergeRow(t *testing.T) {
 }
 
 func TestMergeRowWithSplit(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	schema := createPTreeTestSchema()
 	cache := createCache(schema, 20)
+	defer cache.Destroy()
 	root := createPTreeNode(cache, 3, schema)
 	defer root.Destroy()
 
@@ -180,8 +186,10 @@ func TestMergeRowWithSplit(t *testing.T) {
 }
 
 func TestMergeRowWithRotate(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	schema := createPTreeTestSchema()
 	cache := createCache(schema, 20)
+	defer cache.Destroy()
 	root := createPTreeNode(cache, 3, schema)
 	defer root.Destroy()
 	tempRow := partition.CreateTempRow()
@@ -236,6 +244,7 @@ func TestMergeRowWithRotate(t *testing.T) {
 }
 
 func TestDiskSwap(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	schema := schema.CreateSchema()
 	schema.CreateColumn("key", &sif.Uint32ColumnType{})
 	schema.CreateColumn("val", &sif.Uint32ColumnType{})
@@ -251,6 +260,7 @@ func TestDiskSwap(t *testing.T) {
 	}
 
 	cache := createCache(schema, 5)
+	defer cache.Destroy()
 	// each partition can store 2 rows
 	root := createPTreeNode(cache, 2, schema)
 	defer root.Destroy()
@@ -274,6 +284,7 @@ func TestDiskSwap(t *testing.T) {
 }
 
 func TestPartitionIterationDuringReduction(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	schema := schema.CreateSchema()
 	schema.CreateColumn("key", &sif.Uint32ColumnType{})
 	schema.CreateColumn("val", &sif.Uint32ColumnType{})
@@ -289,6 +300,7 @@ func TestPartitionIterationDuringReduction(t *testing.T) {
 	}
 
 	cache := createCache(schema, 5)
+	defer cache.Destroy()
 	// each partition can store 2 rows
 	root := createPTreeNode(cache, 2, schema)
 	defer root.Destroy()
@@ -333,6 +345,7 @@ func TestPartitionIterationDuringRepartition(t *testing.T) {
 	schema.CreateColumn("val", &sif.Uint32ColumnType{})
 
 	cache := createCache(schema, 10)
+	defer cache.Destroy()
 	// each partition can store 2 rows
 	root := createPTreeNode(cache, 2, schema)
 	defer root.Destroy()

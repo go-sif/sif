@@ -30,6 +30,7 @@ type lru struct {
 	tmpDir         string
 	hits           uint64
 	misses         uint64
+	evicterDone    sync.WaitGroup
 }
 
 type cachedPartition struct {
@@ -65,6 +66,7 @@ func NewLRU(config *LRUConfig) sif.PartitionCache {
 		toDisk:     make(chan *cachedPartition, transferChanSize),
 		tmpDir:     config.DiskPath,
 	}
+	result.evicterDone.Add(1)
 	go result.evictToDisk()
 	return result
 }
@@ -74,6 +76,8 @@ func (c *lru) Destroy() {
 	defer c.globalLock.Unlock()
 	if c.toDisk != nil {
 		close(c.toDisk) // this will trigger the disk channel to be closed
+		// make sure the eviction routine shuts down before returning
+		c.evicterDone.Wait()
 		c.toDisk = nil
 	}
 }
@@ -281,6 +285,9 @@ func (c *lru) getFromDisk(key string) (value sif.ReduceablePartition, err error)
 }
 
 func (c *lru) evictToDisk() {
+	defer func() {
+		c.evicterDone.Done()
+	}()
 	// log.Printf("Starting disk evictor")
 	for msg := range c.toDisk {
 		c.writePartitionToDisk(msg)

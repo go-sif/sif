@@ -48,7 +48,6 @@ func createCache(schema sif.Schema, initialSize int) sif.PartitionCache {
 		InitialSize: initialSize,
 		DiskPath:    os.TempDir(),
 		Compressor:  partition.NewLZ4PartitionCompressor(),
-		Schema:      schema,
 	})
 }
 

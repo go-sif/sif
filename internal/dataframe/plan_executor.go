@@ -54,6 +54,18 @@ func CreatePlanExecutor(ctx context.Context, plan itypes.Plan, conf *itypes.Plan
 		shuffleIterators: make(map[uint64]sif.SerializedPartitionIterator),
 		statsTracker:     statsTracker,
 	}
+	// create partition cache
+	if conf.CacheMemoryHighWatermark == 0 {
+		conf.CacheMemoryHighWatermark = 512 * 1024 * 1024 // 512MiB
+	}
+	if conf.CacheMemoryInitialSize == 0 {
+		conf.CacheMemoryInitialSize = 32 * 1024 // pick a meaninglessly large number, as we'll use the memory high watermark to scale down
+	}
+	executor.pCache = pcache.NewLRU(&pcache.LRUConfig{
+		InitialSize: conf.CacheMemoryInitialSize,
+		DiskPath:    conf.TempFilePath,
+		Compressor:  conf.PartitionCompressor,
+	})
 	if !isCoordinator {
 		monitorCtx, canceller := context.WithCancel(ctx)
 		executor.done = canceller
@@ -76,9 +88,7 @@ func (pe *planExecutorImpl) Stop() {
 	pe.done()
 	pe.shuffleLock.Lock()
 	defer pe.shuffleLock.Unlock()
-	if pe.shuffleReady != nil {
-		pe.shuffleReady.Destroy()
-	} else if pe.pCache != nil {
+	if pe.pCache != nil {
 		pe.pCache.Destroy()
 	}
 }
@@ -166,19 +176,6 @@ func (pe *planExecutorImpl) InitStageContext(sctx sif.StageContext, stage itypes
 	}
 	nextStageWidestInitialSchema := nextStage.WidestInitialSchema()
 	sctx.SetNextStageWidestInitialSchema(nextStageWidestInitialSchema)
-	// create partition cache
-	if pe.conf.CacheMemoryHighWatermark == 0 {
-		pe.conf.CacheMemoryHighWatermark = 512 * 1024 * 1024 // 512MiB
-	}
-	if pe.conf.CacheMemoryInitialSize == 0 {
-		pe.conf.CacheMemoryInitialSize = 32 * 1024 // pick a meaninglessly large number, as we'll use the memory high watermark to scale down
-	}
-	pe.pCache = pcache.NewLRU(&pcache.LRUConfig{
-		InitialSize: pe.conf.CacheMemoryInitialSize,
-		DiskPath:    pe.conf.TempFilePath,
-		Compressor:  pe.conf.PartitionCompressor,
-		Schema:      nextStageWidestInitialSchema,
-	})
 	sctx.SetPartitionCache(pe.pCache)
 	// set up partition loaders for this stage, if it's the first stage
 	if pe.onFirstStage() && pe.hasPartitionLoaders() {
@@ -200,8 +197,11 @@ func (pe *planExecutorImpl) InitStageContext(sctx sif.StageContext, stage itypes
 		if !ok {
 			return fmt.Errorf("PartitionIndex available as source for next Stage is not a BucketedPartitionIndex")
 		}
+		// we read from our assigned bucket, because that's the bucket which received partitions during
+		// the previous shuffle, and should be the only one with data in it
 		idx := bpi.GetBucket(pe.assignedBucket)
-		it := createPreloadingPartitionIterator(idx.GetPartitionIterator(true), 3)
+		// it := createPreloadingPartitionIterator(idx.GetPartitionIterator(true), 3)
+		it := idx.GetPartitionIterator(true)
 		if err := sctx.SetIncomingPartitionIterator(it); err != nil {
 			return err
 		}

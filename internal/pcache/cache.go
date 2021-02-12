@@ -22,6 +22,7 @@ type lru struct {
 	plocks         *locker.Locker
 	pmapLock       sync.Mutex
 	pmap           map[string]*list.Element
+	schemas        map[string]sif.Schema // TODO find a smarter way to do this. int Schema versions?
 	recentListLock sync.Mutex
 	recentList     *list.List // back is oldest, front is newest
 	size           int
@@ -41,7 +42,6 @@ type LRUConfig struct {
 	InitialSize int
 	DiskPath    string
 	Compressor  itypes.PartitionCompressor
-	Schema      sif.Schema
 }
 
 // NewLRU produces an LRU PartitionCache
@@ -49,9 +49,6 @@ func NewLRU(config *LRUConfig) sif.PartitionCache {
 	// validate parameters
 	if config.InitialSize < 5 {
 		log.Panicf("LRUConfig.InitialSize %d must be greater than 5", config.InitialSize)
-	}
-	if config.Schema == nil {
-		log.Panicf("Next stage schema is nil")
 	}
 	if config.Compressor == nil {
 		log.Panicf("Compressor is nil")
@@ -62,12 +59,13 @@ func NewLRU(config *LRUConfig) sif.PartitionCache {
 		config:     config,
 		plocks:     locker.New(),
 		pmap:       make(map[string]*list.Element),
+		schemas:    make(map[string]sif.Schema),
 		recentList: list.New(),
 		size:       config.InitialSize,
 		toDisk:     make(chan *cachedPartition, transferChanSize),
 		tmpDir:     config.DiskPath,
 	}
-	// go result.evictToDisk()
+	go result.evictToDisk()
 	return result
 }
 
@@ -146,6 +144,7 @@ func (c *lru) Add(key string, value sif.ReduceablePartition) {
 	// update the cache
 	c.pmapLock.Lock()
 	c.pmap[key] = e
+	c.schemas[key] = value.GetSchema()
 	defer c.pmapLock.Unlock()
 
 	// if we're full, trigger eviction
@@ -214,6 +213,7 @@ func (c *lru) getFromCache(key string) (value sif.ReduceablePartition, err error
 	defer c.pmapLock.Unlock()
 	ve, ok := c.pmap[key]
 	if ok {
+		delete(c.schemas, key)
 		delete(c.pmap, key)
 		c.recentListLock.Lock()
 		c.recentList.Remove(ve)
@@ -232,6 +232,7 @@ func (c *lru) loadCompressedFromDisk(key string, result *bytes.Buffer) error {
 		return fmt.Errorf("Unable to open disk-swapped partition %s: %e", tempFilePath, err)
 	}
 	defer func() {
+		delete(c.schemas, key)
 		err := f.Close()
 		if err != nil {
 			log.Printf("Unable to close file %s", tempFilePath)
@@ -257,6 +258,7 @@ func (c *lru) getFromDisk(key string) (value sif.ReduceablePartition, err error)
 		return nil, fmt.Errorf("Unable to open disk-swapped partition %s: %e", tempFilePath, err)
 	}
 	defer func() {
+		delete(c.schemas, key)
 		err := f.Close()
 		if err != nil {
 			log.Printf("Unable to close file %s", tempFilePath)
@@ -266,7 +268,11 @@ func (c *lru) getFromDisk(key string) (value sif.ReduceablePartition, err error)
 			log.Printf("Unable to remove file %s", tempFilePath)
 		}
 	}()
-	part, err := c.config.Compressor.Decompress(f, c.config.Schema)
+	schema, ok := c.schemas[key]
+	if !ok {
+		return nil, fmt.Errorf("Unable to locate schema for Partition %s", key)
+	}
+	part, err := c.config.Compressor.Decompress(f, schema)
 	if err != nil {
 		log.Panicf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
 	}

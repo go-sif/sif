@@ -58,5 +58,6 @@ func (m *pMap) ResizeCache(frac float64) bool {
 }
 
 func (m *pMap) Destroy() {
-	m.cache.Destroy()
+	m.ids = make([]string, 0)
+	// We can't destroy the underlying cache because it's shared.
 }

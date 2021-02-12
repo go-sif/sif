@@ -15,7 +15,7 @@ type PartitionIndex interface {
 	NumPartitions() uint64                                                                            // Returns the number of Partitions in this PartitionIndex
 	CacheSize() int                                                                                   // Returns the in-memory size (in Partitions) of the underlying PartitionCache
 	ResizeCache(frac float64) bool                                                                    // Resizes the underlying PartitionCache
-	Destroy()                                                                                         // Destroys the index, and underlying PartitionCache
+	Destroy()                                                                                         // Destroys the index
 }
 
 // A BucketedPartitionIndex is a PartitionIndex divided into buckets, which are indexed by uint64s

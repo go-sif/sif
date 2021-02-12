@@ -213,8 +213,9 @@ func (s *stageContextImpl) SetTargetPartitionSize(val int) error {
 
 func (s *stageContextImpl) Destroy() error {
 	if s.PartitionIndex() != nil {
-		s.PartitionIndex().Destroy() // destroying the index will destroy the cache, so no need to do both
-	} else if s.PartitionCache() != nil {
+		s.PartitionIndex().Destroy()
+	}
+	if s.PartitionCache() != nil {
 		s.PartitionCache().Destroy()
 	}
 	return nil

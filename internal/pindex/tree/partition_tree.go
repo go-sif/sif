@@ -393,7 +393,8 @@ func (t *pTreeNode) ResizeCache(frac float64) bool {
 }
 
 func (t *pTreeNode) Destroy() {
-	t.shared.partitionCache.Destroy()
+	// Nothing to destroy. We can't destroy the underlying cache because it's shared
+	// TODO traverse tree and eliminate nodes?
 }
 
 func (t *pTreeNode) GetPartitionIterator(destructive bool) sif.PartitionIterator {

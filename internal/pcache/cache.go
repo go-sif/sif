@@ -22,7 +22,7 @@ type lru struct {
 	plocks         *locker.Locker
 	pmapLock       sync.Mutex
 	pmap           map[string]*list.Element
-	schemas        map[string]sif.Schema // TODO find a smarter way to do this. int Schema versions?
+	schemas        map[string]sif.Schema // TODO serialize schema with partition so we don't have to cache it in-mem
 	recentListLock sync.Mutex
 	recentList     *list.List // back is oldest, front is newest
 	size           int

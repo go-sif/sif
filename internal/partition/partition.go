@@ -39,6 +39,9 @@ func createPartitionImpl(maxRows int, initialCapacity int, schema sif.Schema) *p
 	if initialCapacity > maxRows {
 		initialCapacity = maxRows
 	}
+	if initialCapacity < 0 {
+		panic("Initial capacity for partition cannot be negative")
+	}
 	return &partitionImpl{
 		id:                   id.String(),
 		maxRows:              maxRows,

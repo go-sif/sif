@@ -1,8 +1,6 @@
 package dataframe
 
 import (
-	"log"
-
 	"github.com/go-sif/sif"
 )
 
@@ -15,10 +13,6 @@ type stageImpl struct {
 	outgoingSchema      sif.Schema
 	widestInitialSchema sif.Schema
 	frames              []*dataFrameImpl
-	keyFn               sif.KeyingOperation
-	reduceFn            sif.ReductionOperation
-	accumulator         sif.Accumulator
-	targetPartitionSize int
 }
 
 // createStage is a factory for Stages, safely assigning deterministic IDs
@@ -29,10 +23,6 @@ func createStage(nextID int) *stageImpl {
 		outgoingSchema:      nil,
 		widestInitialSchema: nil,
 		frames:              []*dataFrameImpl{},
-		keyFn:               nil,
-		reduceFn:            nil,
-		accumulator:         nil,
-		targetPartitionSize: -1,
 	}
 	nextID++
 	return s
@@ -58,15 +48,24 @@ func (s *stageImpl) WidestInitialSchema() sif.Schema {
 	return s.widestInitialSchema
 }
 
+func (s *stageImpl) WorkerInitialize(sctx sif.StageContext) error {
+	for _, frame := range s.frames {
+		if err := frame.workerInitialize(sctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // workerExecute runs a stage against a Partition of data, returning
 // the modified Partition (which may have been modified in-place, filtered,
 // Or turned into multiple Partitions)
-func (s *stageImpl) WorkerExecute(part sif.OperablePartition) ([]sif.OperablePartition, error) {
+func (s *stageImpl) WorkerExecute(sctx sif.StageContext, part sif.OperablePartition) ([]sif.OperablePartition, error) {
 	var prev = []sif.OperablePartition{part}
 	for _, frame := range s.frames {
 		next := make([]sif.OperablePartition, 0, len(prev))
 		for _, p := range prev {
-			out, err := frame.workerExecuteTask(p)
+			out, err := frame.workerExecuteTask(sctx, p)
 			if err != nil {
 				// TODO wrapping this error breaks multierror type checking
 				// return nil, fmt.Errorf("Error in task %s of stage %s:\n%w", frame.taskType, s.id, err)
@@ -92,56 +91,4 @@ func (s *stageImpl) EndsInShuffle() bool {
 // EndsInCollect returns true iff this Stage represents a collect task
 func (s *stageImpl) EndsInCollect() bool {
 	return len(s.frames) > 0 && s.frames[len(s.frames)-1].taskType == sif.CollectTaskType
-}
-
-// GetCollectionLimit returns the maximum number of Partitions to collect
-func (s *stageImpl) GetCollectionLimit() int32 {
-	if !s.EndsInCollect() {
-		return 0
-	}
-	cTask, ok := s.frames[len(s.frames)-1].task.(collectionTask)
-	if !ok {
-		log.Panicf("taskType is collect but Task is not a collectionTask")
-	}
-	return cTask.GetCollectionLimit()
-}
-
-// KeyingOperation retrieves the KeyingOperation for this Stage (if it exists)
-func (s *stageImpl) KeyingOperation() sif.KeyingOperation {
-	return s.keyFn
-}
-
-// Configure the keying operation for the end of this stage
-func (s *stageImpl) SetKeyingOperation(keyFn sif.KeyingOperation) {
-	s.keyFn = keyFn
-}
-
-// ReductionOperation retrieves the ReductionOperation for this Stage (if it exists)
-func (s *stageImpl) ReductionOperation() sif.ReductionOperation {
-	return s.reduceFn
-}
-
-// Configure the reduction operation for the end of this stage
-func (s *stageImpl) SetReductionOperation(reduceFn sif.ReductionOperation) {
-	s.reduceFn = reduceFn
-}
-
-// Accumulator retrieves the Accumulator for this Stage (if it exists)
-func (s *stageImpl) Accumulator() sif.Accumulator {
-	return s.accumulator
-}
-
-// Configure the accumulator for the end of this stage
-func (s *stageImpl) SetAccumulator(acc sif.Accumulator) {
-	s.accumulator = acc
-}
-
-// TargetPartitionSize retrieves the TargetPartitionSize for this Stage (if it exists)
-func (s *stageImpl) TargetPartitionSize() int {
-	return s.targetPartitionSize
-}
-
-// Configure the reduction operation for the end of this stage
-func (s *stageImpl) SetTargetPartitionSize(targetPartitionSize int) {
-	s.targetPartitionSize = targetPartitionSize
 }

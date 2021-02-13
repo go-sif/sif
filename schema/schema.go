@@ -59,8 +59,12 @@ func CreateSchema() sif.Schema {
 	}
 }
 
-// Equals returns true iff this and another Schema are equivalent
+// Equals returns nil iff this and another Schema are equivalent
 func (s *schema) Equals(otherSchema sif.Schema) error {
+	// check reference equality first, since that's easiest
+	if s == otherSchema {
+		return nil
+	}
 	if s.Size() != otherSchema.Size() {
 		return fmt.Errorf("Schemas have unequal sizes")
 	}

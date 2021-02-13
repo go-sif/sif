@@ -6,6 +6,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cespare/xxhash"
+	"github.com/go-sif/sif"
+	itypes "github.com/go-sif/sif/internal/types"
 )
 
 // CreateAsyncErrorChannel produces a channel for errors
@@ -64,4 +68,21 @@ func FormatMultiError(merrs []error) string {
 		msg += fmt.Sprintf("%+v\n", merrs[i])
 	}
 	return msg
+}
+
+// KeyColumns is a shortcut for defining a KeyingOperation which uses multiple source
+// column values to produce a compound key.
+func KeyColumns(colNames ...string) sif.KeyingOperation {
+	return func(row sif.Row) ([]byte, error) {
+		irow := row.(itypes.AccessibleRow) // access row internals
+		hasher := xxhash.New()
+		for _, cname := range colNames {
+			data, err := irow.GetColData(cname)
+			if err != nil {
+				return nil, err
+			}
+			hasher.Write(data)
+		}
+		return hasher.Sum(nil), nil
+	}
 }

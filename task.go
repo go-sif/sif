@@ -3,5 +3,6 @@ package sif
 // A Task is an action or transformation applied
 // to Partitions of columnar data.
 type Task interface {
-	RunWorker(previous OperablePartition) ([]OperablePartition, error)
+	RunInitialize(sctx StageContext) error
+	RunWorker(sctx StageContext, previous OperablePartition) ([]OperablePartition, error)
 }

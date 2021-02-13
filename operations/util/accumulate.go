@@ -8,18 +8,25 @@ type accumulateTask struct {
 	acc sif.Accumulator
 }
 
-func (s *accumulateTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+// RunInitialize populates the StateContext with an Accumulator
+func (s *accumulateTask) RunInitialize(sctx sif.StageContext) error {
+	// populate StageContext with accumulator
+	if err := sctx.SetAccumulator(s.acc); err != nil {
+		return err
+	}
+	return nil
+}
+
+// RunWorker performs accumulation of incoming OperablePartitions
+func (s *accumulateTask) RunWorker(sctx sif.StageContext, previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+	acc := sctx.Accumulator()
 	_, err := previous.MapRows(func(row sif.Row) error {
-		return s.acc.Accumulate(row)
+		return acc.Accumulate(row)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return []sif.OperablePartition{previous}, nil
-}
-
-func (s *accumulateTask) GetAccumulator() sif.Accumulator {
-	return s.acc
+	return nil, nil
 }
 
 // Accumulate is an alternative reduction technique, which siphons data from

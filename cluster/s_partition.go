@@ -73,9 +73,9 @@ func (s *partitionServer) ShuffleAccumulator(ctx context.Context, req *pb.MShuff
 	if !s.planExecutor.IsAccumulatorReady() {
 		return &pb.MShuffleAccumulatorResponse{Ready: false}, nil
 	}
-	acc := s.planExecutor.GetAccumulator()
-	if acc == nil {
-		return nil, fmt.Errorf("Accumulator marked as ready, but is not available")
+	acc, err := s.planExecutor.GetAccumulator()
+	if err != nil {
+		return nil, err
 	}
 	serializedAccumulator, err := acc.ToBytes()
 	s.serializedAccumulator = serializedAccumulator

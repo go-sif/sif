@@ -79,7 +79,7 @@ testvall: build testenv
 
 cover: build testenv
 	@echo "Running tests with coverage..."
-	@go-acc -o cover.out ./... -- -p 1 -count=1
+	@go-acc --ignore rpc -o cover.out ./... -- -p 1 -count=1
 	@go tool cover -html=cover.out -o cover.html
 
 edsm: build testenv

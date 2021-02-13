@@ -5,8 +5,7 @@ import (
 
 	"github.com/go-sif/sif"
 	errors "github.com/go-sif/sif/errors"
-	itypes "github.com/go-sif/sif/internal/types"
-	"github.com/go-sif/sif/operations/transform"
+	"github.com/go-sif/sif/internal/util"
 	"github.com/go-sif/sif/schema"
 	"github.com/stretchr/testify/require"
 )
@@ -224,7 +223,7 @@ func TestSerialization(t *testing.T) {
 	// create partition
 	schema := createPartitionTestSchema()
 	schema.CreateColumn("col2", &sif.VarStringColumnType{})
-	var part itypes.ReduceablePartition
+	var part sif.ReduceablePartition
 	part = createPartitionImpl(8, 2, schema)
 	// append rows
 	tempRow := &rowImpl{}
@@ -396,27 +395,27 @@ func TestKeyColumns(t *testing.T) {
 	}
 
 	for i := 0; i < 4; i++ {
-		key1, err := transform.KeyColumns("col1", "col2", "col3")(part1.GetRow(i))
+		key1, err := util.KeyColumns("col1", "col2", "col3")(part1.GetRow(i))
 		require.Nil(t, err)
-		key2, err := transform.KeyColumns("col1", "col2", "col3")(part2.GetRow(i))
+		key2, err := util.KeyColumns("col1", "col2", "col3")(part2.GetRow(i))
 		require.Nil(t, err)
 		require.Equal(t, key1, key2)
 	}
 
 	// Keys for different values shouldn't be equal
 	for i := 0; i < 4; i++ {
-		key1, err := transform.KeyColumns("col1", "col2", "col3")(part1.GetRow(i))
+		key1, err := util.KeyColumns("col1", "col2", "col3")(part1.GetRow(i))
 		require.Nil(t, err)
-		key2, err := transform.KeyColumns("col1", "col2", "col3")(part2.GetRow(3 - i))
+		key2, err := util.KeyColumns("col1", "col2", "col3")(part2.GetRow(3 - i))
 		require.Nil(t, err)
 		require.NotEqual(t, key1, key2)
 	}
 
 	// Order matters
 	for i := 0; i < 4; i++ {
-		key1, err := transform.KeyColumns("col2", "col1", "col3")(part1.GetRow(i))
+		key1, err := util.KeyColumns("col2", "col1", "col3")(part1.GetRow(i))
 		require.Nil(t, err)
-		key2, err := transform.KeyColumns("col1", "col2", "col3")(part2.GetRow(i))
+		key2, err := util.KeyColumns("col1", "col2", "col3")(part2.GetRow(i))
 		require.Nil(t, err)
 		require.NotEqual(t, key1, key2)
 	}

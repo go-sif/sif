@@ -8,7 +8,6 @@ import (
 	"github.com/go-sif/sif"
 	"github.com/go-sif/sif/errors"
 	"github.com/go-sif/sif/internal/partition"
-	"github.com/go-sif/sif/internal/pcache"
 	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/go-sif/sif/internal/util"
 )
@@ -17,9 +16,12 @@ type pTreeShared struct {
 	// configuration
 	maxRows         int
 	nextStageSchema sif.Schema
-	partitionCache  pcache.PartitionCache
+	partitionCache  sif.PartitionCache
 	// statistics
 	numParts uint64
+	// iterators
+	pi  sif.PartitionIterator
+	spi sif.SerializedPartitionIterator
 }
 
 // pTreeNode is a node of a tree that builds, sorts and organizes keyed partitions. NOT THREAD SAFE.
@@ -39,24 +41,12 @@ type pTreeNode struct {
 type pTreeRoot = pTreeNode
 
 // CreateTreePartitionIndex creates a new tree-based PartitionIndex suitable for reduction
-func CreateTreePartitionIndex(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) itypes.PartitionIndex {
-	return createPTreeNode(conf, maxRows, nextStageSchema)
+func CreateTreePartitionIndex(cache sif.PartitionCache, maxRows int, nextStageSchema sif.Schema) sif.PartitionIndex {
+	return createPTreeNode(cache, maxRows, nextStageSchema)
 }
 
 // createPTreeNode creates a new pTree with a limit on Partition size and a given shared Schema
-func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSchema sif.Schema) *pTreeNode {
-	if conf.CacheMemoryHighWatermark == 0 {
-		conf.CacheMemoryHighWatermark = 512 * 1024 * 1024 // 512MiB
-	}
-	if conf.CacheMemoryInitialSize == 0 {
-		conf.CacheMemoryInitialSize = 32 * 1024 // pick a meaninglessly large number, as we'll use the memory high watermark to scale down
-	}
-	cache := pcache.NewLRU(&pcache.LRUConfig{
-		InitialSize: conf.CacheMemoryInitialSize,
-		DiskPath:    conf.TempFilePath,
-		Compressor:  conf.PartitionCompressor,
-		Schema:      nextStageSchema,
-	})
+func createPTreeNode(cache sif.PartitionCache, maxRows int, nextStageSchema sif.Schema) *pTreeNode {
 	// create initial partition for root node
 	part := partition.CreateReduceablePartition(maxRows, nextStageSchema)
 	part.KeyRows(nil)
@@ -77,12 +67,16 @@ func createPTreeNode(conf *itypes.PlanExecutorConfig, maxRows int, nextStageSche
 	}
 }
 
+func (t *pTreeRoot) SetMaxRows(maxRows int) {
+	t.shared.maxRows = maxRows
+}
+
 func (t *pTreeRoot) GetNextStageSchema() sif.Schema {
 	return t.shared.nextStageSchema
 }
 
 // MergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
-func (t *pTreeRoot) MergePartition(part itypes.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
+func (t *pTreeRoot) MergePartition(part sif.BuildablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	tempRow := partition.CreateTempRow()
 	return part.ForEachRow(func(row sif.Row) error {
 		if err := t.MergeRow(tempRow, row, keyfn, reducefn); err != nil {
@@ -192,7 +186,7 @@ func (t *pTreeRoot) doMergeRow(tempRow sif.Row, row sif.Row, hashedKey uint64, r
 // two nodes (left & right). Fails if all the rows in the current pTreeNode
 // have an identical key, in which case a split achieves nothing.
 // PRECONDITION: part is already loaded and locked
-func balancedSplitNode(t *pTreeNode, part itypes.ReduceablePartition, hashedKey uint64) (uint64, *pTreeNode, error) {
+func balancedSplitNode(t *pTreeNode, part sif.ReduceablePartition, hashedKey uint64) (uint64, *pTreeNode, error) {
 	avgKey, lp, rp, err := part.BalancedSplit()
 	if err != nil {
 		// this is where we end up if all the keys are the same
@@ -341,7 +335,7 @@ func (t *pTreeNode) fetchSerializedPartition(result *bytes.Buffer) error {
 	return nil
 }
 
-func (t *pTreeNode) loadPartition() (itypes.ReduceablePartition, func(), error) {
+func (t *pTreeNode) loadPartition() (sif.ReduceablePartition, func(), error) {
 	if len(t.partID) == 0 {
 		return nil, nil, fmt.Errorf("Partition tree node does not have an associated partition\n %s", util.GetTrace())
 	}
@@ -375,6 +369,14 @@ func (t *pTreeRoot) firstNode() *pTreeNode {
 	return first
 }
 
+// rootNode returns the root node in the tree
+func (t *pTreeNode) rootNode() *pTreeNode {
+	root := t
+	for ; root.parent != nil; root = root.parent {
+	}
+	return root
+}
+
 func (t *pTreeNode) NumPartitions() uint64 {
 	return t.shared.numParts
 }
@@ -394,13 +396,20 @@ func (t *pTreeNode) ResizeCache(frac float64) bool {
 }
 
 func (t *pTreeNode) Destroy() {
-	t.shared.partitionCache.Destroy()
+	// Nothing to destroy. We can't destroy the underlying cache because it's shared
+	// TODO traverse tree and eliminate nodes?
 }
 
 func (t *pTreeNode) GetPartitionIterator(destructive bool) sif.PartitionIterator {
-	return createPTreeIterator(t, destructive)
+	if t.shared.pi == nil {
+		t.shared.pi = createPTreeIterator(t.rootNode(), destructive)
+	}
+	return t.shared.pi
 }
 
-func (t *pTreeNode) GetSerializedPartitionIterator(destructive bool) itypes.SerializedPartitionIterator {
-	return createPTreeSerializedIterator(t, destructive)
+func (t *pTreeNode) GetSerializedPartitionIterator(destructive bool) sif.SerializedPartitionIterator {
+	if t.shared.spi == nil {
+		t.shared.spi = createPTreeSerializedIterator(t.rootNode(), destructive)
+	}
+	return t.shared.spi
 }

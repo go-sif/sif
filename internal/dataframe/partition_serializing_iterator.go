@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/go-sif/sif"
-	itypes "github.com/go-sif/sif/internal/types"
 	"github.com/pierrec/lz4"
 )
 
@@ -17,7 +16,8 @@ type partitionSerializingIterator struct {
 	reusableReadBuffer *bytes.Buffer
 }
 
-func createPartitionSerializingIterator(parts sif.PartitionIterator) itypes.SerializedPartitionIterator {
+// CreatePartitionSerializingIterator converts a PartitionIterator to one which serializes Partitions on the fly
+func CreatePartitionSerializingIterator(parts sif.PartitionIterator) sif.SerializedPartitionIterator {
 	compressor := lz4.NewWriter(new(bytes.Buffer))
 	return &partitionSerializingIterator{
 		iterator:           parts,
@@ -40,7 +40,7 @@ func (psi *partitionSerializingIterator) NextSerializedPartition() (id string, s
 			done()
 		}
 	}()
-	rpart, ok := part.(itypes.ReduceablePartition)
+	rpart, ok := part.(sif.ReduceablePartition)
 	if !ok {
 		return "", nil, func() {}, fmt.Errorf("Cannot serialize Partition which is not a ReduceablePartition")
 	}

@@ -26,7 +26,7 @@ func createPreloadingPartitionIterator(iterator sif.PartitionIterator, preloadCo
 	result := &preloadingPartitionIterator{
 		iterator: iterator,
 		pchan:    make(chan *preloadedPartition, preloadCount),
-		errChan:  make(chan error),
+		errChan:  make(chan error, preloadCount),
 	}
 	go result.loadPartitions()
 	return result
@@ -47,6 +47,7 @@ func (ppi *preloadingPartitionIterator) NextPartition() (part sif.Partition, unl
 	ppi.lock.Lock()
 	defer ppi.lock.Unlock()
 	// check for errors (unblocking)
+	// TODO this is broken if the first partition returns an error
 	select {
 	case loadErr := <-ppi.errChan:
 		close(ppi.errChan)
@@ -74,6 +75,9 @@ func (ppi *preloadingPartitionIterator) loadPartitions() {
 		part, unlock, err := ppi.iterator.NextPartition()
 		if err != nil {
 			ppi.errChan <- err
+			ppi.lock.Lock()
+			ppi.finishedLoading = true
+			ppi.lock.Unlock()
 			break
 		}
 		ppi.pchan <- &preloadedPartition{
@@ -82,9 +86,6 @@ func (ppi *preloadingPartitionIterator) loadPartitions() {
 		}
 	}
 	close(ppi.pchan) // safe to close buffered channel
-	ppi.lock.Lock()
-	ppi.finishedLoading = true
-	ppi.lock.Unlock()
 }
 
 func (ppi *preloadingPartitionIterator) doEnd() {

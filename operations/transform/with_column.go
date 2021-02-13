@@ -7,8 +7,12 @@ import (
 // addColumnTask is a task that does nothing
 type addColumnTask struct{}
 
+func (s *addColumnTask) RunInitialize(sctx sif.StageContext) error {
+	return nil
+}
+
 // RunWorker for addColumnTask does nothing
-func (s *addColumnTask) RunWorker(previous sif.OperablePartition) ([]sif.OperablePartition, error) {
+func (s *addColumnTask) RunWorker(sctx sif.StageContext, previous sif.OperablePartition) ([]sif.OperablePartition, error) {
 	return []sif.OperablePartition{previous}, nil
 }
 

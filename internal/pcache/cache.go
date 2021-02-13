@@ -22,6 +22,7 @@ type lru struct {
 	plocks         *locker.Locker
 	pmapLock       sync.Mutex
 	pmap           map[string]*list.Element
+	schemas        map[string]sif.Schema // TODO serialize schema with partition so we don't have to cache it in-mem
 	recentListLock sync.Mutex
 	recentList     *list.List // back is oldest, front is newest
 	size           int
@@ -29,11 +30,12 @@ type lru struct {
 	tmpDir         string
 	hits           uint64
 	misses         uint64
+	evicterDone    sync.WaitGroup
 }
 
 type cachedPartition struct {
 	key   string
-	value itypes.ReduceablePartition
+	value sif.ReduceablePartition
 }
 
 // LRUConfig configures an LRU PartitionCache
@@ -41,17 +43,13 @@ type LRUConfig struct {
 	InitialSize int
 	DiskPath    string
 	Compressor  itypes.PartitionCompressor
-	Schema      sif.Schema
 }
 
 // NewLRU produces an LRU PartitionCache
-func NewLRU(config *LRUConfig) PartitionCache {
+func NewLRU(config *LRUConfig) sif.PartitionCache {
 	// validate parameters
 	if config.InitialSize < 5 {
 		log.Panicf("LRUConfig.InitialSize %d must be greater than 5", config.InitialSize)
-	}
-	if config.Schema == nil {
-		log.Panicf("Next stage schema is nil")
 	}
 	if config.Compressor == nil {
 		log.Panicf("Compressor is nil")
@@ -62,11 +60,13 @@ func NewLRU(config *LRUConfig) PartitionCache {
 		config:     config,
 		plocks:     locker.New(),
 		pmap:       make(map[string]*list.Element),
+		schemas:    make(map[string]sif.Schema),
 		recentList: list.New(),
 		size:       config.InitialSize,
 		toDisk:     make(chan *cachedPartition, transferChanSize),
 		tmpDir:     config.DiskPath,
 	}
+	result.evicterDone.Add(1)
 	go result.evictToDisk()
 	return result
 }
@@ -74,7 +74,12 @@ func NewLRU(config *LRUConfig) PartitionCache {
 func (c *lru) Destroy() {
 	c.globalLock.Lock()
 	defer c.globalLock.Unlock()
-	close(c.toDisk) // this will trigger the disk channel to be closed
+	if c.toDisk != nil {
+		close(c.toDisk) // this will trigger the disk channel to be closed
+		// make sure the eviction routine shuts down before returning
+		c.evicterDone.Wait()
+		c.toDisk = nil
+	}
 }
 
 func (c *lru) CurrentSize() int {
@@ -124,7 +129,7 @@ func (c *lru) Resize(frac float64) bool {
 	return true
 }
 
-func (c *lru) Add(key string, value itypes.ReduceablePartition) {
+func (c *lru) Add(key string, value sif.ReduceablePartition) {
 	c.globalLock.Lock()
 	defer c.globalLock.Unlock()
 	c.plocks.Lock(key)
@@ -143,6 +148,7 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 	// update the cache
 	c.pmapLock.Lock()
 	c.pmap[key] = e
+	c.schemas[key] = value.GetSchema()
 	defer c.pmapLock.Unlock()
 
 	// if we're full, trigger eviction
@@ -158,7 +164,7 @@ func (c *lru) Add(key string, value itypes.ReduceablePartition) {
 }
 
 // Get removes the partition from the caches and returns it, if present. Returns an error otherwise.
-func (c *lru) Get(key string) (itypes.ReduceablePartition, error) {
+func (c *lru) Get(key string) (sif.ReduceablePartition, error) {
 	// defer func() {
 	// 	log.Printf("Hits: %d | Misses: %d", c.hits, c.misses)
 	// }()
@@ -206,11 +212,12 @@ func (c *lru) GetSerialized(key string, result *bytes.Buffer) error {
 }
 
 // getFromCache removes the partition from the uncompressed cache and returns it, if present
-func (c *lru) getFromCache(key string) (value itypes.ReduceablePartition, err error) {
+func (c *lru) getFromCache(key string) (value sif.ReduceablePartition, err error) {
 	c.pmapLock.Lock()
 	defer c.pmapLock.Unlock()
 	ve, ok := c.pmap[key]
 	if ok {
+		delete(c.schemas, key)
 		delete(c.pmap, key)
 		c.recentListLock.Lock()
 		c.recentList.Remove(ve)
@@ -229,6 +236,7 @@ func (c *lru) loadCompressedFromDisk(key string, result *bytes.Buffer) error {
 		return fmt.Errorf("Unable to open disk-swapped partition %s: %e", tempFilePath, err)
 	}
 	defer func() {
+		delete(c.schemas, key)
 		err := f.Close()
 		if err != nil {
 			log.Printf("Unable to close file %s", tempFilePath)
@@ -247,13 +255,14 @@ func (c *lru) loadCompressedFromDisk(key string, result *bytes.Buffer) error {
 }
 
 // getFromCache removes the partition from the disk cache and returns it, if present
-func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err error) {
+func (c *lru) getFromDisk(key string) (value sif.ReduceablePartition, err error) {
 	tempFilePath := path.Join(c.tmpDir, key)
 	f, err := os.Open(tempFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to open disk-swapped partition %s: %e", tempFilePath, err)
 	}
 	defer func() {
+		delete(c.schemas, key)
 		err := f.Close()
 		if err != nil {
 			log.Printf("Unable to close file %s", tempFilePath)
@@ -263,7 +272,11 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 			log.Printf("Unable to remove file %s", tempFilePath)
 		}
 	}()
-	part, err := c.config.Compressor.Decompress(f, c.config.Schema)
+	schema, ok := c.schemas[key]
+	if !ok {
+		return nil, fmt.Errorf("Unable to locate schema for Partition %s", key)
+	}
+	part, err := c.config.Compressor.Decompress(f, schema)
 	if err != nil {
 		log.Panicf("Unable to decompress disk-swapped partition %s: %e", tempFilePath, err)
 	}
@@ -272,6 +285,9 @@ func (c *lru) getFromDisk(key string) (value itypes.ReduceablePartition, err err
 }
 
 func (c *lru) evictToDisk() {
+	defer func() {
+		c.evicterDone.Done()
+	}()
 	// log.Printf("Starting disk evictor")
 	for msg := range c.toDisk {
 		c.writePartitionToDisk(msg)

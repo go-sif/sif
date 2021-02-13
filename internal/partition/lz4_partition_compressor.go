@@ -32,7 +32,7 @@ func NewLZ4PartitionCompressor() itypes.PartitionCompressor {
 }
 
 // Compress serializes and compresses partition data to a write stream
-func (lz4ps *LZ4PartitionCompressor) Compress(w io.Writer, part itypes.ReduceablePartition) error {
+func (lz4ps *LZ4PartitionCompressor) Compress(w io.Writer, part sif.ReduceablePartition) error {
 	lz4ps.lock.Lock()
 	defer lz4ps.lock.Unlock()
 	bytes, err := part.ToBytes()
@@ -52,7 +52,7 @@ func (lz4ps *LZ4PartitionCompressor) Compress(w io.Writer, part itypes.Reduceabl
 }
 
 // Decompress decompresses and deserializes partition data from a read stream
-func (lz4ps *LZ4PartitionCompressor) Decompress(r io.Reader, schema sif.Schema) (itypes.ReduceablePartition, error) {
+func (lz4ps *LZ4PartitionCompressor) Decompress(r io.Reader, schema sif.Schema) (sif.ReduceablePartition, error) {
 	lz4ps.lock.Lock()
 	defer lz4ps.lock.Unlock()
 	lz4ps.decompressor.Reset(r)

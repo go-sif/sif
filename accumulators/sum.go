@@ -28,7 +28,7 @@ func (a *Sum) GetSum() float64 {
 
 // Accumulate adds a row to this Accumulator
 func (a *Sum) Accumulate(row sif.Row) error {
-	offset, err := row.Schema().GetOffset(a.colName)
+	offset, err := row.Schema().GetColumn(a.colName)
 	if err != nil {
 		return err
 	}

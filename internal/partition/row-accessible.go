@@ -29,7 +29,7 @@ func (r *rowImpl) GetSchema() sif.Schema {
 
 // GetColData retrives raw bytes for a column
 func (r *rowImpl) GetColData(colName string) ([]byte, error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return nil, err
 	}

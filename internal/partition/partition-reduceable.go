@@ -270,7 +270,7 @@ func (p *partitionImpl) ToBytes() ([]byte, error) {
 				svrd[k].RowData[uint32(i)] = nil
 				continue
 			}
-			if col, err := p.schema.GetOffset(k); err == nil {
+			if col, err := p.schema.GetColumn(k); err == nil {
 				if vcol, ok := col.Type().(sif.VarColumnType); ok {
 					sdata, err := vcol.Serialize(v)
 					if err != nil {

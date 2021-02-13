@@ -74,7 +74,7 @@ func (r *rowImpl) ToString() string {
 
 // IsNil returns true iff the given column value is nil in this row. If an error occurs, this function will return false.
 func (r *rowImpl) IsNil(colName string) bool {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		return false
 	}
@@ -87,7 +87,7 @@ func (r *rowImpl) IsNil(colName string) bool {
 
 // SetNil sets the given column value to nil within this row
 func (r *rowImpl) SetNil(colName string) error {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ func (r *rowImpl) SetNotNil(offset sif.Column) {
 
 // Get returns the value of any column as an interface{}, if it exists
 func (r *rowImpl) Get(colName string) (col interface{}, err error) {
-	offset, err := r.Schema().GetOffset(colName)
+	offset, err := r.Schema().GetColumn(colName)
 	if err != nil {
 		return nil, err
 	} else if sif.IsVariableLength(offset.Type()) {
@@ -172,7 +172,7 @@ func (r *rowImpl) Get(colName string) (col interface{}, err error) {
 
 // GetByte retrieves a single byte from the column with the given name.
 func (r *rowImpl) GetByte(colName string) (col byte, err error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return
 	}
@@ -186,7 +186,7 @@ func (r *rowImpl) GetByte(colName string) (col byte, err error) {
 
 // GetBytes retrieves a multiple byte from the column with the given name.
 func (r *rowImpl) GetBytes(colName string) (col []byte, err error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return
 	}
@@ -200,7 +200,7 @@ func (r *rowImpl) GetBytes(colName string) (col []byte, err error) {
 
 // GetBool retrieves a single bool from the column with the given name.
 func (r *rowImpl) GetBool(colName string) (col bool, err error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return
 	}
@@ -214,7 +214,7 @@ func (r *rowImpl) GetBool(colName string) (col bool, err error) {
 
 // GetUint8 retrieves a single uint8 from the column with the given name.
 func (r *rowImpl) GetUint8(colName string) (col uint8, err error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return
 	}
@@ -228,7 +228,7 @@ func (r *rowImpl) GetUint8(colName string) (col uint8, err error) {
 
 // GetUint16 retrieves a single uint16 from the column with the given name
 func (r *rowImpl) GetUint16(colName string) (col uint16, err error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return
 	}
@@ -242,7 +242,7 @@ func (r *rowImpl) GetUint16(colName string) (col uint16, err error) {
 
 // GetUint32 retrieves a single uint32 from the column with the given name
 func (r *rowImpl) GetUint32(colName string) (col uint32, err error) {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		err = e
 		return
@@ -257,7 +257,7 @@ func (r *rowImpl) GetUint32(colName string) (col uint32, err error) {
 
 // GetUint64 retrieves a single uint64 from the column with the given name
 func (r *rowImpl) GetUint64(colName string) (col uint64, err error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return
 	}
@@ -271,7 +271,7 @@ func (r *rowImpl) GetUint64(colName string) (col uint64, err error) {
 
 // GetInt8 retrieves a single int8 from the column with the given name
 func (r *rowImpl) GetInt8(colName string) (col int8, err error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return
 	}
@@ -358,7 +358,7 @@ func (r *rowImpl) GetString(colName string) (string, error) {
 
 // GetVarCustomData retrieves variable-length data of a custom type from the column with the given name
 func (r *rowImpl) GetVarCustomData(colName string) (interface{}, error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +414,7 @@ func (r *rowImpl) GetVarString(colName string) (col string, err error) {
 
 // SetByte modifies a single byte from the column with the given name.
 func (r *rowImpl) SetByte(colName string, value byte) (err error) {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		err = e
 		return
@@ -426,7 +426,7 @@ func (r *rowImpl) SetByte(colName string, value byte) (err error) {
 
 // SetBytes overwrites multiple byte from the column with the given name.
 func (r *rowImpl) SetBytes(colName string, value []byte) (err error) {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		err = e
 		return
@@ -441,7 +441,7 @@ func (r *rowImpl) SetBytes(colName string, value []byte) (err error) {
 
 // SetBool modifies a single bool from the column with the given name.
 func (r *rowImpl) SetBool(colName string, value bool) (err error) {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		err = e
 		return
@@ -457,7 +457,7 @@ func (r *rowImpl) SetBool(colName string, value bool) (err error) {
 
 // SetUint8 modifies a single uint8 from the column with the given name.
 func (r *rowImpl) SetUint8(colName string, value uint8) (err error) {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		err = e
 		return
@@ -469,7 +469,7 @@ func (r *rowImpl) SetUint8(colName string, value uint8) (err error) {
 
 // SetUint16 modifies a single uint16 from the column with the given name.
 func (r *rowImpl) SetUint16(colName string, value uint16) (err error) {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		err = e
 		return
@@ -483,7 +483,7 @@ func (r *rowImpl) SetUint16(colName string, value uint16) (err error) {
 
 // SetUint32 modifies a single uint32 from the column with the given name.
 func (r *rowImpl) SetUint32(colName string, value uint32) (err error) {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		err = e
 		return
@@ -497,7 +497,7 @@ func (r *rowImpl) SetUint32(colName string, value uint32) (err error) {
 
 // SetUint64 modifies a single uint64 from the column with the given name.
 func (r *rowImpl) SetUint64(colName string, value uint64) (err error) {
-	offset, e := r.schema.GetOffset(colName)
+	offset, e := r.schema.GetColumn(colName)
 	if e != nil {
 		err = e
 		return
@@ -556,7 +556,7 @@ func (r *rowImpl) SetString(colName string, value string) (err error) {
 
 // SetVarCustomData stores variable-length data of a custom type in this Row
 func (r *rowImpl) SetVarCustomData(colName string, value interface{}) (err error) {
-	offset, err := r.schema.GetOffset(colName)
+	offset, err := r.schema.GetColumn(colName)
 	if err != nil {
 		return
 	}
@@ -590,7 +590,7 @@ func (r *rowImpl) Repack(newSchema sif.Schema) (sif.Row, error) {
 			return nil
 		}
 		// otherwise, copy old values
-		oldCol, err := r.schema.GetOffset(name)
+		oldCol, err := r.schema.GetColumn(name)
 		if err != nil {
 			return err
 		}

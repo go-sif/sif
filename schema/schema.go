@@ -75,7 +75,7 @@ func (s *schema) Equals(otherSchema sif.Schema) error {
 		return fmt.Errorf("Schemas have unequal numbers of variable-length columns")
 	}
 	return s.ForEachColumn(func(name string, offset sif.Column) error {
-		otherOffset, err := otherSchema.GetOffset(name)
+		otherOffset, err := otherSchema.GetColumn(name)
 		if err != nil {
 			return err
 		}
@@ -182,8 +182,8 @@ func (s *schema) Repack() (newSchema sif.Schema) {
 	return
 }
 
-// GetOffset returns the byte offset of a particular column within a row.
-func (s *schema) GetOffset(colName string) (offset sif.Column, err error) {
+// GetColumn returns the byte offset of a particular column within a row.
+func (s *schema) GetColumn(colName string) (offset sif.Column, err error) {
 	offset, ok := s.schema[colName]
 	if !ok {
 		err = fmt.Errorf("Schema does not contain column with name %s", colName)
@@ -193,7 +193,7 @@ func (s *schema) GetOffset(colName string) (offset sif.Column, err error) {
 
 // HasColumn returns true iff this schema contains a column with the given name
 func (s *schema) HasColumn(colName string) bool {
-	_, err := s.GetOffset(colName)
+	_, err := s.GetColumn(colName)
 	return err == nil
 }
 
@@ -219,7 +219,7 @@ func (s *schema) RenameColumn(oldName string, newName string) (newSchema sif.Sch
 	if s.IsMarkedForRemoval(oldName) {
 		return nil, fmt.Errorf("Cannot rename removed column %s", oldName)
 	}
-	_, err = s.GetOffset(oldName)
+	_, err = s.GetColumn(oldName)
 	if err == nil {
 		s.schema[newName] = s.schema[oldName]
 		delete(s.schema, oldName)

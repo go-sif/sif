@@ -48,7 +48,7 @@ func (b *bucketed) GetNextStageSchema() sif.Schema {
 	return b.nextStageSchema
 }
 
-func (b *bucketed) ReducePartition(part sif.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
+func (b *bucketed) MergePartition(part sif.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
 	var multierr *multierror.Error
 	// merge rows into our trees
 	i := 0
@@ -75,10 +75,6 @@ func (b *bucketed) ReducePartition(part sif.ReduceablePartition, keyfn sif.Keyin
 		return err
 	}
 	return multierr.ErrorOrNil()
-}
-
-func (b *bucketed) MergePartition(part sif.BuildablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
-	panic("not implemented") // TODO: Implement
 }
 
 func (b *bucketed) MergeRow(tempRow sif.Row, row sif.Row, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {

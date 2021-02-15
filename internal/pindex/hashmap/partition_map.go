@@ -28,8 +28,8 @@ func (m *pMap) GetNextStageSchema() sif.Schema {
 	return m.nextStageSchema
 }
 
-func (m *pMap) MergePartition(part sif.BuildablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
-	m.cache.Add(part.ID(), part.(sif.ReduceablePartition))
+func (m *pMap) MergePartition(part sif.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
+	m.cache.Add(part.ID(), part)
 	m.ids = append(m.ids, part.ID())
 	return nil
 }

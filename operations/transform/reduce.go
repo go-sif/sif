@@ -82,8 +82,8 @@ func (s *reduceTask) RunWorker(sctx sif.StageContext, previous sif.OperableParti
 		rpart = repackedPart.(sif.ReduceablePartition)
 	}
 	// merge partition into the index
-	bpi, _ := sctx.PartitionIndex().(sif.BucketedPartitionIndex) // we know this is a safe access and cast because we're setting this ourselves and it can't be changed once set
-	err = bpi.ReducePartition(rpart, sctx.KeyingOperation(), sctx.ReductionOperation())
+	pi := sctx.PartitionIndex()
+	err = pi.MergePartition(rpart, sctx.KeyingOperation(), sctx.ReductionOperation())
 	if err != nil {
 		return nil, err
 	}

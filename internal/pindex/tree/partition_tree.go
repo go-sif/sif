@@ -3,6 +3,7 @@ package tree
 import (
 	"bytes"
 	"fmt"
+	"math"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/go-sif/sif"
@@ -75,15 +76,41 @@ func (t *pTreeRoot) GetNextStageSchema() sif.Schema {
 	return t.shared.nextStageSchema
 }
 
-// MergePartition merges the Rows from a given Partition into matching Rows within this pTree, using a KeyingOperation and a ReductionOperation, inserting if necessary
-func (t *pTreeRoot) MergePartition(part sif.BuildablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
-	tempRow := partition.CreateTempRow()
-	return part.ForEachRow(func(row sif.Row) error {
-		if err := t.MergeRow(tempRow, row, keyfn, reducefn); err != nil {
+// MergePartition merges the Rows from a given Partition into matching Rows
+// within this pTree, using a KeyingOperation and a ReductionOperation,
+// inserting if necessary. More efficient than MergeRow, as it finds the
+// relevant subtree of pTreeRoot *once* and then merges all rows into it
+func (t *pTreeRoot) MergePartition(part sif.ReduceablePartition, keyfn sif.KeyingOperation, reducefn sif.ReductionOperation) error {
+	// only repeat keying work if the partition isn't keyed yet
+	if !part.GetIsKeyed() {
+		kpart, err := part.KeyRows(keyfn)
+		if err != nil {
 			return err
 		}
-		return nil
-	})
+		part, _ = kpart.(sif.ReduceablePartition)
+	}
+	// Now that the partition is keyed, we don't need to repeat that work AND
+	// we can located the optimal subtree to use for merging each row, rather
+	// than searching the whole tree for every row in part.
+	tempRow := partition.CreateTempRow()
+	minKey := uint64(math.MaxUint64)
+	maxKey := uint64(0)
+	for _, k := range part.GetKeyRange(0, part.GetNumRows()) {
+		if k < minKey {
+			minKey = k
+		}
+		if k > maxKey {
+			maxKey = k
+		}
+	}
+	subtree := t.findSubtree(minKey, maxKey)
+	for i := 0; i < part.GetNumRows(); i++ {
+		hashedKey, _ := part.GetKey(i) // we already know the part is keyed, so we can ignore the error
+		if err := subtree.doMergeRow(tempRow, part.GetRow(i), hashedKey, reducefn); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // MergeRow merges a single Row into the matching Row within this pTree, using a KeyingOperation
@@ -351,11 +378,23 @@ func (t *pTreeNode) loadPartition() (sif.ReduceablePartition, func(), error) {
 	}, nil
 }
 
+// findPartition locates the node where the given key belongs
 func (t *pTreeNode) findPartition(hashedKey uint64) *pTreeNode {
 	if t.left != nil && hashedKey < t.k {
 		return t.left.findPartition(hashedKey)
 	} else if t.right != nil && hashedKey >= t.k {
 		return t.right.findPartition(hashedKey)
+	} else {
+		return t
+	}
+}
+
+// findSubtree locates the subtree of this pTree which contains both supplied keys
+func (t *pTreeNode) findSubtree(minKey uint64, maxKey uint64) *pTreeNode {
+	if t.left != nil && minKey < t.k && maxKey < t.k {
+		return t.left.findSubtree(minKey, maxKey)
+	} else if t.right != nil && minKey > t.k && maxKey > t.k {
+		return t.right.findSubtree(minKey, maxKey)
 	} else {
 		return t
 	}
